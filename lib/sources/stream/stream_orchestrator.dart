@@ -101,13 +101,15 @@ Future<HttpGetResult> defaultHttpGet(
   return HttpGetResult(response.statusCode, body: bytes, headers: out);
 });
 
+enum AudioQuality { high, normal, saver }
+
 /// Resolves a videoId to a validated audio stream with client fallback.
 class StreamOrchestrator {
   StreamOrchestrator({
     PlayerPost? post,
     HttpGet? get,
     List<PlayerClient>? clients,
-    this.preferMp4a = false,
+    this.quality = AudioQuality.high,
     DateTime Function()? now,
   }) : _post = post ?? defaultPlayerPost,
        _get = get ?? defaultHttpGet,
@@ -128,7 +130,7 @@ class StreamOrchestrator {
     YouTubeFailure.other,
   ];
 
-  final bool preferMp4a;
+  AudioQuality quality;
   final PlayerPost _post;
   final HttpGet _get;
   final List<PlayerClient> _clients;
@@ -463,28 +465,39 @@ class StreamOrchestrator {
                 (!strictDub || track['audioIsDefault'] == true)));
   }
 
-  /// Quality, channels, codec, bitrate: larger is better.
+  /// Compared descending; order depends on [quality].
   List<int> _rank(Map<String, dynamic> f) {
     final mime = '${f['mimeType']}';
-    final opus = mime.contains('opus') ? 2 : 0;
-    final mp4a = mime.contains('mp4a') ? 1 : 0;
-    return [
-      switch (f['audioQuality']) {
-        'AUDIO_QUALITY_HIGH' => 3,
-        'AUDIO_QUALITY_MEDIUM' => 2,
-        'AUDIO_QUALITY_LOW' => 1,
-        _ => 0,
-      },
-      _int(f['audioChannels']) ?? 2,
-      preferMp4a
-          ? (opus > 0
-                ? 1
-                : mp4a > 0
-                ? 2
-                : 0)
-          : opus + mp4a,
-      _int(f['bitrate']) ?? 0,
-    ];
+    final opus = mime.contains('opus');
+    final mp4a = mime.contains('mp4a');
+    final bitrate = _int(f['bitrate']) ?? 0;
+    return switch (quality) {
+      AudioQuality.high => [
+        switch (f['audioQuality']) {
+          'AUDIO_QUALITY_HIGH' => 3,
+          'AUDIO_QUALITY_MEDIUM' => 2,
+          'AUDIO_QUALITY_LOW' => 1,
+          _ => 0,
+        },
+        _int(f['audioChannels']) ?? 2,
+        opus
+            ? 2
+            : mp4a
+            ? 1
+            : 0,
+        bitrate,
+      ],
+      AudioQuality.normal => [
+        bitrate <= 140000 ? 1 : 0,
+        mp4a
+            ? 2
+            : opus
+            ? 1
+            : 0,
+        bitrate,
+      ],
+      AudioQuality.saver => [opus ? 1 : 0, -bitrate],
+    };
   }
 
   static int? _int(Object? v) => v is num ? v.toInt() : int.tryParse('$v');

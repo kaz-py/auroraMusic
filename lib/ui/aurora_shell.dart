@@ -62,6 +62,7 @@ import 'spotify_auto_add.dart';
 import 'spotify_browser_panel.dart';
 import '../metadata/youtube_match.dart';
 import '../sources/innertube_source.dart';
+import '../sources/stream/stream_orchestrator.dart' show AudioQuality;
 export 'artwork.dart';
 import 'spotify_import_dialog.dart';
 import 'spotify_match_dialog.dart';
@@ -2560,6 +2561,28 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             ),
             value: c.autoRefill,
             onChanged: c.setAutoRefill,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Calidad de audio',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (q, label) in const [
+                (AudioQuality.high, 'Alta'),
+                (AudioQuality.normal, 'Normal'),
+                (AudioQuality.saver, 'Ahorro de datos'),
+              ])
+                _chip(label, c.audioQuality == q, () => c.setAudioQuality(q)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Alta: Opus ~160 kbps. Normal: AAC ~128 kbps. Ahorro de datos: ~50 kbps. Se aplica desde la siguiente canción que se cargue.',
           ),
         ],
       ),

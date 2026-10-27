@@ -48,10 +48,13 @@ Map<String, dynamic> _status(String status, [String reason = '']) => {
 };
 
 class _Harness {
-  _Harness({List<PlayerClient> clients = const [_a, _b], bool mp4a = false}) {
+  _Harness({
+    List<PlayerClient> clients = const [_a, _b],
+    AudioQuality quality = AudioQuality.high,
+  }) {
     orch = StreamOrchestrator(
       clients: clients,
-      preferMp4a: mp4a,
+      quality: quality,
       now: () => now,
       post: (url, headers, body) async {
         final client =
@@ -255,10 +258,10 @@ void main() {
   group('format selection', () {
     Future<int> pick(
       List<Map<String, dynamic>> formats, {
-      bool mp4a = false,
+      AudioQuality quality = AudioQuality.high,
       int? sameItag,
     }) async {
-      final h = _Harness(mp4a: mp4a)..respond = (_, _) => _ok(formats);
+      final h = _Harness(quality: quality)..respond = (_, _) => _ok(formats);
       return (await h.orch.resolve('v', sameItag: sameItag)).itag;
     }
 
@@ -299,10 +302,17 @@ void main() {
       expect(await pick([_fmt(251, bitrate: 50), _fmt(250, bitrate: 90)]), 250);
     });
 
-    test('preferMp4a inverts the codec preference', () async {
-      final formats = [_fmt(140, mime: mp4), _fmt(251)];
-      expect(await pick(formats, mp4a: true), 140);
+    test('quality picks the itag per preset', () async {
+      final formats = [
+        _fmt(140, mime: mp4, bitrate: 130000),
+        _fmt(251, bitrate: 160000),
+        _fmt(250, bitrate: 70000),
+        _fmt(249, bitrate: 50000),
+        _fmt(139, mime: mp4, bitrate: 48000),
+      ];
       expect(await pick(formats), 251);
+      expect(await pick(formats, quality: AudioQuality.normal), 140);
+      expect(await pick(formats, quality: AudioQuality.saver), 249);
     });
 
     test('skips dubbed audio tracks', () async {
