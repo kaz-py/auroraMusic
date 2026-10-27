@@ -5,6 +5,7 @@ import 'package:aurora_music/ui/queue_panel.dart';
 import 'package:aurora_music/ui/studio/studio_transport.dart';
 import 'package:aurora_music/core/source_backend.dart';
 import 'package:aurora_music/ui/follow_widgets.dart';
+import 'package:aurora_music/ui/home_music_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -221,7 +222,26 @@ void main() {
     expect(find.byTooltip('Buscar música'), findsNothing);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Buscar música'), findsOneWidget);
+    expect(find.byType(HomeMusicPage), findsOneWidget);
+  });
+
+  testWidgets('back from another section ignores a hidden search detail', (
+    tester,
+  ) async {
+    final controller = await pumpPhone(tester);
+    controller.searchDetail = const SearchEntry(
+      kind: SearchKind.artists,
+      browseId: 'UC1',
+      title: 'Artista',
+    );
+    await tester.tap(find.byTooltip('Buscar música'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Biblioteca').last);
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(controller.searchDetail, isNotNull);
+    expect(find.byTooltip('Volver a los resultados'), findsOneWidget);
   });
 }
 

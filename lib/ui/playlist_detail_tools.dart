@@ -72,10 +72,14 @@ class PlaylistDetailTools extends StatefulWidget {
     required this.tracks,
     required this.onPlay,
     required this.builder,
+    this.header,
   });
   final List<Track> tracks;
   final void Function(List<Track> visible) onPlay;
   final Widget Function(List<Track> visible, bool canReorder) builder;
+
+  /// Cabecera de la lista; sigue visible cuando el filtro no deja canciones.
+  final Widget? header;
 
   @override
   State<PlaylistDetailTools> createState() => _PlaylistDetailToolsState();
@@ -175,7 +179,20 @@ class _PlaylistDetailToolsState extends State<PlaylistDetailTools> {
           ),
           Expanded(
             child: visible.isEmpty
-                ? const Center(child: Text('Ninguna canción coincide'))
+                ? widget.header == null
+                      ? const Center(child: Text('Ninguna canción coincide'))
+                      : ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          children: [
+                            widget.header!,
+                            const SizedBox(
+                              height: 200,
+                              child: Center(
+                                child: Text('Ninguna canción coincide'),
+                              ),
+                            ),
+                          ],
+                        )
                 : widget.builder(visible, plain),
           ),
         ],

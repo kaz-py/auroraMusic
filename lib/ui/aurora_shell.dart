@@ -441,7 +441,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   }
 
   bool _handleBack(AppController c) {
-    if (c.searchDetail != null) {
+    if (_section == 1 && c.searchDetail != null) {
       c.openSearchEntry(null);
       return true;
     }
@@ -851,6 +851,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
+        // La página de YouTube Music gestiona su propio atrás.
+        if (_section == 10 && _musicKey.currentState != null) return;
         if (!_handleBack(c)) SystemNavigator.pop();
       },
       child: shell,
@@ -2043,7 +2045,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 .whereType<Track>()
                 .toList();
       final header = Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -2140,6 +2142,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       );
       if (items.isEmpty) {
         return ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           children: [
             header,
             SizedBox(
@@ -2160,6 +2163,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       return PlaylistDetailTools(
         tracks: items,
         onPlay: (v) => c.playTrack(v.first, context: v),
+        header: header,
         builder: (v, canReorder) => playlist == null || !canReorder
             ? ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
