@@ -214,7 +214,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   MusicPlaylist? _playlist;
   bool _likesSelected = false;
   final List<int> _backStack = [];
-  bool _poppingBack = false;
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
   late final AudioBackend _audio;
@@ -395,7 +394,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _jamChanged();
   }
 
-  Future<void> _navigate(int value, {bool fromRequest = false}) async {
+  Future<void> _navigate(
+    int value, {
+    bool fromRequest = false,
+    bool recordBack = true,
+  }) async {
     if (value == 10 &&
         !fromRequest &&
         ref.read(controllerProvider).usesOfficialYouTubeMusic) {
@@ -417,11 +420,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       setState(() {
         if (value == 0) {
           _backStack.clear();
-        } else if (value != _section && !_poppingBack) {
+        } else if (value != _section && recordBack) {
           _backStack.add(_section);
           if (_backStack.length > 20) _backStack.removeAt(0);
         }
-        _poppingBack = false;
         _section = value;
         if (value == 9) _jamVisited = true;
         _musicVisited = value == 10;
@@ -451,8 +453,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       return true;
     }
     if (_backStack.isNotEmpty) {
-      _poppingBack = true;
-      _navigate(_backStack.removeLast());
+      _navigate(_backStack.removeLast(), recordBack: false);
       return true;
     }
     if (_section != 0) {
