@@ -855,6 +855,7 @@ class SlushPlayerScreen extends StatelessWidget {
     required this.onToggleCassette,
     required this.cassette,
     this.onSection,
+    this.onBack,
   });
   final AppController controller;
   final Track? track;
@@ -863,6 +864,9 @@ class SlushPlayerScreen extends StatelessWidget {
   final VoidCallback onToggleCassette;
   final bool cassette;
   final ValueChanged<int>? onSection;
+
+  /// Flecha atrás del móvil; por defecto vuelve a Inicio.
+  final VoidCallback? onBack;
 
   String get _source => track == null
       ? 'Nada sonando'
@@ -1155,7 +1159,7 @@ class SlushPlayerScreen extends StatelessWidget {
                           children: [
                             circle(
                               Icons.arrow_back_rounded,
-                              () => onSection?.call(0),
+                              onBack ?? () => onSection?.call(0),
                               'Volver',
                             ),
                             Expanded(child: Center(child: _nowPlaying())),
