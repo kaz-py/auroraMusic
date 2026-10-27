@@ -83,18 +83,12 @@ const _discoveryGenres = [
   'bossa nova',
 ];
 
-const _classicQueries = [
-  'éxitos de siempre',
-  'greatest hits all time',
-  'clásicos inolvidables',
-  'best songs ever',
-];
-
 /// Fuentes de candidatos con metadatos de Spotify, ya emparejados con YouTube
 /// Music por [matcher] (cada candidato trae un videoId reproducible):
 ///  * adjacent: artistas del género que más escuchas (que no sean los tuyos);
-///  * discovery: un género fuera de tu burbuja;
-///  * classics: playlist de clásicos;
+///    sin género conocido no aporta nada (buscar por nombre se salía del
+///    perfil);
+///  * discovery: un género fuera de tu burbuja (cuota mínima en la mezcla);
 ///  * similar: lo más popular de tus artistas favoritos.
 List<RecSource> spotifyRecSources({
   required SpotifyCatalog catalog,
@@ -172,13 +166,11 @@ List<RecSource> spotifyRecSources({
     RecSource(RecBucket.adjacent, (ctx, want) async {
       final rnd = rndOf(ctx);
       final genres = tasteTop(profileOf(ctx), 'g:', 3);
+      if (genres.isEmpty) return const [];
       final profile = profileOf(ctx);
-      final names = genres.isNotEmpty
-          ? await catalog.artistsForGenre(genres[rnd.nextInt(genres.length)])
-          : [
-              for (final a in tasteTop(profile, 'a:', 1))
-                ...await catalog.artistsForGenre(a),
-            ];
+      final names = await catalog.artistsForGenre(
+        genres[rnd.nextInt(genres.length)],
+      );
       final mine = known(ctx);
       final others =
           names.where((n) => !mine.contains(n.toLowerCase())).toList()
@@ -212,19 +204,6 @@ List<RecSource> spotifyRecSources({
         known(ctx),
         RecBucket.discovery,
         'Descubrimiento',
-        math.min(want, maxMatches),
-        rnd,
-      );
-    }),
-    RecSource(RecBucket.classics, (ctx, want) async {
-      final rnd = rndOf(ctx);
-      return resolve(
-        await catalog.playlistTracks(
-          _classicQueries[rnd.nextInt(_classicQueries.length)],
-        ),
-        const {},
-        RecBucket.classics,
-        'Un clásico imprescindible',
         math.min(want, maxMatches),
         rnd,
       );

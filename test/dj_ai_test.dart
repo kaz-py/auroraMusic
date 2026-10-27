@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/dj/ai_dj.dart';
+import 'package:aurora_music/dj/coherence.dart';
 import 'package:aurora_music/dj/recommendations.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:drift/native.dart';
@@ -116,6 +117,47 @@ void main() {
         djIsSkip(const Duration(seconds: 90), const Duration(minutes: 3)),
         isFalse,
       );
+    });
+
+    test('events: 3 partes (antiguo) y 4 con artista', () {
+      final old = DjEvent.decode('s|123|id')!;
+      expect(old.trackId, 'id');
+      expect(old.artist, '');
+      final withArtist = DjEvent.decode('s|123|id|artista')!;
+      expect(withArtist.trackId, 'id');
+      expect(withArtist.artist, 'artista');
+      final event = DjEvent(
+        DjSignal.complete,
+        'yt:x',
+        DateTime.fromMillisecondsSinceEpoch(5),
+        artist: 'a|b',
+      );
+      expect(DjEvent.decode(event.encode())!.artist, 'ab');
+    });
+
+    test('rankDjCandidates con coherencia: afín antes que sin relación', () {
+      final related = song('rel', artist: 'B');
+      final unrelated = song('unr', artist: 'Z');
+      final picks = rankDjCandidates(
+        candidates: [
+          DjCandidate(unrelated, 'z', prior: 0.9),
+          DjCandidate(related, 'b', prior: 0.1),
+        ],
+        profile: List.filled(djVectorDims, 0),
+        limit: 2,
+        coherence: CoherenceContext(artists: ['A'], neighbors: ['B']),
+      );
+      expect(picks.first.track.id, related.id);
+      final strict = rankDjCandidates(
+        candidates: [
+          DjCandidate(unrelated, 'z', prior: 0.9),
+          DjCandidate(related, 'b', prior: 0.1),
+        ],
+        profile: List.filled(djVectorDims, 0),
+        limit: 1,
+        coherence: CoherenceContext(artists: ['A'], neighbors: ['B']),
+      );
+      expect(strict.map((r) => r.track.id), [related.id]);
     });
 
     test('discovery queries come from the profile and do not repeat', () {

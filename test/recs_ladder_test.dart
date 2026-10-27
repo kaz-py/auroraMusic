@@ -62,8 +62,9 @@ void main() {
       sources: [
         RecSource(RecBucket.discovery, (c, n) async {
           calls++;
+          // 1.ª pasada escasa; la escalera («fuentes x3») trae más.
           return [
-            for (var i = 0; i < (n > 4 ? 14 : 1); i++)
+            for (var i = 0; i < (calls > 1 ? 14 : 1); i++)
               DjCandidate(tr('s$i', 'Fuente $i'), '', prior: 0.5),
           ];
         }),

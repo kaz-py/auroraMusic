@@ -145,6 +145,26 @@ class LfmParser {
     for (final a in _list(_at(j, 'similarartists', 'artist')))
       if (a['name'] is String) a['name'] as String,
   ];
+
+  /// Etiquetas que no describen un género.
+  static const _noiseTags = {
+    'seen live',
+    'favorites',
+    'favourites',
+    'favorite',
+    'love',
+    'awesome',
+    'beautiful',
+  };
+
+  /// Hasta 5 etiquetas de género (minúsculas, `count >= 10`).
+  static List<String> artistTopTags(Object? j) => [
+    for (final t in _list(_at(j, 'toptags', 'tag')))
+      if (t['name'] is String &&
+          _int(t['count']) >= 10 &&
+          !_noiseTags.contains((t['name'] as String).trim().toLowerCase()))
+        (t['name'] as String).trim().toLowerCase(),
+  ].take(5).toList();
 }
 
 extension LastfmReads on LastfmClient {
@@ -164,6 +184,14 @@ extension LastfmReads on LastfmClient {
           'artist': artist,
           'autocorrect': '1',
           'limit': '10',
+        }),
+      );
+
+  Future<List<String>> artistTopTags(String artist) async =>
+      LfmParser.artistTopTags(
+        await request('artist.getTopTags', {
+          'artist': artist,
+          'autocorrect': '1',
         }),
       );
 

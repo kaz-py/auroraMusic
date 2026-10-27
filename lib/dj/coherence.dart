@@ -1,9 +1,17 @@
 // Coherencia de un candidato con los gustos/semilla: compara el ARTISTA, nunca
-// el título. Baja la puntuación en vez de rechazar; el rechazo duro solo es
-// para el caso inequívoco (artista distinto y el nombre del artista semilla
-// aparece únicamente en el título) y el llamador jamás vacía el pool con él.
+// el título. Mismo artista > colaboración > artista afín (vecindario) > mismo
+// género > sin relación. El rechazo duro solo es para el caso inequívoco
+// (artista distinto, sin género ni vecindario en común, y el nombre del
+// artista semilla aparece únicamente en el título) y el llamador jamás vacía
+// el pool con él.
+import 'dart:math' as math;
+
 import '../core/models.dart';
 import 'ai_dj.dart';
+
+/// Por debajo de esto un candidato no se considera relacionado con la semilla
+/// (mismo artista, colaboración, artista afín o mismo género sí lo están).
+const djRelatedThreshold = 0.55;
 
 const _accents = {
   'á': 'a',
@@ -71,6 +79,7 @@ class CoherenceContext {
   CoherenceContext({
     Iterable<String> artists = const [],
     Iterable<String> genres = const [],
+    Iterable<String> neighbors = const [],
     Map<String, Iterable<String>> aliases = const {},
     this.decade,
   }) : artists = {
@@ -78,6 +87,10 @@ class CoherenceContext {
            if (coherenceNorm(a).isNotEmpty) coherenceNorm(a),
        },
        genres = {for (final g in genres) g.trim().toLowerCase()},
+       neighbors = {
+         for (final a in neighbors)
+           if (coherenceNorm(a).isNotEmpty) coherenceNorm(a),
+       },
        aliases = {
          for (final e in aliases.entries)
            coherenceNorm(e.key): {for (final a in e.value) coherenceNorm(a)},
@@ -87,10 +100,13 @@ class CoherenceContext {
   final Set<String> artists;
   final Set<String> genres;
 
+  /// Artistas afines a la semilla (vecindario, normalizados).
+  final Set<String> neighbors;
+
   /// Alias conocidos: nombre → otros nombres del mismo artista (opcional).
   final Map<String, Set<String>> aliases;
   final int? decade;
-  bool get isEmpty => artists.isEmpty && genres.isEmpty;
+  bool get isEmpty => artists.isEmpty && genres.isEmpty && neighbors.isEmpty;
 
   bool knows(String artist) =>
       artists.contains(artist) ||
@@ -132,7 +148,12 @@ CoherenceResult scoreCoherence(
     for (final g in [...t.genres, ...genres]) g.trim().toLowerCase(),
   };
   final sharedGenre = cg.any(ctx.genres.contains);
-  var score = sharedGenre ? 0.55 : 0.4;
+  final neighbor = artists.any(ctx.neighbors.contains);
+  var score = neighbor
+      ? 0.75
+      : sharedGenre
+      ? 0.60
+      : 0.25;
   if (decade != null && ctx.decade != null) {
     score += (decade - ctx.decade!).abs() <= 10 ? 0.05 : -0.05;
   }
@@ -140,16 +161,70 @@ CoherenceResult scoreCoherence(
   // aparece como palabras del título, pero el artista es otro.
   final title = ' ${coherenceNorm(t.title)} ';
   final named = ctx.artists.any((a) => a.length >= 2 && title.contains(' $a '));
+  final related = sharedGenre || neighbor;
   if (named) {
     return CoherenceResult(
-      sharedGenre ? score - 0.2 : 0.05,
+      related ? score - 0.2 : 0.05,
       'Solo el título coincide con un artista tuyo',
-      hardReject: !sharedGenre,
+      hardReject: !related,
     );
   }
   return CoherenceResult(
     score.clamp(0.0, 1.0),
-    sharedGenre ? 'Mismo género' : 'Artista sin relación conocida',
+    neighbor
+        ? 'Artista afín'
+        : sharedGenre
+        ? 'Mismo género'
+        : 'Artista sin relación conocida',
+  );
+}
+
+/// Puerta de coherencia común al motor y al DJ. Lo relacionado (puntuación
+/// >= [djRelatedThreshold]) entra siempre; lo demás, sin rechazos duros, solo
+/// para completar [limit] puestos. Cada artista cuenta como mucho [artistCap]
+/// puestos (la diversidad posterior no admite más) y en el corte entran todos
+/// los empatados. Nunca devuelve vacío si [items] no lo estaba.
+({List<T> kept, bool relaxed}) coherenceGate<T>(
+  List<T> items, {
+  required CoherenceResult Function(T item) result,
+  required String Function(T item) artist,
+  required int limit,
+  required int artistCap,
+}) {
+  final related = <T>[], rest = <T>[];
+  for (final i in items) {
+    final r = result(i);
+    if (r.score >= djRelatedThreshold) {
+      related.add(i);
+    } else if (!r.hardReject) {
+      rest.add(i);
+    }
+  }
+  final perArtist = <String, int>{};
+  var capacity = 0;
+  for (final i in related) {
+    final a = artist(i);
+    final n = perArtist.update(a, (n) => n + 1, ifAbsent: () => 1);
+    if (a.isEmpty || n <= artistCap) capacity++;
+  }
+  final need = limit - capacity;
+  var extra = <T>[];
+  if (need > 0 && rest.isNotEmpty) {
+    rest.sort((a, b) => result(b).score.compareTo(result(a).score));
+    final cut = result(rest[math.min(need, rest.length) - 1]).score;
+    extra = [
+      for (final i in rest)
+        if (result(i).score >= cut) i,
+    ];
+  }
+  final keep = {...related, ...extra};
+  if (keep.isEmpty) return (kept: [...items], relaxed: items.isNotEmpty);
+  return (
+    kept: [
+      for (final i in items)
+        if (keep.contains(i)) i,
+    ],
+    relaxed: extra.isNotEmpty,
   );
 }
 

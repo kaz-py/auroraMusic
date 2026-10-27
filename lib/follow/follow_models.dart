@@ -21,10 +21,18 @@ class ArtistRelease {
 }
 
 class ArtistPage {
-  const ArtistPage({this.name, this.imageUrl, this.releases = const []});
+  const ArtistPage({
+    this.name,
+    this.imageUrl,
+    this.releases = const [],
+    this.relatedArtists = const [],
+  });
   final String? name;
   final String? imageUrl;
   final List<ArtistRelease> releases;
+
+  /// Carrusel «Puede que también te guste» (nombres, sin duplicados).
+  final List<String> relatedArtists;
 }
 
 class FollowedArtist {
