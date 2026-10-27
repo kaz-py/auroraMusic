@@ -488,7 +488,9 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
     fontSize: kind == 2 ? 14 : 15,
     height: 1.3,
     fontWeight: kind == 0 ? FontWeight.w700 : FontWeight.w600,
-    color: kind == 0 ? const Color(0xff8d8d8d) : context.slush.ink,
+    color: kind == 0
+        ? context.slush.ink.withValues(alpha: .5)
+        : context.slush.ink,
   );
 
   Widget _syncedLines(List<LyricLine> lines, Duration position) {

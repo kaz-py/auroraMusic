@@ -79,7 +79,7 @@ class ModernLyricsList extends StatelessWidget {
             letterSpacing: -.3,
             fontWeight: on ? FontWeight.w800 : FontWeight.w600,
             color: slush
-                ? (on ? Slush.ink : const Color(0xff8d8d8d))
+                ? (on ? Slush.ink : context.slush.ink.withValues(alpha: .5))
                 : on
                 ? c.onSurface
                 : c.onSurface.withValues(alpha: .42),

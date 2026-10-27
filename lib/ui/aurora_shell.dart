@@ -759,13 +759,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         labels: [
                           for (final s in _slushPrimarySections) _sections[s],
                         ],
-                        selected: math.max(
-                          0,
-                          _slushPrimarySections.indexOf(_section),
-                        ),
+                        selected: _slushPrimarySections.indexOf(_section),
                         onSelect: (i) => _navigate(_slushPrimarySections[i]),
                         mini:
-                            c.jamPlaybackActive ||
+                            _section == 4 ||
+                                c.jamPlaybackActive ||
                                 (_section == 10 && c.usesOfficialYouTubeMusic)
                             ? null
                             : SlushMiniPlayer(

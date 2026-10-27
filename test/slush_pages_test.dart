@@ -103,8 +103,11 @@ void main() {
         await c.audio.pause();
         await go(find.byTooltip('Biblioteca'), 'BIBLIOTECA');
         await go(find.byTooltip('Buscar'), 'BÚSQUEDA');
-        // En el teléfono el titular se va con el scroll.
-        await tester.drag(find.text('BÚSQUEDA'), const Offset(0, -400));
+        // En el teléfono el titular se va con el scroll del contenido.
+        await tester.dragFrom(
+          tester.getCenter(find.byType(SlushCard)),
+          const Offset(0, -400),
+        );
         await tester.pumpAndSettle();
         expect(find.text('BÚSQUEDA').hitTestable(), findsNothing);
         await tester.tap(find.byIcon(Icons.more_horiz));

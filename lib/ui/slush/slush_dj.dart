@@ -98,47 +98,49 @@ class SlushDj extends StatelessWidget {
             onSearch: onSearch,
           );
           final body = wide
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Align(
-                        alignment: Alignment.bottomLeft,
-                        child: counters,
-                      ),
-                    ),
-                    skip,
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 4,
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 460),
-                          child: stack,
+              ? IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          child: counters,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    save,
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 3,
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 340),
-                          child: KeyedSubtree(
-                            key: const ValueKey('dj-filters'),
-                            child: Transform.rotate(
-                              angle: -.025,
-                              child: filters,
+                      Center(child: skip),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 4,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 460),
+                            child: stack,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Center(child: save),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 3,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 340),
+                            child: KeyedSubtree(
+                              key: const ValueKey('dj-filters'),
+                              child: Transform.rotate(
+                                angle: -.025,
+                                child: filters,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 )
               : Column(
                   children: [

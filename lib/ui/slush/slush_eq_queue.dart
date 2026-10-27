@@ -901,7 +901,11 @@ class _Band extends StatelessWidget {
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xffeaeaea),
+                          color: Color.lerp(
+                            context.slush.paper,
+                            context.slush.ink,
+                            .08,
+                          ),
                           borderRadius: BorderRadius.circular(_w / 2),
                           border: Border.all(
                             color: context.slush.line,

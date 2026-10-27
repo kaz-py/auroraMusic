@@ -23,6 +23,15 @@ const _tones = [
 Color _tone(String name) =>
     _tones[name.codeUnits.fold(0, (a, b) => a + b) % _tones.length];
 
+/// Tema claro de Slush para los controles (campos, botones, interruptores)
+/// dentro de tarjetas vivas: tinta sobre blanco también en modo oscuro.
+final _vividTheme = slushTheme(Brightness.light, Slush.lilac);
+
+Widget _onVivid(BuildContext context, Widget child) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? Theme(data: _vividTheme, child: child)
+    : child;
+
 BoxDecoration _box(
   BuildContext context,
   Color color,
@@ -194,72 +203,75 @@ class SlushJamActive extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: _box(context, Slush.violet, 22),
-                child: Wrap(
-                  spacing: 18,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Container(
-                      // QR siempre sobre blanco para que se pueda escanear.
-                      decoration: _box(
-                        context,
-                        Colors.white,
-                        10,
-                      ), // sobre color vivo
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: JamQrCode(data: invite.encode(), size: 150),
+                child: _onVivid(
+                  context,
+                  Wrap(
+                    spacing: 18,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        // QR siempre sobre blanco para que se pueda escanear.
+                        decoration: _box(
+                          context,
+                          Colors.white,
+                          10,
+                        ), // sobre color vivo
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: JamQrCode(data: invite.encode(), size: 150),
+                        ),
                       ),
-                    ),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 260),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'ESCANEA PARA UNIRTE',
-                            style: TextStyle(
-                              fontFamily: 'Bagel Fat One',
-                              fontSize: 20,
-                              color: Colors.white, // sobre color vivo
-                            ),
-                          ),
-                          Text(
-                            remote ? 'o ingresá el código' : 'red local',
-                            style: const TextStyle(
-                              color: Colors.white, // sobre color vivo
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: SelectableText(
-                              remote ? invite.code : invite.endpoint,
-                              style: const TextStyle(
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 260),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'ESCANEA PARA UNIRTE',
+                              style: TextStyle(
                                 fontFamily: 'Bagel Fat One',
-                                fontSize: 40,
-                                letterSpacing: 2,
+                                fontSize: 20,
                                 color: Colors.white, // sobre color vivo
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: () => copy(
-                              remote
-                                  ? 'Únete a mi Jam en Aurora: ${invite.encode()} (código ${invite.code})'
-                                  : invite.encode(),
-                              'Enlace copiado. Compártelo solo con quien quieras.',
+                            Text(
+                              remote ? 'o ingresá el código' : 'red local',
+                              style: const TextStyle(
+                                color: Colors.white, // sobre color vivo
+                                fontSize: 12,
+                              ),
                             ),
-                            child: const Text('COPIAR ENLACE'),
-                          ),
-                          JamInviteFriendButton(jam: c),
-                        ],
+                            const SizedBox(height: 4),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: SelectableText(
+                                remote ? invite.code : invite.endpoint,
+                                style: const TextStyle(
+                                  fontFamily: 'Bagel Fat One',
+                                  fontSize: 40,
+                                  letterSpacing: 2,
+                                  color: Colors.white, // sobre color vivo
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              onPressed: () => copy(
+                                remote
+                                    ? 'Únete a mi Jam en Aurora: ${invite.encode()} (código ${invite.code})'
+                                    : invite.encode(),
+                                'Enlace copiado. Compártelo solo con quien quieras.',
+                              ),
+                              child: const Text('COPIAR ENLACE'),
+                            ),
+                            JamInviteFriendButton(jam: c),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               if (s.connected)
@@ -626,45 +638,48 @@ class SlushJamActive extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _box(context, Slush.lilac, 22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Permisos',
-            style: TextStyle(
-              fontFamily: 'Bagel Fat One',
-              fontSize: 22,
-              color: Slush.ink,
-            ),
-          ),
-          const SizedBox(height: 6),
-          row(
-            'Invitados agregan canciones',
-            all((p) => p.add),
-            (v) => setAll((p) => p.copyWith(add: v)),
-          ),
-          row(
-            'Invitados pueden saltar',
-            all((p) => p.skip),
-            (v) => setAll((p) => p.copyWith(skip: v)),
-          ),
-          row(
-            'Audio sincronizado en cada equipo',
-            c.listeningTogether,
-            c.busy
-                ? null
-                : (v) =>
-                      c.setMode(v ? JamMode.synchronized : JamMode.queueOnly),
-          ),
-          if (!host)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text(
-                'Solo el anfitrión cambia los permisos.',
-                style: TextStyle(fontSize: 11, color: Slush.ink),
+      child: _onVivid(
+        context,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Permisos',
+              style: TextStyle(
+                fontFamily: 'Bagel Fat One',
+                fontSize: 22,
+                color: Slush.ink,
               ),
             ),
-        ],
+            const SizedBox(height: 6),
+            row(
+              'Invitados agregan canciones',
+              all((p) => p.add),
+              (v) => setAll((p) => p.copyWith(add: v)),
+            ),
+            row(
+              'Invitados pueden saltar',
+              all((p) => p.skip),
+              (v) => setAll((p) => p.copyWith(skip: v)),
+            ),
+            row(
+              'Audio sincronizado en cada equipo',
+              c.listeningTogether,
+              c.busy
+                  ? null
+                  : (v) =>
+                        c.setMode(v ? JamMode.synchronized : JamMode.queueOnly),
+            ),
+            if (!host)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text(
+                  'Solo el anfitrión cambia los permisos.',
+                  style: TextStyle(fontSize: 11, color: Slush.ink),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -757,57 +772,60 @@ class SlushJamIdle extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: _box(context, Slush.lilac, 22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Unirme a una Jam',
-                  style: TextStyle(
-                    fontFamily: 'Bagel Fat One',
-                    fontSize: 22,
-                    color: Slush.ink,
+            child: _onVivid(
+              context,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Unirme a una Jam',
+                    style: TextStyle(
+                      fontFamily: 'Bagel Fat One',
+                      fontSize: 22,
+                      color: Slush.ink,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: name,
-                  maxLength: 32,
-                  decoration: const InputDecoration(
-                    labelText: 'Tu nombre (opcional)',
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: name,
+                    maxLength: 32,
+                    decoration: const InputDecoration(
+                      labelText: 'Tu nombre (opcional)',
+                    ),
                   ),
-                ),
-                TextField(
-                  controller: code,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.go,
-                  onSubmitted: busy ? null : (_) => onJoin(),
-                  decoration: const InputDecoration(
-                    labelText: 'Código o enlace de la Jam',
-                    hintText: 'Por ejemplo K7M2QX',
+                  TextField(
+                    controller: code,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textInputAction: TextInputAction.go,
+                    onSubmitted: busy ? null : (_) => onJoin(),
+                    decoration: const InputDecoration(
+                      labelText: 'Código o enlace de la Jam',
+                      hintText: 'Por ejemplo K7M2QX',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: context.slush.ink,
-                        foregroundColor: context.slush.paper,
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Slush.ink,
+                          foregroundColor: Colors.white, // sobre color vivo
+                        ),
+                        onPressed: busy ? null : onJoin,
+                        child: const Text('UNIRME CON CÓDIGO'),
                       ),
-                      onPressed: busy ? null : onJoin,
-                      child: const Text('UNIRME CON CÓDIGO'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: busy ? null : onScan,
-                      icon: const Icon(Icons.qr_code_scanner, size: 18),
-                      label: Text(scanLabel.toUpperCase()),
-                    ),
-                  ],
-                ),
-              ],
+                      OutlinedButton.icon(
+                        onPressed: busy ? null : onScan,
+                        icon: const Icon(Icons.qr_code_scanner, size: 18),
+                        label: Text(scanLabel.toUpperCase()),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
