@@ -22,7 +22,7 @@ class FriendAvatar extends StatelessWidget {
     final fallback = Icon(
       Icons.person,
       size: size * .6,
-      color: isSlush(context) ? Slush.ink : colors.primary,
+      color: isSlush(context) ? context.slush.ink : colors.primary,
     );
     final url = user.avatarUrl;
     return Semantics(
@@ -35,7 +35,9 @@ class FriendAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: colors.primary.withValues(alpha: .16),
-          border: isSlush(context) ? Border.fromBorderSide(Slush.border) : null,
+          border: isSlush(context)
+              ? Border.fromBorderSide(context.slush.border)
+              : null,
         ),
         child: url == null
             ? fallback

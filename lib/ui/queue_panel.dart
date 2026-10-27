@@ -18,11 +18,7 @@ class QueuePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final body = _body(context);
     return isSlush(context)
-        ? SlushScreen(
-            color: const Color(0xffd9dbe0),
-            title: 'COLA',
-            child: body,
-          )
+        ? SlushScreen(color: context.slush.screen, title: 'COLA', child: body)
         : body;
   }
 

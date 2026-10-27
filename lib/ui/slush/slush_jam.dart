@@ -23,13 +23,17 @@ const _tones = [
 Color _tone(String name) =>
     _tones[name.codeUnits.fold(0, (a, b) => a + b) % _tones.length];
 
-BoxDecoration _box(Color color, double r, {bool shadow = false}) =>
-    BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(r),
-      border: Border.all(color: Slush.ink, width: 2),
-      boxShadow: shadow ? Slush.hardShadow : null,
-    );
+BoxDecoration _box(
+  BuildContext context,
+  Color color,
+  double r, {
+  bool shadow = false,
+}) => BoxDecoration(
+  color: color,
+  borderRadius: BorderRadius.circular(r),
+  border: Border.all(color: context.slush.line, width: 2),
+  boxShadow: shadow ? context.slush.shadows : null,
+);
 
 /// Cabecera «JAM» gigante con onda azul detrás y pegatina «EN VIVO».
 class _Hero extends StatelessWidget {
@@ -76,7 +80,7 @@ class _Avatar extends StatelessWidget {
         decoration: BoxDecoration(
           color: _tone(name),
           shape: BoxShape.circle,
-          border: Border.all(color: Slush.ink, width: 2),
+          border: Border.all(color: context.slush.line, width: 2),
         ),
         child: image == null
             ? Text(
@@ -189,14 +193,19 @@ class SlushJamActive extends StatelessWidget {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
-                decoration: _box(Slush.violet, 22),
+                decoration: _box(context, Slush.violet, 22),
                 child: Wrap(
                   spacing: 18,
                   runSpacing: 12,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Container(
-                      decoration: _box(Colors.white, 10),
+                      // QR siempre sobre blanco para que se pueda escanear.
+                      decoration: _box(
+                        context,
+                        Colors.white,
+                        10,
+                      ), // sobre color vivo
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: JamQrCode(data: invite.encode(), size: 150),
@@ -212,13 +221,13 @@ class SlushJamActive extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'Bagel Fat One',
                               fontSize: 20,
-                              color: Colors.white,
+                              color: Colors.white, // sobre color vivo
                             ),
                           ),
                           Text(
                             remote ? 'o ingresá el código' : 'red local',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Colors.white, // sobre color vivo
                               fontSize: 12,
                             ),
                           ),
@@ -232,7 +241,7 @@ class SlushJamActive extends StatelessWidget {
                                 fontFamily: 'Bagel Fat One',
                                 fontSize: 40,
                                 letterSpacing: 2,
-                                color: Colors.white,
+                                color: Colors.white, // sobre color vivo
                               ),
                             ),
                           ),
@@ -263,7 +272,7 @@ class SlushJamActive extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Slush.mint,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Slush.ink, width: 2.5),
+                      border: Border.all(color: context.slush.line, width: 2.5),
                     ),
                     child: const Icon(Icons.check, size: 30, color: Slush.ink),
                   ),
@@ -296,9 +305,9 @@ class SlushJamActive extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: context.slush.paper,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Slush.ink, width: 2),
+                    border: Border.all(color: context.slush.line, width: 2),
                   ),
                   child: const Icon(Icons.add, size: 20),
                 ),
@@ -311,11 +320,12 @@ class SlushJamActive extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: _box(Slush.yellow, 14),
+            decoration: _box(context, Slush.yellow, 14),
             child: Text(
               c.bridge.warning ??
                   c.error ??
                   'Sin conexión con la Jam. Pulsa reconectar.',
+              style: const TextStyle(color: Slush.ink),
             ),
           ),
           if (!s.connected)
@@ -349,8 +359,8 @@ class SlushJamActive extends StatelessWidget {
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: Slush.ink,
-                foregroundColor: Colors.white,
+                backgroundColor: context.slush.ink,
+                foregroundColor: context.slush.paper,
               ),
               onPressed: c.busy ? null : () => _leave(context),
               icon: const Icon(Icons.close, size: 16),
@@ -398,7 +408,7 @@ class SlushJamActive extends StatelessWidget {
     final playingId = s.playback?.entryId;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: _box(tint, 22),
+      decoration: _box(context, tint, 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -416,8 +426,8 @@ class SlushJamActive extends StatelessWidget {
               ),
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: Slush.ink,
-                  foregroundColor: Colors.white,
+                  backgroundColor: context.slush.ink,
+                  foregroundColor: context.slush.paper,
                   minimumSize: const Size(0, 38),
                 ),
                 onPressed: c.canAdd ? () => showJamAddSheet(context, c) : null,
@@ -433,6 +443,7 @@ class SlushJamActive extends StatelessWidget {
               child: Text(
                 'La cola está vacía. Pulsa «Agregar» para buscar canciones'
                 '${''} o deja que el autoplay añada música al grupo.',
+                style: TextStyle(color: Slush.ink),
               ),
             ),
           for (final (i, e) in s.queue.indexed)
@@ -450,9 +461,13 @@ class SlushJamActive extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: playing ? Slush.yellow : Colors.white,
+        color: playing ? Slush.yellow : context.slush.paper,
+        // Sobre amarillo el texto va en tinta fija (legible también en oscuro).
+        textStyle: playing
+            ? Theme.of(context).textTheme.bodyMedium!.copyWith(color: Slush.ink)
+            : null,
         shape: RoundedRectangleBorder(
-          side: Slush.border,
+          side: context.slush.border,
           borderRadius: BorderRadius.circular(16),
         ),
         clipBehavior: Clip.antiAlias,
@@ -540,7 +555,7 @@ class SlushJamActive extends StatelessWidget {
                     margin: const EdgeInsets.only(left: 6),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Slush.ink, width: 2),
+                      border: Border.all(color: context.slush.line, width: 2),
                     ),
                     child: InkResponse(
                       onTap: s.connected && s.rules.votes && !pending
@@ -551,7 +566,9 @@ class SlushJamActive extends StatelessWidget {
                         child: Icon(
                           mine ? Icons.favorite : Icons.favorite_border,
                           size: 16,
-                          color: mine ? Slush.orange : Slush.ink,
+                          color: mine
+                              ? Slush.orange
+                              : (playing ? Slush.ink : context.slush.ink),
                           semanticLabel: 'Me gusta (${e.up.length})',
                         ),
                       ),
@@ -599,6 +616,7 @@ class SlushJamActive extends StatelessWidget {
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 12.5,
+                    color: Slush.ink,
                   ),
                 ),
               ),
@@ -607,7 +625,7 @@ class SlushJamActive extends StatelessWidget {
         );
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: _box(Slush.lilac, 22),
+      decoration: _box(context, Slush.lilac, 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -643,7 +661,7 @@ class SlushJamActive extends StatelessWidget {
               padding: EdgeInsets.only(top: 4),
               child: Text(
                 'Solo el anfitrión cambia los permisos.',
-                style: TextStyle(fontSize: 11),
+                style: TextStyle(fontSize: 11, color: Slush.ink),
               ),
             ),
         ],
@@ -693,13 +711,13 @@ class SlushJamIdle extends StatelessWidget {
             width: double.infinity,
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
-            decoration: _box(Slush.yellow, 14),
-            child: Text(message!),
+            decoration: _box(context, Slush.yellow, 14),
+            child: Text(message!, style: const TextStyle(color: Slush.ink)),
           ),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(18),
-          decoration: _box(Slush.violet, 22),
+          decoration: _box(context, Slush.violet, 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -708,12 +726,15 @@ class SlushJamIdle extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Bagel Fat One',
                   fontSize: 24,
-                  color: Colors.white,
+                  color: Colors.white, // sobre color vivo
                 ),
               ),
               const Text(
                 'Se crea al instante y te mostramos el QR y el código para invitar.',
-                style: TextStyle(color: Colors.white, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ), // sobre color vivo
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
@@ -735,7 +756,7 @@ class SlushJamIdle extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
-            decoration: _box(Slush.lilac, 22),
+            decoration: _box(context, Slush.lilac, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -773,8 +794,8 @@ class SlushJamIdle extends StatelessWidget {
                   children: [
                     FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: Slush.ink,
-                        foregroundColor: Colors.white,
+                        backgroundColor: context.slush.ink,
+                        foregroundColor: context.slush.paper,
                       ),
                       onPressed: busy ? null : onJoin,
                       child: const Text('UNIRME CON CÓDIGO'),
@@ -793,7 +814,7 @@ class SlushJamIdle extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
-            decoration: _box(Slush.lilac, 22),
+            decoration: _box(context, Slush.lilac, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -824,7 +845,10 @@ class SlushJamIdle extends StatelessWidget {
                         Expanded(
                           child: Text(
                             step,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Slush.ink,
+                            ),
                           ),
                         ),
                       ],

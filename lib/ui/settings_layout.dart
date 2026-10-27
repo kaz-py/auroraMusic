@@ -149,24 +149,24 @@ class _RailItem extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final slush = isSlush(context);
     final fg = slush
-        ? Slush.ink
+        ? (active ? Slush.ink : context.slush.ink)
         : active
         ? colors.onSecondaryContainer
         : colors.onSurface;
-    final inactive = slush ? Colors.white : colors.surfaceContainerLow;
+    final inactive = slush ? context.slush.paper : colors.surfaceContainerLow;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, right: 4),
       child: DecoratedBox(
         decoration: slush && active
-            ? const ShapeDecoration(
-                shape: StadiumBorder(),
-                shadows: Slush.hardShadow,
+            ? ShapeDecoration(
+                shape: const StadiumBorder(),
+                shadows: context.slush.shadows,
               )
             : const BoxDecoration(),
         child: Material(
           color: active ? colors.secondaryContainer : inactive,
           shape: slush
-              ? const StadiumBorder(side: Slush.border)
+              ? StadiumBorder(side: context.slush.border)
               : RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                   side: BorderSide(

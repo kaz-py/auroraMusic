@@ -9,11 +9,11 @@ import 'slush_decor.dart';
 
 const _bagel = 'Bagel Fat One';
 
-Widget _circle(Widget child) => DecoratedBox(
+Widget _circle(BuildContext context, Widget child) => DecoratedBox(
   decoration: BoxDecoration(
-    color: Colors.white,
+    color: context.slush.paper,
     shape: BoxShape.circle,
-    border: Border.fromBorderSide(Slush.border),
+    border: Border.fromBorderSide(context.slush.border),
   ),
   child: Center(child: child),
 );
@@ -47,6 +47,7 @@ class SlushMobileTopBar extends StatelessWidget {
         SizedBox.square(
           dimension: 40,
           child: _circle(
+            context,
             const Text('A', style: TextStyle(fontFamily: _bagel, fontSize: 20)),
           ),
         ),
@@ -56,7 +57,7 @@ class SlushMobileTopBar extends StatelessWidget {
           onSelected: onMore,
           child: SizedBox.square(
             dimension: 40,
-            child: _circle(const Icon(Icons.more_horiz, size: 20)),
+            child: _circle(context, const Icon(Icons.more_horiz, size: 20)),
           ),
           itemBuilder: (_) => [
             for (final m in _more)
@@ -78,7 +79,10 @@ class SlushMobileTopBar extends StatelessWidget {
             onTap: onSettings,
             child: SizedBox.square(
               dimension: 40,
-              child: _circle(const Icon(Icons.dark_mode_outlined, size: 20)),
+              child: _circle(
+                context,
+                const Icon(Icons.dark_mode_outlined, size: 20),
+              ),
             ),
           ),
         ),
@@ -172,8 +176,8 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
             decoration: BoxDecoration(
               color: Slush.lilac,
               borderRadius: BorderRadius.circular(22),
-              border: Border.fromBorderSide(Slush.border),
-              boxShadow: Slush.hardShadow,
+              border: Border.fromBorderSide(context.slush.border),
+              boxShadow: context.slush.shadows,
             ),
             child: Padding(
               padding: const EdgeInsets.all(10),
@@ -182,7 +186,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                   SizedBox.square(
                     dimension: 64,
                     child: cover == null
-                        ? _circle(const Icon(Icons.music_note))
+                        ? _circle(context, const Icon(Icons.music_note))
                         : Artwork(track: cover, size: 64, radius: 14),
                   ),
                   const SizedBox(width: 12),
@@ -195,6 +199,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
+                            color: Slush.ink,
                           ),
                         ),
                         Text(
@@ -204,6 +209,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
+                            color: Slush.ink,
                           ),
                         ),
                       ],
@@ -212,8 +218,8 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                   IconButton.filled(
                     tooltip: 'Reproducir mix',
                     style: IconButton.styleFrom(
-                      backgroundColor: Slush.ink,
-                      foregroundColor: Colors.white,
+                      backgroundColor: context.slush.ink,
+                      foregroundColor: context.slush.paper,
                     ),
                     onPressed: pool.isEmpty
                         ? widget.onSearch
@@ -275,7 +281,9 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                             DecoratedBox(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.fromBorderSide(Slush.border),
+                                border: Border.fromBorderSide(
+                                  context.slush.border,
+                                ),
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(14),
@@ -310,7 +318,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
   }
 }
 
-/// Mini reproductor negro en píldora.
+/// Mini reproductor en píldora de tinta (crema en oscuro).
 class SlushMiniPlayer extends StatelessWidget {
   const SlushMiniPlayer({
     super.key,
@@ -332,7 +340,7 @@ class SlushMiniPlayer extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Material(
-          color: Slush.ink,
+          color: context.slush.ink,
           shape: const StadiumBorder(),
           child: InkWell(
             customBorder: const StadiumBorder(),
@@ -351,8 +359,8 @@ class SlushMiniPlayer extends StatelessWidget {
                           t.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: context.slush.paper,
                             fontWeight: FontWeight.w800,
                             fontSize: 13,
                           ),
@@ -361,8 +369,8 @@ class SlushMiniPlayer extends StatelessWidget {
                           t.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: context.slush.paper.withValues(alpha: .7),
                             fontSize: 11,
                           ),
                         ),
@@ -372,8 +380,8 @@ class SlushMiniPlayer extends StatelessWidget {
                   IconButton.filled(
                     tooltip: playing ? 'Pausar' : 'Reproducir',
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Slush.ink,
+                      backgroundColor: context.slush.paper,
+                      foregroundColor: context.slush.ink,
                     ),
                     onPressed: onToggle,
                     icon: Icon(
@@ -383,9 +391,9 @@ class SlushMiniPlayer extends StatelessWidget {
                   IconButton(
                     tooltip: 'Siguiente',
                     onPressed: onNext,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.skip_next_rounded,
-                      color: Colors.white,
+                      color: context.slush.paper,
                     ),
                   ),
                 ],
@@ -399,7 +407,7 @@ class SlushMiniPlayer extends StatelessWidget {
 }
 
 /// Zona inferior de Slush en móvil: mini reproductor (opcional) y barra de
-/// iconos en píldora blanca; el destino activo va en círculo negro.
+/// iconos en píldora de papel; el destino activo va en círculo de tinta.
 class SlushBottomBar extends StatelessWidget {
   const SlushBottomBar({
     super.key,
@@ -426,9 +434,9 @@ class SlushBottomBar extends StatelessWidget {
           ?mini,
           DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.slush.paper,
               borderRadius: BorderRadius.circular(999),
-              border: Border.fromBorderSide(Slush.border),
+              border: Border.fromBorderSide(context.slush.border),
             ),
             child: Padding(
               padding: const EdgeInsets.all(4),
@@ -449,13 +457,15 @@ class SlushBottomBar extends StatelessWidget {
                             width: 48,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: i == selected ? Slush.ink : null,
+                              color: i == selected ? context.slush.ink : null,
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Icon(
                               icons[i],
                               size: 22,
-                              color: i == selected ? Colors.white : Slush.ink,
+                              color: i == selected
+                                  ? context.slush.paper
+                                  : context.slush.ink,
                             ),
                           ),
                         ),

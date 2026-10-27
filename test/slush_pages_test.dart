@@ -35,7 +35,7 @@ void main() {
             MusicPlaylist(id: 'p1', name: 'Jazz', trackIds: ['a', 'b']),
             MusicPlaylist(id: 'p2', name: 'Vacía', trackIds: []),
           ],
-          preferences: const {'themeKind': 'slush'},
+          preferences: const {'themeKind': 'slush', 'themeMode': 'light'},
         ),
       ))!;
       c.queue = [..._songs];

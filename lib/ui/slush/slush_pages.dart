@@ -19,15 +19,21 @@ const slushPalette = [
   Color(0xffffb48a),
 ];
 
-/// Fondo plano de pantalla: [base] aclarado y teñido con el color de portada.
-Color slushTone(BuildContext context, Color base) => Color.lerp(
-  Color.lerp(base, Colors.white, .55)!,
-  Theme.of(context).colorScheme.surface,
-  .25,
-)!;
+/// Fondo plano de pantalla: [base] aclarado (u oscurecido, en oscuro) y teñido
+/// con el color de portada.
+Color slushTone(BuildContext context, Color base) {
+  final theme = Theme.of(context);
+  final dark = theme.brightness == Brightness.dark;
+  final tint = dark ? Colors.black : Colors.white; // sobre color vivo
+  return Color.lerp(
+    Color.lerp(base, tint, dark ? .80 : .55)!,
+    theme.colorScheme.surface,
+    .25,
+  )!;
+}
 
 /// Pantalla Slush con titular gigante, pegatina, píldoras de estado y el
-/// contenido en una tarjeta blanca con borde y sombra dura (o suelto, si
+/// contenido en una tarjeta de papel con borde y sombra dura (o suelto, si
 /// [card] es falso y ya trae sus propias tarjetas).
 class SlushPage extends StatelessWidget {
   const SlushPage({
@@ -75,7 +81,7 @@ class SlushPage extends StatelessWidget {
                             fontSize: font,
                             height: .95,
                             letterSpacing: -font * .02,
-                            color: Slush.ink,
+                            color: context.slush.ink,
                             shadows: [
                               for (final o in const [
                                 Offset(2, 0),
@@ -83,7 +89,7 @@ class SlushPage extends StatelessWidget {
                                 Offset(0, 2),
                                 Offset(0, -2),
                               ])
-                                Shadow(color: Slush.ink, offset: o),
+                                Shadow(color: context.slush.ink, offset: o),
                             ],
                           ),
                         ),
@@ -113,7 +119,7 @@ class SlushPage extends StatelessWidget {
                     SlushPill(
                       pills[i],
                       color: i == 0
-                          ? Colors.white
+                          ? context.slush.paper
                           : slushPalette[(i + 1) % slushPalette.length],
                     ),
                 ],
@@ -160,25 +166,21 @@ class SlushPage extends StatelessWidget {
   );
 }
 
-/// Tarjeta blanca de borde negro, esquinas grandes y sombra dura.
+/// Tarjeta de papel con contorno, esquinas grandes y sombra dura.
 class SlushCard extends StatelessWidget {
-  const SlushCard({super.key, required this.child, this.color = Colors.white});
+  const SlushCard({super.key, required this.child});
   final Widget child;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    const shape = RoundedRectangleBorder(
-      side: Slush.border,
-      borderRadius: BorderRadius.all(Radius.circular(24)),
+    final shape = RoundedRectangleBorder(
+      side: context.slush.border,
+      borderRadius: const BorderRadius.all(Radius.circular(24)),
     );
     return DecoratedBox(
-      decoration: const ShapeDecoration(
-        shape: shape,
-        shadows: Slush.hardShadow,
-      ),
+      decoration: ShapeDecoration(shape: shape, shadows: context.slush.shadows),
       child: Material(
-        color: color,
+        color: context.slush.paper,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: child,
@@ -217,10 +219,10 @@ class SlushEmpty extends StatelessWidget {
                   Transform.rotate(
                     angle: -.08,
                     child: DecoratedBox(
-                      decoration: const ShapeDecoration(
+                      decoration: ShapeDecoration(
                         color: Slush.lilac,
-                        shape: CircleBorder(side: Slush.border),
-                        shadows: Slush.hardShadow,
+                        shape: CircleBorder(side: context.slush.border),
+                        shadows: context.slush.shadows,
                       ),
                       child: SizedBox.square(
                         dimension: 104,
@@ -240,21 +242,21 @@ class SlushEmpty extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: _display,
                 fontSize: 30,
                 height: 1.05,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
             const SizedBox(height: 10),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
                 height: 1.5,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
           ],
@@ -282,10 +284,14 @@ class SlushLikesCard extends StatelessWidget {
         const Expanded(
           child: Text(
             'Me gusta',
-            style: TextStyle(fontFamily: _display, fontSize: 26),
+            style: TextStyle(
+              fontFamily: _display,
+              fontSize: 26,
+              color: Slush.ink,
+            ),
           ),
         ),
-        SlushPill('$count canciones', color: Colors.white),
+        SlushPill('$count canciones', color: context.slush.paper),
         const SizedBox(width: 8),
         const Icon(Icons.chevron_right, color: Slush.ink),
       ],
@@ -310,11 +316,11 @@ class _SlushTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
-      side: Slush.border,
+      side: context.slush.border,
       borderRadius: BorderRadius.circular(radius),
     );
     return DecoratedBox(
-      decoration: ShapeDecoration(shape: shape, shadows: Slush.hardShadow),
+      decoration: ShapeDecoration(shape: shape, shadows: context.slush.shadows),
       child: Material(
         color: color,
         shape: shape,
@@ -370,7 +376,7 @@ class SlushPlaylistGrid extends StatelessWidget {
                     children: [
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          border: Border.fromBorderSide(Slush.border),
+                          border: Border.fromBorderSide(context.slush.border),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: ClipRRect(
@@ -400,7 +406,7 @@ class SlushPlaylistGrid extends StatelessWidget {
                       const SizedBox(height: 6),
                       SlushPill(
                         '${playlists[i].trackIds.length} canciones',
-                        color: Colors.white,
+                        color: context.slush.paper,
                       ),
                     ],
                   ),

@@ -35,8 +35,8 @@ class SlushBand extends StatelessWidget {
     decoration: BoxDecoration(
       color: tint(context, tone),
       borderRadius: BorderRadius.circular(32),
-      border: Border.fromBorderSide(Slush.border),
-      boxShadow: Slush.hardShadow,
+      border: Border.fromBorderSide(context.slush.border),
+      boxShadow: context.slush.shadows,
     ),
     child: DefaultTextStyle.merge(
       style: const TextStyle(color: Slush.ink),
@@ -63,14 +63,14 @@ class SlushChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : Slush.ink;
+    final fg = selected ? context.slush.paper : Slush.ink;
     return Semantics(
       button: true,
       selected: selected,
       label: label,
       child: Material(
-        color: selected ? Slush.ink : color,
-        shape: const StadiumBorder(side: Slush.border),
+        color: selected ? context.slush.ink : color,
+        shape: StadiumBorder(side: context.slush.border),
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,
@@ -125,7 +125,9 @@ class SlushDecor extends StatelessWidget {
         angle: angle,
         child: SizedBox.square(
           dimension: size,
-          child: CustomPaint(painter: _DecorPainter(shape, color)),
+          child: CustomPaint(
+            painter: _DecorPainter(shape, color, context.slush.line),
+          ),
         ),
       ),
     ),
@@ -133,9 +135,10 @@ class SlushDecor extends StatelessWidget {
 }
 
 class _DecorPainter extends CustomPainter {
-  const _DecorPainter(this.shape, this.color);
+  const _DecorPainter(this.shape, this.color, this.ink);
   final SlushShape shape;
   final Color color;
+  final Color ink;
 
   @override
   void paint(Canvas canvas, Size s) {
@@ -143,7 +146,7 @@ class _DecorPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeJoin = StrokeJoin.round
-      ..color = Slush.ink;
+      ..color = ink;
     final fill = Paint()..color = color;
     final w = s.width, h = s.height;
     if (shape == SlushShape.dots) {
@@ -151,7 +154,7 @@ class _DecorPainter extends CustomPainter {
         canvas.drawCircle(
           Offset(w * (.15 + .35 * (i % 3)), h * (.15 + .35 * (i ~/ 3))),
           w * .06,
-          Paint()..color = Slush.ink,
+          Paint()..color = ink,
         );
       }
       return;
@@ -181,5 +184,5 @@ class _DecorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DecorPainter old) =>
-      old.shape != shape || old.color != color;
+      old.shape != shape || old.color != color || old.ink != ink;
 }

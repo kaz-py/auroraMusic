@@ -138,7 +138,7 @@ class _JamPageState extends State<JamPage> {
     final message = _inputError ?? c?.error ?? session?.error;
     if (isSlush(context)) {
       return ColoredBox(
-        color: Colors.white,
+        color: context.slush.paper,
         child: active
             ? SlushJamActive(controller: c!)
             : SlushJamIdle(
@@ -218,7 +218,7 @@ class _JamPageState extends State<JamPage> {
     );
     // Slush: Jam sobre fondo blanco.
     return isSlush(context)
-        ? ColoredBox(color: Colors.white, child: page)
+        ? ColoredBox(color: context.slush.paper, child: page)
         : page;
   }
 

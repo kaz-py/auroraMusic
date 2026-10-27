@@ -787,7 +787,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         backgroundColor: brasa
                             ? Brasa.void_
                             : isSlush(context)
-                            ? Slush.ink
+                            ? context.slush.ink
                             : isModern(context)
                             ? Theme.of(context).colorScheme.surfaceContainerLow
                             : null,
@@ -2304,13 +2304,14 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         final tile = ListTile(
           shape: isSlush(context)
               ? RoundedRectangleBorder(
-                  side: Slush.border,
+                  side: context.slush.border,
                   borderRadius: BorderRadius.circular(16),
                 )
               : active
               ? auroraSelectedShape(context)
               : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           selectedTileColor: isSlush(context) ? Slush.mint : null,
+          selectedColor: isSlush(context) ? Slush.ink : null,
           selected: active,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
@@ -2614,12 +2615,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           const SizedBox(height: 16),
           Text('Modo', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          if (c.themeKind == 'brasa' || c.themeKind == 'slush')
-            Text(
-              c.themeKind == 'slush'
-                  ? 'Slush es siempre claro.'
-                  : 'Brasa es siempre oscuro.',
-            )
+          if (c.themeKind == 'brasa')
+            const Text('Brasa es siempre oscuro.')
           else
             Wrap(
               spacing: 8,

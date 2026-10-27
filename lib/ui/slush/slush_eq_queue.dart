@@ -14,11 +14,11 @@ import '../track_actions.dart';
 
 const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Color(0xffc9a8f5)];
 
-BoxDecoration _card([Color color = Colors.white, double r = 28]) =>
+BoxDecoration _card(BuildContext context, [Color? color, double r = 28]) =>
     BoxDecoration(
-      color: color,
+      color: color ?? context.slush.paper,
       borderRadius: BorderRadius.circular(r),
-      border: const Border.fromBorderSide(Slush.border),
+      border: Border.fromBorderSide(context.slush.border),
     );
 
 String _gain(double db) {
@@ -51,7 +51,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
   Widget build(BuildContext context) {
     final c = widget.controller;
     return ColoredBox(
-      color: const Color(0xffd9dbe0),
+      color: context.slush.screen,
       child: LayoutBuilder(
         builder: (context, box) {
           final wide = box.maxWidth >= 900;
@@ -105,8 +105,8 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
   }
 
   Widget _pill(String t, VoidCallback f, {IconData? icon}) => Material(
-    color: Colors.white,
-    shape: const StadiumBorder(side: Slush.border),
+    color: context.slush.paper,
+    shape: StadiumBorder(side: context.slush.border),
     child: InkWell(
       customBorder: const StadiumBorder(),
       onTap: f,
@@ -116,15 +116,15 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 16, color: Slush.ink),
+              Icon(icon, size: 16, color: context.slush.ink),
               const SizedBox(width: 6),
             ],
             Text(
               t,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
           ],
@@ -146,7 +146,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
         children: [
           _pill('VOLVER', () => widget.onNavigate(0), icon: Icons.arrow_back),
           DecoratedBox(
-            decoration: _card(Colors.white, 40),
+            decoration: _card(context, null, 40),
             child: Padding(
               padding: const EdgeInsets.all(4),
               // En el teléfono las cuatro pestañas no caben: se desplazan.
@@ -186,7 +186,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: ShapeDecoration(
-        color: on ? Slush.ink : Colors.transparent,
+        color: on ? context.slush.ink : Colors.transparent,
         shape: const StadiumBorder(),
       ),
       child: Text(
@@ -194,7 +194,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
-          color: on ? Colors.white : Slush.ink,
+          color: on ? context.slush.paper : context.slush.ink,
         ),
       ),
     ),
@@ -227,15 +227,15 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: ShapeDecoration(
-              color: on ? Slush.ink : Colors.white,
-              shape: const StadiumBorder(side: Slush.border),
+              color: on ? context.slush.ink : context.slush.paper,
+              shape: StadiumBorder(side: context.slush.border),
             ),
             child: Text(
               t,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: on ? Colors.white : Slush.ink,
+                color: on ? context.slush.paper : context.slush.ink,
               ),
             ),
           ),
@@ -250,7 +250,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
-              decoration: _card(Slush.mint),
+              decoration: _card(context, Slush.mint),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -329,7 +329,7 @@ class _QueueCard extends StatelessWidget {
       final q = c.queue;
       return Container(
         padding: const EdgeInsets.all(16),
-        decoration: _card(),
+        decoration: _card(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -359,7 +359,7 @@ class _QueueCard extends StatelessWidget {
                     onTap: () => c.setShuffle(!c.shuffle),
                     child: SlushPill(
                       c.shuffle ? 'Aleatorio activo' : 'Aleatorio',
-                      color: c.shuffle ? Slush.mint : Colors.white,
+                      color: c.shuffle ? Slush.mint : context.slush.paper,
                     ),
                   ),
                 ),
@@ -423,10 +423,16 @@ class _QueueCard extends StatelessWidget {
         builder: (context, _) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Material(
-            color: active ? Slush.lilac : Colors.white,
+            color: active ? Slush.lilac : context.slush.paper,
+            // Sobre lila el texto va en tinta fija (legible también en oscuro).
+            textStyle: active
+                ? Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(color: Slush.ink)
+                : null,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
-              side: Slush.border,
+              side: context.slush.border,
             ),
             child: InkWell(
               customBorder: RoundedRectangleBorder(
@@ -471,7 +477,7 @@ class _QueueCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    SlushPill(_kind(t), color: Colors.white),
+                    SlushPill(_kind(t), color: context.slush.paper),
                     const SizedBox(width: 6),
                     Text(
                       _time(t.duration),
@@ -526,7 +532,9 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
         value: v,
         onChanged: f,
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Slush.yellow : Colors.white,
+          (s) => s.contains(WidgetState.selected)
+              ? Slush.yellow
+              : context.slush.paper,
         ),
       ),
       Text(
@@ -554,13 +562,13 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           crossAxisAlignment: WrapCrossAlignment.end,
           spacing: 16,
           children: [
-            const Text(
+            Text(
               'EQ',
               style: TextStyle(
                 fontFamily: 'Bagel Fat One',
                 fontSize: 130,
                 height: .95,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
             Column(
@@ -574,7 +582,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
                 if (note != null) ...[
                   const SizedBox(height: 6),
                   DecoratedBox(
-                    decoration: _card(Colors.white, 20),
+                    decoration: _card(context, null, 20),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -625,7 +633,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           children: [
             Container(
               padding: const EdgeInsets.fromLTRB(12, 18, 12, 10),
-              decoration: _card(),
+              decoration: _card(context),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -675,8 +683,8 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           children: [
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: Slush.ink,
-                foregroundColor: Colors.white,
+                backgroundColor: context.slush.ink,
+                foregroundColor: context.slush.paper,
               ),
               onPressed: ok ? widget.onSave : null,
               icon: const Icon(Icons.check, size: 16),
@@ -765,8 +773,8 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
   );
 
   Widget _chip(String t, bool on, VoidCallback? f) => Material(
-    color: on ? Slush.ink : Colors.white,
-    shape: const StadiumBorder(side: Slush.border),
+    color: on ? context.slush.ink : context.slush.paper,
+    shape: StadiumBorder(side: context.slush.border),
     child: InkWell(
       customBorder: const StadiumBorder(),
       onTap: f,
@@ -777,7 +785,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w800,
-            color: on ? Colors.white : Slush.ink,
+            color: on ? context.slush.paper : context.slush.ink,
           ),
         ),
       ),
@@ -796,7 +804,7 @@ class _Disc extends StatelessWidget {
         shape: BoxShape.circle,
         color: Slush.ink,
         border: Border.fromBorderSide(
-          BorderSide(color: Colors.white, width: 3),
+          BorderSide(color: Colors.white, width: 3), // sobre color vivo
         ),
         boxShadow: [BoxShadow(color: Slush.ink, spreadRadius: 2)],
       ),
@@ -804,10 +812,10 @@ class _Disc extends StatelessWidget {
         child: Container(
           width: 30,
           height: 30,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Slush.mint,
-            border: Border.fromBorderSide(Slush.border),
+            border: Border.fromBorderSide(context.slush.border),
           ),
           child: const Center(
             child: CircleAvatar(radius: 3, backgroundColor: Slush.ink),
@@ -896,7 +904,7 @@ class _Band extends StatelessWidget {
                           color: const Color(0xffeaeaea),
                           borderRadius: BorderRadius.circular(_w / 2),
                           border: Border.all(
-                            color: Slush.ink,
+                            color: context.slush.line,
                             width: selected ? 3 : 2,
                           ),
                         ),
@@ -909,9 +917,9 @@ class _Band extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: color,
-                            border: const Border.symmetric(
+                            border: Border.symmetric(
                               horizontal: BorderSide(
-                                color: Slush.ink,
+                                color: context.slush.line,
                                 width: 1.5,
                               ),
                             ),
@@ -924,16 +932,16 @@ class _Band extends StatelessWidget {
                         child: Container(
                           width: _k,
                           height: _k,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white,
-                            border: Border.fromBorderSide(Slush.border),
+                            color: context.slush.paper,
+                            border: Border.fromBorderSide(context.slush.border),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: SizedBox(
                               width: 9,
                               height: 2,
-                              child: ColoredBox(color: Slush.ink),
+                              child: ColoredBox(color: context.slush.ink),
                             ),
                           ),
                         ),

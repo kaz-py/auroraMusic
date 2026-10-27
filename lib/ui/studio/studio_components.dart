@@ -60,9 +60,11 @@ class StudioPanel extends StatelessWidget {
             ? colors.surfaceContainerLowest
             : colors.surfaceContainerLow,
         borderRadius: StudioPalette.of(context),
-        border: isSlush(context) ? Border.fromBorderSide(Slush.border) : null,
+        border: isSlush(context)
+            ? Border.fromBorderSide(context.slush.border)
+            : null,
         boxShadow: isSlush(context)
-            ? Slush.hardShadow
+            ? context.slush.shadows
             : brasa
             ? (recessed ? null : Brasa.cardShadow)
             : modern

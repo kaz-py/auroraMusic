@@ -7,9 +7,6 @@ import '../../core/window_controls.dart';
 import '../../theme/slush_theme.dart';
 import '../artwork.dart';
 
-const _ink = Slush.ink;
-const _hair = BorderSide(color: _ink, width: 2);
-
 /// Pestañas de la barra superior: (sección del shell, etiqueta).
 const slushTabs = <(int, String)>[
   (0, 'INICIO'),
@@ -23,6 +20,7 @@ const slushTabs = <(int, String)>[
 ];
 
 Widget _round(
+  BuildContext context,
   String tip,
   IconData icon,
   VoidCallback? onTap, {
@@ -30,14 +28,14 @@ Widget _round(
 }) => Tooltip(
   message: tip,
   child: Material(
-    color: Colors.white,
-    shape: const CircleBorder(side: _hair),
+    color: context.slush.paper,
+    shape: CircleBorder(side: context.slush.border),
     child: InkWell(
       customBorder: const CircleBorder(),
       onTap: onTap,
       child: SizedBox.square(
         dimension: size,
-        child: Icon(icon, size: size * .52, color: _ink),
+        child: Icon(icon, size: size * .52, color: context.slush.ink),
       ),
     ),
   ),
@@ -65,9 +63,9 @@ class SlushTopBar extends StatelessWidget {
       container: true,
       label: 'Navegación principal',
       child: DecoratedBox(
-        decoration: const ShapeDecoration(
-          color: Colors.white,
-          shape: StadiumBorder(side: _hair),
+        decoration: ShapeDecoration(
+          color: context.slush.paper,
+          shape: StadiumBorder(side: context.slush.border),
         ),
         child: Padding(
           padding: const EdgeInsets.all(3),
@@ -88,9 +86,9 @@ class SlushTopBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: DecoratedBox(
-        decoration: const ShapeDecoration(
-          color: Colors.white,
-          shape: StadiumBorder(side: _hair),
+        decoration: ShapeDecoration(
+          color: context.slush.paper,
+          shape: StadiumBorder(side: context.slush.border),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -101,10 +99,10 @@ class SlushTopBar extends StatelessWidget {
                 onDoubleTap: () => WindowControls.invoke('maximize'),
                 child: Semantics(
                   label: 'Aurora',
-                  child: const DecoratedBox(
+                  child: DecoratedBox(
                     decoration: ShapeDecoration(
-                      color: Colors.white,
-                      shape: CircleBorder(side: _hair),
+                      color: context.slush.paper,
+                      shape: CircleBorder(side: context.slush.border),
                     ),
                     child: SizedBox.square(
                       dimension: 34,
@@ -114,7 +112,7 @@ class SlushTopBar extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'Bagel Fat One',
                             fontSize: 18,
-                            color: _ink,
+                            color: context.slush.ink,
                           ),
                         ),
                       ),
@@ -138,10 +136,16 @@ class SlushTopBar extends StatelessWidget {
                   ],
                 ),
               ),
-              _round('Buscar', Icons.search, () => onNavigate(1), size: 30),
+              _round(
+                context,
+                'Buscar',
+                Icons.search,
+                () => onNavigate(1),
+                size: 30,
+              ),
               const SizedBox(width: 8),
               Material(
-                color: _ink,
+                color: context.slush.ink,
                 shape: const StadiumBorder(),
                 child: InkWell(
                   customBorder: const StadiumBorder(),
@@ -154,17 +158,17 @@ class SlushTopBar extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.groups_rounded,
                           size: 14,
-                          color: Colors.white,
+                          color: context.slush.paper,
                         ),
                         if (w > 900) ...[
                           const SizedBox(width: 6),
                           Text(
                             sessionText,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: context.slush.paper,
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               letterSpacing: .3,
@@ -177,9 +181,15 @@ class SlushTopBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _round('Crear lista', Icons.add, onAdd, size: 30),
+              _round(context, 'Crear lista', Icons.add, onAdd, size: 30),
               const SizedBox(width: 8),
-              _round('Ajustes', Icons.tune, () => onNavigate(7), size: 30),
+              _round(
+                context,
+                'Ajustes',
+                Icons.tune,
+                () => onNavigate(7),
+                size: 30,
+              ),
               if (WindowControls.supported) ...[
                 const SizedBox(width: 6),
                 for (final (op, icon, tip) in const [
@@ -213,7 +223,7 @@ class _Tab extends StatelessWidget {
     button: true,
     selected: active,
     child: Material(
-      color: active ? _ink : Colors.transparent,
+      color: active ? context.slush.ink : Colors.transparent,
       shape: const StadiumBorder(),
       child: InkWell(
         customBorder: const StadiumBorder(),
@@ -226,7 +236,7 @@ class _Tab extends StatelessWidget {
               fontSize: 10.5,
               fontWeight: FontWeight.w800,
               letterSpacing: .3,
-              color: active ? Colors.white : _ink,
+              color: active ? context.slush.paper : context.slush.ink,
             ),
           ),
         ),
@@ -288,7 +298,7 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
             tooltip: tip,
             visualDensity: VisualDensity.compact,
             onPressed: f,
-            icon: Icon(i, size: 18, color: on ? Slush.blue : _ink),
+            icon: Icon(i, size: 18, color: on ? Slush.blue : context.slush.ink),
           );
       final transport = Row(
         mainAxisSize: MainAxisSize.min,
@@ -303,7 +313,7 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
           Tooltip(
             message: c.audio.isPlaying ? 'Pausa' : 'Reproducir',
             child: Material(
-              color: _ink,
+              color: context.slush.ink,
               shape: const CircleBorder(),
               child: InkWell(
                 customBorder: const CircleBorder(),
@@ -311,18 +321,18 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
                 child: SizedBox.square(
                   dimension: 38,
                   child: c.busy
-                      ? const Padding(
-                          padding: EdgeInsets.all(10),
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            color: Colors.white,
+                            color: context.slush.paper,
                           ),
                         )
                       : Icon(
                           c.audio.isPlaying
                               ? Icons.pause_rounded
                               : Icons.play_arrow_rounded,
-                          color: Colors.white,
+                          color: context.slush.paper,
                         ),
                 ),
               ),
@@ -371,9 +381,9 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: DecoratedBox(
-          decoration: const ShapeDecoration(
-            color: Colors.white,
-            shape: StadiumBorder(side: _hair),
+          decoration: ShapeDecoration(
+            color: context.slush.paper,
+            shape: StadiumBorder(side: context.slush.border),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

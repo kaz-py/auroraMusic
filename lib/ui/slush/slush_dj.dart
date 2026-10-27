@@ -14,8 +14,6 @@ import '../artwork.dart';
 import '../dj_filters_panel.dart';
 import '../dj_panel.dart';
 
-const _ink = Slush.ink;
-
 /// Verde saturado con el tono del fondo pastel (que deriva de la portada).
 Color _screenGreen(BuildContext context) {
   final h = HSLColor.fromColor(Theme.of(context).scaffoldBackgroundColor);
@@ -74,7 +72,7 @@ class SlushDj extends StatelessWidget {
           );
           final save = _RoundAction(
             key: const ValueKey('dj-discovery-add'),
-            color: _ink,
+            color: context.slush.ink,
             icon: Icons.favorite,
             label: discovery.busy ? 'GUARDANDO…' : 'GUARDAR →',
             onTap: rec == null || discovery.busy
@@ -197,7 +195,7 @@ class SlushDj extends StatelessWidget {
 
   Widget _empty(BuildContext context) => Container(
     padding: const EdgeInsets.all(24),
-    decoration: _cardDeco(Colors.white),
+    decoration: _cardDeco(context, context.slush.paper),
     child: Column(
       children: [
         Text(
@@ -215,11 +213,12 @@ class SlushDj extends StatelessWidget {
   );
 }
 
-BoxDecoration _cardDeco(Color color, [double r = 28]) => BoxDecoration(
-  color: color,
-  borderRadius: BorderRadius.circular(r),
-  border: Border.all(color: _ink, width: 2.5),
-);
+BoxDecoration _cardDeco(BuildContext context, Color color, [double r = 28]) =>
+    BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(r),
+      border: Border.all(color: context.slush.line, width: 2.5),
+    );
 
 class _Stack extends StatelessWidget {
   const _Stack({required this.track, required this.reason, this.affinity});
@@ -243,7 +242,9 @@ class _Stack extends StatelessWidget {
               offset: const Offset(14, 4),
               child: Transform.rotate(
                 angle: .1,
-                child: DecoratedBox(decoration: _cardDeco(Slush.violet)),
+                child: DecoratedBox(
+                  decoration: _cardDeco(context, Slush.violet),
+                ),
               ),
             ),
           ),
@@ -252,20 +253,22 @@ class _Stack extends StatelessWidget {
               offset: const Offset(-10, 8),
               child: Transform.rotate(
                 angle: -.07,
-                child: DecoratedBox(decoration: _cardDeco(Slush.yellow)),
+                child: DecoratedBox(
+                  decoration: _cardDeco(context, Slush.yellow),
+                ),
               ),
             ),
           ),
           Container(
             key: const ValueKey('dj-discovery-card'),
             padding: const EdgeInsets.all(14),
-            decoration: _cardDeco(Colors.white),
+            decoration: _cardDeco(context, context.slush.paper),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 DecoratedBox(
-                  decoration: _cardDeco(Slush.lilac, 18),
+                  decoration: _cardDeco(context, Slush.lilac, 18),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: AspectRatio(
@@ -332,10 +335,10 @@ class _Stack extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.slush.paper,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _ink, width: 2.5),
-                  boxShadow: Slush.hardShadow,
+                  border: Border.all(color: context.slush.line, width: 2.5),
+                  boxShadow: context.slush.shadows,
                 ),
                 child: Text(
                   'DJ AUROR',
@@ -351,10 +354,10 @@ class _Stack extends StatelessWidget {
             right: -10,
             child: Transform.rotate(
               angle: .25,
-              child: const Stack(
+              child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Icon(Icons.bolt, size: 64, color: _ink),
+                  Icon(Icons.bolt, size: 64, color: context.slush.line),
                   Icon(Icons.bolt, size: 52, color: Slush.violet),
                 ],
               ),
@@ -397,7 +400,7 @@ class _StarPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..strokeJoin = StrokeJoin.round
-      ..color = _ink;
+      ..color = Slush.ink;
     canvas.drawPath(path, line);
     final dot = Rect.fromCircle(center: c, radius: r * .26);
     canvas.drawOval(dot, Paint()..color = Slush.orange);
@@ -414,15 +417,21 @@ class _ReasonPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
-    decoration: const ShapeDecoration(
+    decoration: ShapeDecoration(
       color: Slush.lilac,
-      shape: StadiumBorder(side: BorderSide(color: _ink, width: 2)),
+      shape: StadiumBorder(
+        side: BorderSide(color: context.slush.line, width: 2),
+      ),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: Text(
         reason.toUpperCase(),
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Slush.ink,
+        ),
       ),
     ),
   );
@@ -458,15 +467,21 @@ class _RoundAction extends StatelessWidget {
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                border: Border.all(color: _ink, width: 2.5),
-                boxShadow: Slush.hardShadow,
+                border: Border.all(color: context.slush.line, width: 2.5),
+                boxShadow: context.slush.shadows,
               ),
-              child: Icon(icon, size: 42, color: Colors.white),
+              child: Icon(
+                icon,
+                size: 42,
+                color: color == context.slush.ink
+                    ? context.slush.paper
+                    : Colors.white, // sobre color vivo
+              ),
             ),
           ),
         ),
         const SizedBox(height: 8),
-        SlushPill(label, color: Colors.white),
+        SlushPill(label, color: context.slush.paper),
       ],
     ),
   );
@@ -479,9 +494,11 @@ class _Counter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
-    decoration: const ShapeDecoration(
-      color: Colors.white,
-      shape: StadiumBorder(side: BorderSide(color: _ink, width: 2)),
+    decoration: ShapeDecoration(
+      color: context.slush.paper,
+      shape: StadiumBorder(
+        side: BorderSide(color: context.slush.line, width: 2),
+      ),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -551,9 +568,10 @@ class _SlushFilters extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: _cardDeco(
-        Colors.white,
+        context,
+        context.slush.paper,
         24,
-      ).copyWith(boxShadow: Slush.hardShadow),
+      ).copyWith(boxShadow: context.slush.shadows),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -578,8 +596,8 @@ class _SlushFilters extends StatelessWidget {
             data: SliderTheme.of(context).copyWith(
               thumbShape: const _DotThumb(),
               trackHeight: 8,
-              activeTrackColor: _ink,
-              inactiveTrackColor: _ink,
+              activeTrackColor: context.slush.ink,
+              inactiveTrackColor: context.slush.ink,
               overlayShape: SliderComponentShape.noOverlay,
             ),
             child: Slider(
@@ -681,7 +699,9 @@ class _SwitchRow extends StatelessWidget {
         value: value,
         onChanged: onChanged,
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Slush.yellow : Colors.white,
+          (s) => s.contains(WidgetState.selected)
+              ? Slush.yellow
+              : context.slush.paper,
         ),
       ),
       const SizedBox(width: 8),
@@ -725,7 +745,7 @@ class _DotThumb extends SliderComponentShape {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
-        ..color = _ink,
+        ..color = sliderTheme.activeTrackColor ?? Slush.ink,
     );
   }
 }
