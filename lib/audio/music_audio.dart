@@ -14,6 +14,11 @@ import 'eq_dsp.dart';
 import 'eq_model.dart';
 import 'stream_guard.dart';
 
+/// Name of the shared library a dlopen error says is missing, or `null`.
+String? missingSharedLibrary(String error) => RegExp(
+  r'([\w.+-]+\.so[\d.]*): cannot open shared object file',
+).firstMatch(error)?.group(1);
+
 /// A single native mixer: playback, EQ and FFT all use the same output.
 class MusicAudio extends AudioBackend {
   final _engine = SoLoud.instance;
@@ -77,7 +82,17 @@ class MusicAudio extends AudioBackend {
 
   @override
   Future<void> initialize() async {
-    await _engine.init(sampleRate: 48000, bufferSize: 1024);
+    try {
+      await _engine.init(sampleRate: 48000, bufferSize: 1024);
+    } catch (e) {
+      final lib = Platform.isLinux ? missingSharedLibrary('$e') : null;
+      if (lib == null) rethrow;
+      throw StateError(
+        'Falta la biblioteca del sistema $lib. Instala el paquete .deb de '
+        'Aurora o ejecuta install.sh, que comprueba las dependencias. '
+        'Detalle: $e',
+      );
+    }
     _engine.setVisualizationEnabled(_visualization);
     _fft = AudioData(GetSamplesKind.linear);
     _timer = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());

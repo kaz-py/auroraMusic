@@ -153,7 +153,7 @@ jobs:
           compression-level: 0
 
   linux:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +163,7 @@ jobs:
       - name: Instalar dependencias de Linux
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config lld libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev libjsoncpp-dev libasound2-dev libopus-dev libogg-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config lld libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev libasound2-dev
 
       - uses: subosito/flutter-action@v2
         with:
@@ -175,18 +175,24 @@ jobs:
 
       - run: flutter build linux --release --no-pub --dart-define=AURORA_SUPABASE_URL=${{ secrets.AURORA_SUPABASE_URL }} --dart-define=AURORA_SUPABASE_ANON_KEY=${{ secrets.AURORA_SUPABASE_ANON_KEY }} --dart-define=AURORA_LASTFM_API_KEY=${{ secrets.AURORA_LASTFM_API_KEY }} --dart-define=AURORA_LASTFM_SECRET=${{ secrets.AURORA_LASTFM_SECRET }} --dart-define=AURORA_DISCORD_CLIENT_ID=${{ secrets.AURORA_DISCORD_CLIENT_ID }}
 
+      - name: Comprobar bibliotecas del bundle
+        run: bash scripts/linux/check_bundle.sh build/linux/x64/release/bundle
+
       - name: Empaquetar
         run: |
           version='${{ github.ref_name }}'
           version="${version#v}"
           mkdir -p dist/out
-          cp -r build/linux/x64/release/bundle "dist/Aurora-$version-linux-x64"
+          dir="dist/Aurora-$version-linux-x64"
+          cp -r build/linux/x64/release/bundle "$dir"
+          cp scripts/linux/install.sh scripts/linux/check_bundle.sh linux/packaging/com.aurora.aurora_music.desktop linux/packaging/com.aurora.aurora_music.png "$dir/"
           tar -C dist -czf "dist/out/Aurora-$version-linux-x64.tar.gz" "Aurora-$version-linux-x64"
+          bash scripts/linux/build_deb.sh "$dir" "$version" dist/out
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: dist/out/Aurora-*-linux-x64.tar.gz
+          path: dist/out/*
           if-no-files-found: error
           compression-level: 0
 
@@ -203,7 +209,7 @@ jobs:
 
       - name: Generar checksums.txt (SHA-256)
         working-directory: assets
-        run: sha256sum Aurora-* > checksums.txt && cat checksums.txt
+        run: sha256sum Aurora-* aurora-music_* > checksums.txt && cat checksums.txt
 
       - name: Publicar el release
         env:
