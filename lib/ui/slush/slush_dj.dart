@@ -103,24 +103,42 @@ class SlushDj extends StatelessWidget {
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    SizedBox(width: 176, child: counters),
+                    Expanded(
+                      flex: 2,
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: counters,
+                      ),
+                    ),
                     skip,
                     const SizedBox(width: 12),
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 430),
-                        child: stack,
+                    Expanded(
+                      flex: 4,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 460),
+                          child: stack,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Transform.translate(
-                      offset: const Offset(-26, 0),
-                      child: save,
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 300,
-                      child: Transform.rotate(angle: -.025, child: filters),
+                    save,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 3,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 340),
+                          child: KeyedSubtree(
+                            key: const ValueKey('dj-filters'),
+                            child: Transform.rotate(
+                              angle: -.025,
+                              child: filters,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 )

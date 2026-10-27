@@ -672,132 +672,192 @@ class SlushJamIdle extends StatelessWidget {
   final String scanLabel;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
-    child: Align(
-      alignment: Alignment.topLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final main = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _Hero(live: false),
+        const SizedBox(height: 12),
+        const Wrap(
+          spacing: 8,
+          runSpacing: 6,
           children: [
-            const _Hero(live: false),
-            const SizedBox(height: 12),
-            const Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                SlushPill('SIN SESIÓN', color: Slush.yellow),
-                SlushPill('ESCUCHEN JUNTOS', color: Slush.lilac),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (busy) const LinearProgressIndicator(),
-            if (message != null)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: _box(Slush.yellow, 14),
-                child: Text(message!),
-              ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: _box(Slush.violet, 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'EMPIEZA UNA JAM',
-                    style: TextStyle(
-                      fontFamily: 'Bagel Fat One',
-                      fontSize: 24,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Text(
-                    'Se crea al instante y te mostramos el QR y el código para invitar.',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Slush.yellow,
-                    ),
-                    onPressed: busy ? null : onStart,
-                    icon: const Icon(Icons.group_add_outlined, size: 18),
-                    label: const Text('INICIAR UNA JAM'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: _box(Slush.lilac, 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Unirme a una Jam',
-                    style: TextStyle(
-                      fontFamily: 'Bagel Fat One',
-                      fontSize: 22,
-                      color: Slush.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: name,
-                    maxLength: 32,
-                    decoration: const InputDecoration(
-                      labelText: 'Tu nombre (opcional)',
-                    ),
-                  ),
-                  TextField(
-                    controller: code,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    textInputAction: TextInputAction.go,
-                    onSubmitted: busy ? null : (_) => onJoin(),
-                    decoration: const InputDecoration(
-                      labelText: 'Código o enlace de la Jam',
-                      hintText: 'Por ejemplo K7M2QX',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Slush.ink,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: busy ? null : onJoin,
-                        child: const Text('UNIRME CON CÓDIGO'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onScan,
-                        icon: const Icon(Icons.qr_code_scanner, size: 18),
-                        label: Text(scanLabel.toUpperCase()),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Cada dispositivo usa sus propias fuentes de audio; los archivos locales no se envían.',
-              style: TextStyle(fontSize: 12),
-            ),
+            SlushPill('SIN SESIÓN', color: Slush.yellow),
+            SlushPill('ESCUCHEN JUNTOS', color: Slush.lilac),
           ],
         ),
+        const SizedBox(height: 16),
+        if (busy) const LinearProgressIndicator(),
+        if (message != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: _box(Slush.yellow, 14),
+            child: Text(message!),
+          ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: _box(Slush.violet, 22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'EMPIEZA UNA JAM',
+                style: TextStyle(
+                  fontFamily: 'Bagel Fat One',
+                  fontSize: 24,
+                  color: Colors.white,
+                ),
+              ),
+              const Text(
+                'Se crea al instante y te mostramos el QR y el código para invitar.',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Slush.yellow),
+                onPressed: busy ? null : onStart,
+                icon: const Icon(Icons.group_add_outlined, size: 18),
+                label: const Text('INICIAR UNA JAM'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final side = KeyedSubtree(
+      key: const ValueKey('jam-idle-side'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: _box(Slush.lilac, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Unirme a una Jam',
+                  style: TextStyle(
+                    fontFamily: 'Bagel Fat One',
+                    fontSize: 22,
+                    color: Slush.ink,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: name,
+                  maxLength: 32,
+                  decoration: const InputDecoration(
+                    labelText: 'Tu nombre (opcional)',
+                  ),
+                ),
+                TextField(
+                  controller: code,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.go,
+                  onSubmitted: busy ? null : (_) => onJoin(),
+                  decoration: const InputDecoration(
+                    labelText: 'Código o enlace de la Jam',
+                    hintText: 'Por ejemplo K7M2QX',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Slush.ink,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: busy ? null : onJoin,
+                      child: const Text('UNIRME CON CÓDIGO'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : onScan,
+                      icon: const Icon(Icons.qr_code_scanner, size: 18),
+                      label: Text(scanLabel.toUpperCase()),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: _box(Slush.lilac, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Cómo funciona',
+                  style: TextStyle(
+                    fontFamily: 'Bagel Fat One',
+                    fontSize: 22,
+                    color: Slush.ink,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                for (final step in const [
+                  'Invitados agregan canciones',
+                  'Audio sincronizado en cada equipo',
+                  'Escanea el QR o usa el código',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          color: Slush.ink,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            step,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Cada dispositivo usa sus propias fuentes de audio; los archivos locales no se envían.',
+            style: TextStyle(fontSize: 12),
+          ),
+        ],
       ),
-    ),
-  );
+    );
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: LayoutBuilder(
+        builder: (context, box) => box.maxWidth >= 900
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 11, child: main),
+                  const SizedBox(width: 24),
+                  Expanded(flex: 9, child: side),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [main, const SizedBox(height: 18), side],
+              ),
+      ),
+    );
+  }
 }

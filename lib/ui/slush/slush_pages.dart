@@ -53,80 +53,106 @@ class SlushPage extends StatelessWidget {
       builder: (context, box) {
         final wide = box.maxWidth >= 700;
         final pad = wide ? 28.0 : 16.0;
-        final font = wide ? 96.0 : 52.0;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(pad, wide ? 16 : 10, pad, 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      label: title,
-                      child: ExcludeSemantics(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontFamily: _display,
-                              fontSize: font,
-                              height: .95,
-                              letterSpacing: -font * .02,
-                              color: Slush.ink,
-                              shadows: [
-                                for (final o in const [
-                                  Offset(2, 0),
-                                  Offset(-2, 0),
-                                  Offset(0, 2),
-                                  Offset(0, -2),
-                                ])
-                                  Shadow(color: Slush.ink, offset: o),
-                              ],
-                            ),
+        final font = wide ? 96.0 : 40.0;
+        final header = <Widget>[
+          Padding(
+            padding: EdgeInsets.fromLTRB(pad, wide ? 16 : 10, pad, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    label: title,
+                    child: ExcludeSemantics(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontFamily: _display,
+                            fontSize: font,
+                            height: .95,
+                            letterSpacing: -font * .02,
+                            color: Slush.ink,
+                            shadows: [
+                              for (final o in const [
+                                Offset(2, 0),
+                                Offset(-2, 0),
+                                Offset(0, 2),
+                                Offset(0, -2),
+                              ])
+                                Shadow(color: Slush.ink, offset: o),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
+                ),
+                if (box.maxWidth >= 360) ...[
                   const SizedBox(width: 8),
                   SlushSticker(
                     sticker,
-                    size: wide ? 92 : 64,
+                    size: wide ? 92 : 48,
                     color: slushPalette[title.length % slushPalette.length],
                   ),
                 ],
+              ],
+            ),
+          ),
+          if (pills.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(pad, 0, pad, 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < pills.length; i++)
+                    SlushPill(
+                      pills[i],
+                      color: i == 0
+                          ? Colors.white
+                          : slushPalette[(i + 1) % slushPalette.length],
+                    ),
+                ],
               ),
             ),
-            if (pills.isNotEmpty)
-              Padding(
-                padding: EdgeInsets.fromLTRB(pad, 0, pad, 8),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    for (var i = 0; i < pills.length; i++)
-                      SlushPill(
-                        pills[i],
-                        color: i == 0
-                            ? Colors.white
-                            : slushPalette[(i + 1) % slushPalette.length],
-                      ),
-                  ],
+        ];
+        final body = card
+            ? Padding(
+                padding: EdgeInsets.fromLTRB(pad, 6, pad + 4, 12),
+                child: SlushCard(child: child),
+              )
+            : child;
+        if (!wide) {
+          // En el teléfono el titular se va con el scroll del contenido; cada
+          // pantalla empieza arriba (la clave evita heredar el desplazamiento).
+          return NestedScrollView(
+            key: ValueKey(title),
+            headerSliverBuilder: (_, _) => [
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: header,
                 ),
               ),
-            Expanded(
-              child: card
-                  ? Padding(
-                      padding: EdgeInsets.fromLTRB(pad, 6, pad + 4, 12),
-                      child: SlushCard(child: child),
-                    )
-                  : child,
+            ],
+            body: Builder(
+              builder: (ctx) => PrimaryScrollController(
+                controller: PrimaryScrollController.of(ctx),
+                automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+                child: body,
+              ),
             ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...header,
+            Expanded(child: body),
           ],
         );
       },

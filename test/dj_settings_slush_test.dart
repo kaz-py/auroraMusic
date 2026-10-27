@@ -121,7 +121,11 @@ void main() {
     });
   });
 
-  for (final size in [const Size(1280, 800), const Size(390, 844)]) {
+  for (final size in [
+    const Size(1280, 800),
+    const Size(1920, 1080),
+    const Size(390, 844),
+  ]) {
     testWidgets('DJ Slush se pinta a ${size.width.toInt()} px', (tester) async {
       late AppController app;
       // setUp fuera del reloj falso: el controlador abre SQLite real.
@@ -152,6 +156,13 @@ void main() {
       expect(find.text('Filtros'), findsOneWidget);
       expect(find.text('Diversidad'), findsOneWidget);
       expect(find.text('Enfriar artistas'), findsOneWidget);
+      if (size.width >= 1920) {
+        // Maqueta 04: los filtros van pegados al borde derecho.
+        expect(
+          tester.getTopRight(find.byKey(const ValueKey('dj-filters'))).dx,
+          greaterThanOrEqualTo(size.width - 140),
+        );
+      }
     });
   }
 }

@@ -29,9 +29,9 @@ class SlushMobileTopBar extends StatelessWidget {
   final ValueChanged<int> onMore;
 
   static const _more = <(int, IconData, String)>[
+    (3, Icons.download_outlined, 'Descargas'),
     (12, Icons.mic_none_rounded, 'Artistas'),
     (11, Icons.video_file_outlined, 'Descargar vídeos'),
-    (9, Icons.groups_outlined, 'Jam'),
     (14, Icons.people_outline, 'Amigos'),
     (4, Icons.album_outlined, 'Modo Vinilo'),
     (5, Icons.queue_music, 'Cola de reproducción'),
@@ -317,9 +317,10 @@ class SlushMiniPlayer extends StatelessWidget {
     required this.controller,
     required this.onOpen,
     required this.onToggle,
+    required this.onNext,
   });
   final AppController controller;
-  final VoidCallback onOpen, onToggle;
+  final VoidCallback onOpen, onToggle, onNext;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -377,6 +378,14 @@ class SlushMiniPlayer extends StatelessWidget {
                     onPressed: onToggle,
                     icon: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Siguiente',
+                    onPressed: onNext,
+                    icon: const Icon(
+                      Icons.skip_next_rounded,
+                      color: Colors.white,
                     ),
                   ),
                 ],

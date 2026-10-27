@@ -46,7 +46,9 @@ class SlushHome extends StatelessWidget {
       builder: (context, box) {
         final w = box.maxWidth;
         final wide = w >= 760;
-        final h = wide ? (w * .4).clamp(420.0, 470.0) : 430.0;
+        final h = wide
+            ? (MediaQuery.sizeOf(context).height * .62).clamp(420.0, 640.0)
+            : 430.0;
         final font = wide
             ? (h * .5).clamp(120.0, 240.0)
             : (w * .34).clamp(90.0, 150.0);

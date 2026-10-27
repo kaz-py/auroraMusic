@@ -56,10 +56,15 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
         builder: (context, box) {
           final wide = box.maxWidth >= 900;
           final eq = EqualizerPanel(controller: c, slushBoard: true);
+          final queue = _QueueCard(
+            controller: c,
+            onSearch: () => widget.onNavigate(1),
+            fill: wide,
+          );
           final side = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _QueueCard(controller: c, onSearch: () => widget.onNavigate(1)),
+              if (wide) Expanded(child: queue) else queue,
               const SizedBox(height: 16),
               _timer(c),
             ],
@@ -72,13 +77,19 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
                 _top(c),
                 const SizedBox(height: 20),
                 if (wide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 11, child: eq),
-                      const SizedBox(width: 24),
-                      Expanded(flex: 8, child: side),
-                    ],
+                  SizedBox(
+                    height: math.max(560.0, box.maxHeight - 140),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          flex: 11,
+                          child: SingleChildScrollView(child: eq),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(flex: 8, child: side),
+                      ],
+                    ),
                   )
                 else ...[
                   eq,
@@ -138,17 +149,21 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             decoration: _card(Colors.white, 40),
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final (label, idx) in [
-                    ('VINILO', 4),
-                    ('LETRAS', 6),
-                    ('ECUALIZADOR', 13),
-                    ('COLA', 5),
-                  ])
-                    _tab(label, idx == current, () => widget.onNavigate(idx)),
-                ],
+              // En el teléfono las cuatro pestañas no caben: se desplazan.
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final (label, idx) in [
+                      ('VINILO', 4),
+                      ('LETRAS', 6),
+                      ('ECUALIZADOR', 13),
+                      ('COLA', 5),
+                    ])
+                      _tab(label, idx == current, () => widget.onNavigate(idx)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -290,9 +305,16 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
 }
 
 class _QueueCard extends StatelessWidget {
-  const _QueueCard({required this.controller, required this.onSearch});
+  const _QueueCard({
+    required this.controller,
+    required this.onSearch,
+    this.fill = false,
+  });
   final AppController controller;
   final VoidCallback onSearch;
+
+  /// Ocupa toda la altura disponible (escritorio) en vez de encogerse.
+  final bool fill;
 
   static String _kind(Track t) =>
       t.isLocal ? (t.pageUrl != null ? 'DESCARGADA' : 'LOCAL') : 'YOUTUBE';
@@ -313,16 +335,21 @@ class _QueueCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text(
-                  'COLA',
-                  style: TextStyle(
-                    fontFamily: 'Bagel Fat One',
-                    fontSize: 52,
-                    height: 1,
-                    color: Slush.ink,
+                const Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'COLA',
+                      style: TextStyle(
+                        fontFamily: 'Bagel Fat One',
+                        fontSize: 52,
+                        height: 1,
+                        color: Slush.ink,
+                      ),
+                    ),
                   ),
                 ),
-                const Spacer(),
                 Tooltip(
                   message: c.shuffle
                       ? 'Desactivar aleatorio'
@@ -344,6 +371,15 @@ class _QueueCard extends StatelessWidget {
                 padding: EdgeInsets.all(24),
                 child: Center(child: Text('No hay canciones en la cola')),
               )
+            else if (fill)
+              Expanded(
+                child: ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
+                  itemCount: q.length,
+                  onReorder: c.reorderQueue,
+                  itemBuilder: (context, i) => _row(context, q[i], i),
+                ),
+              )
             else
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 340),
@@ -355,6 +391,7 @@ class _QueueCard extends StatelessWidget {
                   itemBuilder: (context, i) => _row(context, q[i], i),
                 ),
               ),
+            if (fill && q.isEmpty) const Spacer(),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: onSearch,
@@ -504,6 +541,11 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
     final eq = widget.eq;
     final ok = eq.supported;
     final sel = widget.selected.clamp(0, eq.bands.length - 1);
+    final note = widget.webPlayback
+        ? 'En canciones de YouTube el EQ se desactiva'
+        : !ok
+        ? 'Este dispositivo no ofrece EQ'
+        : null;
     final band = eq.bands[sel];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -529,32 +571,29 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
                   '8 bandas DSP · preamp automático',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 6),
-                DecoratedBox(
-                  decoration: _card(Colors.white, 20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircleAvatar(
-                          radius: 4,
-                          backgroundColor: Slush.orange,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          !ok && !widget.webPlayback
-                              ? 'Este dispositivo no ofrece EQ'
-                              : 'En canciones de YouTube el EQ se desactiva',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                      ],
+                if (note != null) ...[
+                  const SizedBox(height: 6),
+                  DecoratedBox(
+                    decoration: _card(Colors.white, 20),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircleAvatar(
+                            radius: 4,
+                            backgroundColor: Slush.orange,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(note, style: const TextStyle(fontSize: 11)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
