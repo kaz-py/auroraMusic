@@ -142,7 +142,7 @@ class _FakeOrch implements StreamOrchestrator {
   Object? failOnce;
   final gates = <String, Completer<void>>{};
   @override
-  bool get preferMp4a => false;
+  AudioQuality quality = AudioQuality.high;
   @override
   Future<ResolvedStream> resolve(
     String videoId, {

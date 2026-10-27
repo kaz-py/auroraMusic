@@ -32,8 +32,7 @@ class InnerTubeSource extends SourceBackend {
        _webFallbackEnabled = webFallback ?? Platform.isWindows,
        _proxyFactory = proxyFactory ?? AudioProxy.start,
        _orchestratorFactory =
-           orchestratorFactory ??
-           (() => StreamOrchestrator(preferMp4a: Platform.isAndroid));
+           orchestratorFactory ?? (() => StreamOrchestrator());
 
   final SourceBackend delegate;
   final InnerTubePost _post;
@@ -42,6 +41,13 @@ class InnerTubeSource extends SourceBackend {
   final StreamOrchestrator Function() _orchestratorFactory;
   // Created on the first YouTube resolve, never in the constructor.
   StreamOrchestrator? _orchestrator;
+  AudioQuality _quality = AudioQuality.high;
+  AudioQuality get audioQuality => _quality;
+  set audioQuality(AudioQuality q) {
+    _quality = q;
+    _orchestrator?.quality = q;
+  }
+
   Future<AudioProxy>? _proxyFuture;
   AudioProxy? _proxy;
   String? _registeredId;
@@ -577,7 +583,8 @@ class InnerTubeSource extends SourceBackend {
     return id != null && _videoId.hasMatch(id) ? id : null;
   }
 
-  StreamOrchestrator get _orch => _orchestrator ??= _orchestratorFactory();
+  StreamOrchestrator get _orch =>
+      _orchestrator ??= _orchestratorFactory()..quality = _quality;
 
   static Duration? _knownDuration(Track track) =>
       track.duration > Duration.zero ? track.duration : null;

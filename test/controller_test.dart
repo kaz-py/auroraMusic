@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/sources/innertube_source.dart';
+import 'package:aurora_music/sources/stream/stream_orchestrator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fakes.dart';
@@ -123,6 +125,21 @@ void main() {
       expect(source.applied, isTrue);
     },
   );
+
+  test('audio quality is saved, restored and applied to InnerTube', () async {
+    final source = InnerTubeSource(FakeSource());
+    final controller = await createTestController(
+      source: source,
+      preferences: const {'audioQuality': 'normal'},
+    );
+    addTearDown(() => closeTestController(controller));
+
+    expect(controller.audioQuality, AudioQuality.normal);
+    expect(source.audioQuality, AudioQuality.normal);
+    controller.setAudioQuality(AudioQuality.saver);
+    expect(controller.preferences.getString('audioQuality'), 'saver');
+    expect(source.audioQuality, AudioQuality.saver);
+  });
 
   test('changing progressive playback only configures next tracks', () async {
     final source = _ProgressiveSource();

@@ -37,6 +37,7 @@ import 'metadata/spotify_recs.dart';
 import 'metadata/youtube_match.dart';
 import 'discord/discord_presence.dart';
 import 'sources/innertube_source.dart';
+import 'sources/stream/stream_orchestrator.dart' show AudioQuality;
 import 'sources/youtube_request_policy.dart';
 import 'sources/web_music_source.dart';
 
@@ -564,6 +565,7 @@ class AppController extends ChangeNotifier {
 
   /// 'atelier' (por defecto), 'modern', 'brasa' o 'slush'.
   String themeKind = 'modern';
+  AudioQuality audioQuality = AudioQuality.high;
   final DiscordPresence discord = DiscordPresence();
   bool get discordPresence => discord.enabled;
   void setDiscordPresence(bool value) {
@@ -1345,6 +1347,12 @@ class AppController extends ChangeNotifier {
           }.contains(preferences.getString('themeKind'))
           ? preferences.getString('themeKind')!
           : 'modern';
+      audioQuality =
+          AudioQuality.values.asNameMap()[preferences.getString(
+            'audioQuality',
+          )] ??
+          AudioQuality.high;
+      _applyAudioQuality();
       discord.enabled = preferences.getBool('discordPresence') ?? true;
       themeMode = ThemeMode.values.firstWhere(
         (mode) => mode.name == preferences.getString('themeMode'),
@@ -3691,6 +3699,18 @@ class AppController extends ChangeNotifier {
         : 'atelier';
     unawaited(preferences.setString('themeKind', themeKind));
     _notify();
+  }
+
+  void setAudioQuality(AudioQuality q) {
+    audioQuality = q;
+    unawaited(preferences.setString('audioQuality', q.name));
+    _applyAudioQuality();
+    _notify();
+  }
+
+  void _applyAudioQuality() {
+    final s = source;
+    if (s is InnerTubeSource) s.audioQuality = audioQuality;
   }
 
   void setThemeMode(ThemeMode value) {
