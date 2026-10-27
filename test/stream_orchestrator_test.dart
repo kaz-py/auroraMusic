@@ -315,6 +315,15 @@ void main() {
       expect(await pick(formats, quality: AudioQuality.saver), 249);
     });
 
+    test('changing quality drops cached streams', () async {
+      final h = _Harness()
+        ..respond = (_, _) =>
+            _ok([_fmt(251, bitrate: 160000), _fmt(249, bitrate: 50000)]);
+      expect((await h.orch.resolve('v')).itag, 251);
+      h.orch.quality = AudioQuality.saver;
+      expect((await h.orch.resolve('v')).itag, 249);
+    });
+
     test('skips dubbed audio tracks', () async {
       expect(
         await pick([

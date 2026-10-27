@@ -109,9 +109,10 @@ class StreamOrchestrator {
     PlayerPost? post,
     HttpGet? get,
     List<PlayerClient>? clients,
-    this.quality = AudioQuality.high,
+    AudioQuality quality = AudioQuality.high,
     DateTime Function()? now,
-  }) : _post = post ?? defaultPlayerPost,
+  }) : _quality = quality,
+       _post = post ?? defaultPlayerPost,
        _get = get ?? defaultHttpGet,
        _clients = clients ?? defaultPlayerClients,
        _now = now ?? DateTime.now;
@@ -130,7 +131,15 @@ class StreamOrchestrator {
     YouTubeFailure.other,
   ];
 
-  AudioQuality quality;
+  AudioQuality _quality;
+  AudioQuality get quality => _quality;
+  // Cached streams carry the old itag; drop them so the next load re-ranks.
+  set quality(AudioQuality q) {
+    if (q == _quality) return;
+    _quality = q;
+    _cache.clear();
+  }
+
   final PlayerPost _post;
   final HttpGet _get;
   final List<PlayerClient> _clients;
