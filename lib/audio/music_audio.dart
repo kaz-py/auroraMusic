@@ -21,7 +21,10 @@ String? missingSharedLibrary(String error) => RegExp(
 
 /// A single native mixer: playback, EQ and FFT all use the same output.
 class MusicAudio extends AudioBackend {
-  final _engine = SoLoud.instance;
+  // Lazy: SoLoud.instance loads the native library, whose load errors must
+  // surface inside initialize()'s try.
+  late final SoLoud _engine = SoLoud.instance;
+  bool _engineReady = false;
   static const _pcm = MethodChannel('aurora/pcm');
   final _spectrum = ValueNotifier<List<double>>(List.filled(48, 0));
   final _completed = StreamController<void>.broadcast();
@@ -93,6 +96,7 @@ class MusicAudio extends AudioBackend {
         'Detalle: $e',
       );
     }
+    _engineReady = true;
     _engine.setVisualizationEnabled(_visualization);
     _fft = AudioData(GetSamplesKind.linear);
     _timer = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
@@ -544,7 +548,7 @@ class MusicAudio extends AudioBackend {
   /// Respaldo para archivos locales en modo disco: el filtro nativo tiene
   /// ocho bandas fijas, así que se muestrea la curva en sus anclas.
   void _syncNativeEq() {
-    if (!_engine.isInitialized) return;
+    if (!_engineReady) return;
     final eq = _engine.filters.equalizerFilter;
     if (_streaming || !_eqEnabled || _sound == null) {
       if (eq.isActive) eq.deactivate();
@@ -578,7 +582,7 @@ class MusicAudio extends AudioBackend {
   @override
   void setVisualizationEnabled(bool enabled) {
     _visualization = enabled;
-    if (_engine.isInitialized) _engine.setVisualizationEnabled(enabled);
+    if (_engineReady) _engine.setVisualizationEnabled(enabled);
     if (!enabled) _spectrum.value = List.filled(48, 0);
   }
 
@@ -591,7 +595,7 @@ class MusicAudio extends AudioBackend {
       _serialize(() async {
         await _release();
         _fft?.dispose();
-        _engine.deinit();
+        if (_engineReady) _engine.deinit();
         _spectrum.dispose();
         await _completed.close();
       }),

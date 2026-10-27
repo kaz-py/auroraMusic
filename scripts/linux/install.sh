@@ -76,17 +76,18 @@ while IFS= read -r line; do
     *) printf '%s\n' "$line" ;;
   esac
 done <"$desktop_src" >"$desktop_file"
-cp "$icon_src" "$icon_file"
+install -m 644 "$icon_src" "$icon_file"
 refresh_menu
 echo "Aurora Music instalado en $dest"
 
 checker="$dest/check_bundle.sh"
 [ -f "$checker" ] || checker="$here/check_bundle.sh"
 missing="$(bash "$checker" "$dest" 2>&1 || true)"
-if [ -n "$missing" ]; then
-  echo "$missing"
+[ -z "$missing" ] || echo "$missing"
+libs="$(printf '%s\n' "$missing" | awk '/falta/ {print $NF}' | sort -u)"
+if [ -n "$libs" ]; then
   echo "Faltan bibliotecas del sistema. Instálalas con tu gestor de paquetes:"
-  for lib in $(printf '%s\n' "$missing" | awk '/falta/ {print $NF}' | sort -u); do
+  for lib in $libs; do
     case "$lib" in
       libgtk-3.so.0) pkgs="libgtk-3-0|gtk3|gtk3" ;;
       libsecret-1.so.0) pkgs="libsecret-1-0|libsecret|libsecret" ;;
