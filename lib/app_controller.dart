@@ -399,22 +399,23 @@ class AppController extends ChangeNotifier {
     final extra = <DjCandidate>[];
     final taste = selfTaste;
     final signals = _djArtistSignals();
-    // Radio sola (motor caído o en espera): solo lo relacionado con la
-    // semilla; si nada lo está, las 3 más coherentes. Nunca vacía si hay radio.
+    // Radio sola (motor caído o en espera): lo relacionado con la semilla y,
+    // si faltan para [limit], lo más coherente del resto (misma puerta que el
+    // motor). Nunca vacía si hay radio.
     List<Suggestion> radioOnly() {
       final coh = _seedCoherence(taste.profile);
       final scored = [
         for (final c in extra) (c: c, r: _coherenceOf(c.track, coh)),
       ];
-      var keep = [
-        for (final s in scored)
-          if (coh.isEmpty || s.r.score >= djRelatedThreshold) s,
-      ];
-      if (keep.isEmpty) {
-        keep = ([
-          ...scored,
-        ]..sort((a, b) => b.r.score.compareTo(a.r.score))).take(3).toList();
-      }
+      final ranked = coh.isEmpty
+          ? scored
+          : ([...scored]..sort((a, b) => b.r.score.compareTo(a.r.score)));
+      final related = ranked
+          .where((s) => s.r.score >= djRelatedThreshold)
+          .length;
+      final keep = coh.isEmpty
+          ? ranked
+          : ranked.take(max(related, limit)).toList();
       return [
         for (final s in keep)
           Suggestion(

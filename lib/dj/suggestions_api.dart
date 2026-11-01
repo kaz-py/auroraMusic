@@ -600,21 +600,6 @@ class SuggestionsApi {
           genres: graph?.tagsOf(i.artist) ?? const [],
         ),
     };
-    if (!coh.isEmpty && items.isNotEmpty) {
-      final gate = coherenceGate(
-        items,
-        result: (i) => cohOf[i]!,
-        artist: (i) => i.artist,
-        limit: ctx.limit,
-        artistCap: math.max(1, (ctx.limit / 5).ceil()),
-        lastResort: (i) => i.candidate.bucket == RecBucket.discovery,
-      );
-      diag.coherenceRelaxed = gate.relaxed;
-      items
-        ..clear()
-        ..addAll(gate.kept);
-    }
-    diag.afterCoherence = items.length;
 
     // Con cuota, lo que ya está en la biblioteca cuenta como «ya oído» y se
     // enfría con una ventana corta (djHeardCooldown) en vez de la de 7 días.
@@ -638,13 +623,29 @@ class SuggestionsApi {
         }())
           i,
     ];
+    // La puerta de coherencia corre sobre lo elegible de cada tramo: si fuese
+    // antes, recortaría a ~limit y la relajación de memoria traería de vuelta
+    // lo oído en la ventana en vez de otros candidatos.
     var pool = const <_Item>[];
     for (final tier in const [1.0, 0.5, 0.25, 0.0]) {
       pool = eligible(tier);
       diag.memoryTier = tier;
+      diag.afterMemory = pool.length;
+      if (!coh.isEmpty && pool.isNotEmpty) {
+        final gate = coherenceGate(
+          pool,
+          result: (i) => cohOf[i]!,
+          artist: (i) => i.artist,
+          limit: ctx.limit,
+          artistCap: math.max(1, (ctx.limit / 5).ceil()),
+          lastResort: (i) => i.candidate.bucket == RecBucket.discovery,
+        );
+        diag.coherenceRelaxed = gate.relaxed;
+        pool = gate.kept;
+      }
+      diag.afterCoherence = pool.length;
       if (pool.length >= ctx.limit) break;
     }
-    diag.afterMemory = pool.length;
 
     for (final i in pool) {
       final age = memory.ageOf(i.track, now);

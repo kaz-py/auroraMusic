@@ -283,6 +283,46 @@ void main() {
       expect(ctx.neighbors, isNot(contains('y')));
     });
 
+    test(
+      'la puerta corre tras el filtro de memoria: no vuelve lo oído',
+      () async {
+        final memory = RecsMemory(persist: false);
+        final heard = [
+          for (final a in ['B', 'C', 'D']) tr('${a}1', 'Tema $a', a),
+        ];
+        await memory.record(heard, now);
+        final out =
+            await SuggestionsApi(
+              memory: memory,
+              exploration: 0,
+              graph: graph,
+            ).getSuggestions(
+              SessionContext(
+                participants: const [],
+                current: seed,
+                extraCandidates: [
+                  for (final t in heard) DjCandidate(t, 'h', prior: 0.4),
+                  DjCandidate(tr('E1', 'Tema E', 'E'), 'e', prior: 0.1),
+                  for (var i = 0; i < 6; i++)
+                    DjCandidate(
+                      tr('Z${i}1', 'Tema Z$i', 'Z$i'),
+                      'z',
+                      prior: 0.1,
+                    ),
+                ],
+                limit: 4,
+                now: now,
+                seed: 1,
+                remember: false,
+              ),
+            );
+        expect(out, hasLength(4));
+        for (final t in heard) {
+          expect(out.map((s) => s.track.id), isNot(contains(t.id)));
+        }
+      },
+    );
+
     test('la cola no deriva la semilla', () async {
       final z2 = tr('z2', 'Otro Z', 'Z');
       final out = await suggest(
