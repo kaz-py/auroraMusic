@@ -18,6 +18,7 @@ class FakeUpstream {
   late final HttpServer server;
   final log = <Map<String, String>>[];
   final forbid = <String>{}; // always 403
+  final redirect = <String, String>{}; // path -> 302 Location
   final forbidAfterFirst = <String>{}; // 403 unless range starts at 0
   final failWith500 = <String>{};
   final badRequest = <String>{}; // always 400, like a stale signed URL
@@ -60,6 +61,13 @@ class FakeUpstream {
     final m = RegExp(r'bytes=(\d+)-(\d+)').firstMatch(entry['range'] ?? '')!;
     final a = int.parse(m[1]!);
     final b = int.parse(m[2]!);
+    if (redirect.containsKey(path)) {
+      r.response
+        ..statusCode = 302
+        ..headers.set('location', redirect[path]!);
+      await r.response.close();
+      return;
+    }
     if (hangHeaders.contains(path)) return _hang(r, writeHeaders: false);
     if (forbid.contains(path) || (forbidAfterFirst.contains(path) && a > 0)) {
       r.response.statusCode = 403;
@@ -112,12 +120,14 @@ void main() {
     int maxUpstream = 6,
     Duration header = const Duration(seconds: 5),
     Duration stall = const Duration(seconds: 5),
+    bool Function(Uri)? allowRedirect,
   }) async {
     proxy = await AudioProxy.start(
       chunkBytes: chunkBytes,
       maxUpstream: maxUpstream,
       headerTimeout: header,
       stallTimeout: stall,
+      allowRedirect: allowRedirect,
     );
   }
 
@@ -619,5 +629,91 @@ void main() {
     }
     final ok = register(stream(id: 'good'));
     expect((await fetch(ok)).body, up.data);
+  });
+
+  // googlevideo `rr*` fronts answer 302 to the cache node holding the file.
+  group('redirects', () {
+    bool loopbackOnly(Uri u) => u.host == '127.0.0.1';
+
+    test('302 to an allowed host is followed and served as 206', () async {
+      await startProxy(allowRedirect: loopbackOnly);
+      up.redirect['front'] = up.url('node').toString();
+      var refreshed = 0;
+      final u = register(
+        stream(path: 'front'),
+        refresh: () async {
+          refreshed++;
+          return stream(path: 'front');
+        },
+      );
+      final got = await fetch(u, range: 'bytes=10-1999');
+      expect(got.status, 206);
+      expect(got.body, up.data.sublist(10, 2000));
+      expect(refreshed, 0);
+      // Every hop repeats the exact Range and the player UA.
+      final node = up.log.where((l) => l[':path'] == 'node').toList();
+      expect(node.first['range'], 'bytes=10-1033');
+      expect(node.first['user-agent'], 'UA/1');
+      expect(up.requestsFor('front'), up.requestsFor('node'));
+    });
+
+    test('redirect to a non-googlevideo host is refused', () async {
+      await startProxy();
+      up.redirect['front'] = 'https://evil.example.com/steal';
+      var refreshed = 0;
+      final u = register(
+        stream(path: 'front'),
+        refresh: () async {
+          refreshed++;
+          return stream(path: 'front');
+        },
+      );
+      expect((await fetch(u, range: 'bytes=0-99')).status, 410);
+      expect(up.requestsFor('front'), 1);
+      expect(refreshed, 0);
+    });
+
+    test('default policy accepts only https googlevideo hosts', () async {
+      await startProxy(); // tearDown expects a running proxy
+      expect(
+        AudioProxy.isGoogleVideoRedirect(
+          Uri.parse('https://rr1---sn-abc.googlevideo.com/videoplayback?x=1'),
+        ),
+        isTrue,
+      );
+      for (final bad in [
+        'http://rr1---sn-a.googlevideo.com/videoplayback',
+        'https://googlevideo.com.evil.example/videoplayback',
+        'https://evil.example/rr1---sn-a.googlevideo.com',
+        'https://u:p@rr1---sn-a.googlevideo.com/videoplayback',
+        'https://rr1---sn-a.googlevideo.com:8443/videoplayback',
+      ]) {
+        expect(
+          AudioProxy.isGoogleVideoRedirect(Uri.parse(bad)),
+          isFalse,
+          reason: bad,
+        );
+      }
+    });
+
+    test('redirect loop is bounded, renews once and ends as 410', () async {
+      await startProxy(allowRedirect: loopbackOnly);
+      up.redirect['a'] = up.url('b').toString();
+      up.redirect['b'] = up.url('a').toString();
+      var refreshed = 0;
+      final reasons = <String>[];
+      final u = register(
+        stream(path: 'a'),
+        refresh: () async {
+          refreshed++;
+          return stream(path: 'a');
+        },
+        onFailure: (s, r) => reasons.add('$s $r'),
+      );
+      expect((await fetch(u, range: 'bytes=0-99')).status, 410);
+      expect(refreshed, 1);
+      expect(reasons, ['302 too many redirects']);
+      expect(up.log.length, 12); // (1 + 5 hops) x 2 attempts, no endless chase
+    });
   });
 }
