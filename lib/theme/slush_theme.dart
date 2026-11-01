@@ -307,9 +307,10 @@ ThemeData slushTheme(Brightness brightness, Color accent) {
             : paper,
       ),
       disabledColor: disabledFill,
-      labelStyle: WidgetStateTextStyle.resolveWith(
-        (s) => heavy.copyWith(
-          color: vivid(s) || s.contains(WidgetState.pressed) ? Slush.ink : ink,
+      // RawChip solo resuelve el color: el estilo debe llevar WidgetStateColor.
+      labelStyle: heavy.copyWith(
+        color: WidgetStateColor.resolveWith(
+          (s) => vivid(s) || s.contains(WidgetState.pressed) ? Slush.ink : ink,
         ),
       ),
       secondaryLabelStyle: heavy.copyWith(color: Slush.ink),
@@ -349,9 +350,6 @@ ThemeData slushTheme(Brightness brightness, Color accent) {
       surfaceTintColor: Colors.transparent,
       shape: card(16),
       textStyle: TextStyle(color: ink, fontWeight: FontWeight.w700),
-    ),
-    iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(foregroundColor: ink),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: ink,
@@ -409,8 +407,16 @@ bool isSlush(BuildContext context) =>
 /// vivo también en modo oscuro.
 final slushVividTheme = slushTheme(Brightness.light, Slush.lilac);
 
-/// Envuelve [child] con [slushVividTheme] solo en modo oscuro.
+/// Envuelve [child] con [slushVividTheme] solo en modo oscuro. El estilo de
+/// texto por defecto también pasa a tinta: `Text` sin estilo hereda el
+/// `DefaultTextStyle` de fuera (crema en oscuro), no el del tema.
 Widget slushOnVivid(BuildContext context, Widget child) =>
     Theme.of(context).brightness == Brightness.dark
-    ? Theme(data: slushVividTheme, child: child)
+    ? Theme(
+        data: slushVividTheme,
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(color: Slush.ink),
+          child: child,
+        ),
+      )
     : child;

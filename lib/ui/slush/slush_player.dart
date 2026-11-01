@@ -621,8 +621,11 @@ class _Progress extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(_clock(c.audio.position), style: _inkLabel(context)),
-                  Text('-${_clock(left)}', style: _inkLabel(context)),
+                  SlushPill(
+                    _clock(c.audio.position),
+                    color: context.slush.paper,
+                  ),
+                  SlushPill('-${_clock(left)}', color: context.slush.paper),
                 ],
               ),
             ),

@@ -410,6 +410,11 @@ class _QueueCard extends StatelessWidget {
   Widget _row(BuildContext context, Track t, int i) {
     final c = controller;
     final active = i == c.queueIndex;
+    // Sobre lila el contenido va en tinta fija (también en oscuro), con tema
+    // claro para iconos y menús.
+    final Widget Function(BuildContext, Widget) wrap = active
+        ? slushOnVivid
+        : (_, w) => w;
     final extras = [
       (label: 'Quitar de la cola', run: () => c.removeFromQueue(i)),
     ];
@@ -424,12 +429,6 @@ class _QueueCard extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Material(
             color: active ? Slush.lilac : context.slush.paper,
-            // Sobre lila el texto va en tinta fija (legible también en oscuro).
-            textStyle: active
-                ? Theme.of(
-                    context,
-                  ).textTheme.bodyMedium!.copyWith(color: Slush.ink)
-                : null,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
               side: context.slush.border,
@@ -439,55 +438,64 @@ class _QueueCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
               ),
               onTap: () => c.playQueueAt(i),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      child: Text(
-                        '${i + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    Artwork(track: t, size: 36, radius: 8),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+              child: wrap(
+                context,
+                Builder(
+                  builder: (context) => Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          child: Text(
+                            '${i + 1}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
-                              fontSize: 13,
+                              fontSize: 12,
                             ),
                           ),
-                          Text(
-                            t.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11),
+                        ),
+                        Artwork(track: t, size: 36, radius: 8),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                t.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        SlushPill(_kind(t), color: context.slush.paper),
+                        const SizedBox(width: 6),
+                        Text(
+                          _time(t.duration),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        TrackMenuButton(
+                          controller: c,
+                          track: t,
+                          extras: extras,
+                        ),
+                      ],
                     ),
-                    SlushPill(_kind(t), color: context.slush.paper),
-                    const SizedBox(width: 6),
-                    Text(
-                      _time(t.duration),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TrackMenuButton(controller: c, track: t, extras: extras),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -630,7 +638,8 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           clipBehavior: Clip.none,
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 18, 12, 10),
+              // 36 arriba: el disco flotante (bajo 32 px) no tapa el dB de la 8ª banda.
+              padding: const EdgeInsets.fromLTRB(12, 36, 12, 10),
               decoration: _card(context),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

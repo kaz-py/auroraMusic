@@ -98,7 +98,8 @@ class _Avatar extends StatelessWidget {
                   height: 36,
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
-                  errorBuilder: (_, _, _) => Text(initial),
+                  errorBuilder: (_, _, _) =>
+                      Text(initial, style: const TextStyle(color: Slush.ink)),
                 ),
               ),
       ),
@@ -461,14 +462,15 @@ class SlushJamActive extends StatelessWidget {
     final pending = e.status == JamEntryStatus.pending;
     final mine = e.up.contains(s.participantId);
     final who = s.participantName(e.suggestedFor ?? e.addedBy);
+    // Sobre amarillo el contenido va en tinta fija (también en oscuro), con
+    // tema claro para iconos y botones.
+    final Widget Function(BuildContext, Widget) wrap = playing
+        ? slushOnVivid
+        : (_, w) => w;
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: playing ? Slush.yellow : context.slush.paper,
-        // Sobre amarillo el texto va en tinta fija (legible también en oscuro).
-        textStyle: playing
-            ? Theme.of(context).textTheme.bodyMedium!.copyWith(color: Slush.ink)
-            : null,
         shape: RoundedRectangleBorder(
           side: context.slush.border,
           borderRadius: BorderRadius.circular(16),
@@ -476,116 +478,127 @@ class SlushJamActive extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: s.isHost && !pending && s.connected ? () => c.play(e) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 18,
-                  child: Text(
-                    '${i + 1}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
+          child: wrap(
+            context,
+            Builder(
+              builder: (context) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Artwork(
-                    track: jamTrackAsTrack(e.track),
-                    artworkContext: ArtworkContext.thumbnailCompact,
-                    size: 36,
-                    radius: 8,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        e.track.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      child: Text(
+                        '${i + 1}',
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 12.5,
+                          fontSize: 12,
                         ),
                       ),
+                    ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Artwork(
+                        track: jamTrackAsTrack(e.track),
+                        artworkContext: ArtworkContext.thumbnailCompact,
+                        size: 36,
+                        radius: 8,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            e.track.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          Text(
+                            pending
+                                ? '${e.track.artist} · espera aprobación'
+                                : e.track.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 10.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: SlushPill(
+                        e.suggestedFor != null ? 'PARA $who' : 'AGREGÓ $who',
+                        color: _tone(who),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    if (e.track.durationMs > 0)
                       Text(
-                        pending
-                            ? '${e.track.artist} · espera aprobación'
-                            : e.track.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10.5),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: SlushPill(
-                    e.suggestedFor != null ? 'PARA $who' : 'AGREGÓ $who',
-                    color: _tone(who),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                if (e.track.durationMs > 0)
-                  Text(
-                    _mmss(e.track.durationMs),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                if (pending && c.isStaff) ...[
-                  IconButton(
-                    tooltip: 'Aprobar',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => s.approve(e.id, accept: true),
-                    icon: const Icon(Icons.check_circle_outline, size: 20),
-                  ),
-                  IconButton(
-                    tooltip: 'Rechazar',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => s.approve(e.id, accept: false),
-                    icon: const Icon(Icons.cancel_outlined, size: 20),
-                  ),
-                ] else ...[
-                  Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: context.slush.line, width: 2),
-                    ),
-                    child: InkResponse(
-                      onTap: s.connected && s.rules.votes && !pending
-                          ? () => s.vote(e.id, mine ? 0 : 1)
-                          : null,
-                      child: Padding(
-                        padding: const EdgeInsets.all(5),
-                        child: Icon(
-                          mine ? Icons.favorite : Icons.favorite_border,
-                          size: 16,
-                          color: mine
-                              ? Slush.orange
-                              : (playing ? Slush.ink : context.slush.ink),
-                          semanticLabel: 'Me gusta (${e.up.length})',
+                        _mmss(e.track.durationMs),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  ),
-                  if (c.canRemove || e.addedBy == s.participantId)
-                    IconButton(
-                      tooltip: 'Quitar de la cola',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: s.connected ? () => c.remove(e) : null,
-                      icon: const Icon(Icons.close, size: 16),
-                    ),
-                ],
-              ],
+                    if (pending && c.isStaff) ...[
+                      IconButton(
+                        tooltip: 'Aprobar',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => s.approve(e.id, accept: true),
+                        icon: const Icon(Icons.check_circle_outline, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Rechazar',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => s.approve(e.id, accept: false),
+                        icon: const Icon(Icons.cancel_outlined, size: 20),
+                      ),
+                    ] else ...[
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: context.slush.line,
+                            width: 2,
+                          ),
+                        ),
+                        child: InkResponse(
+                          onTap: s.connected && s.rules.votes && !pending
+                              ? () => s.vote(e.id, mine ? 0 : 1)
+                              : null,
+                          child: Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: Icon(
+                              mine ? Icons.favorite : Icons.favorite_border,
+                              size: 16,
+                              color: mine
+                                  ? Slush.orange
+                                  : (playing ? Slush.ink : context.slush.ink),
+                              semanticLabel: 'Me gusta (${e.up.length})',
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (c.canRemove || e.addedBy == s.participantId)
+                        IconButton(
+                          tooltip: 'Quitar de la cola',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: s.connected ? () => c.remove(e) : null,
+                          icon: const Icon(Icons.close, size: 16),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),

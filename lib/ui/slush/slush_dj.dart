@@ -48,149 +48,152 @@ class SlushDj extends StatelessWidget {
     final errors = [?discovery.error, ?controller.recommendationDiscoveryError];
     return ColoredBox(
       color: _screenGreen(context),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final wide = box.maxWidth >= 900;
-          final stack = rec == null
-              ? _empty(context)
-              : wrap(
-                  rec.track,
-                  _Stack(
-                    track: rec.track,
-                    reason: rec.reason,
-                    affinity: affinity,
-                  ),
-                );
-          final skip = _RoundAction(
-            key: const ValueKey('dj-discovery-skip'),
-            color: Slush.orange,
-            icon: Icons.close,
-            label: '← OMITIR',
-            onTap: rec == null || discovery.busy
-                ? null
-                : () => discovery.skip(rec.track),
-          );
-          final save = _RoundAction(
-            key: const ValueKey('dj-discovery-add'),
-            color: context.slush.ink,
-            icon: Icons.favorite,
-            label: discovery.busy ? 'GUARDANDO…' : 'GUARDAR →',
-            onTap: rec == null || discovery.busy
-                ? null
-                : () => discovery.accept(rec.track),
-          );
-          final counters = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'ESTA SESIÓN',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              _Counter(discovery.added, 'guardadas'),
-              const SizedBox(height: 6),
-              _Counter(discovery.skipped, 'omitidas'),
-            ],
-          );
-          final filters = _SlushFilters(
-            controller: controller,
-            onSearch: onSearch,
-          );
-          final body = wide
-              ? IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Align(
-                          alignment: Alignment.bottomLeft,
-                          child: counters,
-                        ),
-                      ),
-                      Center(child: skip),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 4,
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 460),
-                            child: stack,
+      child: slushOnVivid(
+        context,
+        LayoutBuilder(
+          builder: (context, box) {
+            final wide = box.maxWidth >= 900;
+            final stack = rec == null
+                ? _empty(context)
+                : wrap(
+                    rec.track,
+                    _Stack(
+                      track: rec.track,
+                      reason: rec.reason,
+                      affinity: affinity,
+                    ),
+                  );
+            final skip = _RoundAction(
+              key: const ValueKey('dj-discovery-skip'),
+              color: Slush.orange,
+              icon: Icons.close,
+              label: '← OMITIR',
+              onTap: rec == null || discovery.busy
+                  ? null
+                  : () => discovery.skip(rec.track),
+            );
+            final save = _RoundAction(
+              key: const ValueKey('dj-discovery-add'),
+              color: context.slush.ink,
+              icon: Icons.favorite,
+              label: discovery.busy ? 'GUARDANDO…' : 'GUARDAR →',
+              onTap: rec == null || discovery.busy
+                  ? null
+                  : () => discovery.accept(rec.track),
+            );
+            final counters = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'ESTA SESIÓN',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                _Counter(discovery.added, 'guardadas'),
+                const SizedBox(height: 6),
+                _Counter(discovery.skipped, 'omitidas'),
+              ],
+            );
+            final filters = _SlushFilters(
+              controller: controller,
+              onSearch: onSearch,
+            );
+            final body = wide
+                ? IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Align(
+                            alignment: Alignment.bottomLeft,
+                            child: counters,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Center(child: save),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        flex: 3,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 340),
-                            child: KeyedSubtree(
-                              key: const ValueKey('dj-filters'),
-                              child: Transform.rotate(
-                                angle: -.025,
-                                child: filters,
+                        Center(child: skip),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 4,
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 460),
+                              child: stack,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Center(child: save),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 3,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 340),
+                              child: KeyedSubtree(
+                                key: const ValueKey('dj-filters'),
+                                child: Transform.rotate(
+                                  angle: -.025,
+                                  child: filters,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 430),
-                      child: stack,
+                      ],
                     ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [skip, const SizedBox(width: 56), save],
-                    ),
-                    const SizedBox(height: 20),
-                    Align(alignment: Alignment.centerLeft, child: counters),
-                    const SizedBox(height: 20),
-                    filters,
-                  ],
-                );
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            children: [
-              FittedBox(
-                fit: BoxFit.fitWidth,
-                child: Text(
-                  'AUROR',
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    fontSize: 260,
-                    height: .95,
-                    letterSpacing: -6,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              DjSessionCard(controller: controller),
-              for (final e in errors)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
+                  )
+                : Column(
                     children: [
-                      const Icon(Icons.error_outline),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(e)),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 430),
+                        child: stack,
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [skip, const SizedBox(width: 56), save],
+                      ),
+                      const SizedBox(height: 20),
+                      Align(alignment: Alignment.centerLeft, child: counters),
+                      const SizedBox(height: 20),
+                      filters,
                     ],
+                  );
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+              children: [
+                FittedBox(
+                  fit: BoxFit.fitWidth,
+                  child: Text(
+                    'AUROR',
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      fontSize: 260,
+                      height: .95,
+                      letterSpacing: -6,
+                    ),
                   ),
                 ),
-              const SizedBox(height: 12),
-              body,
-            ],
-          );
-        },
+                const SizedBox(height: 8),
+                DjSessionCard(controller: controller),
+                for (final e in errors)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(e)),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                body,
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -575,6 +578,7 @@ class _SlushFilters extends StatelessWidget {
         24,
       ).copyWith(boxShadow: context.slush.shadows),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Filtros', style: Theme.of(context).textTheme.headlineSmall),
