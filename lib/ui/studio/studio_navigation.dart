@@ -184,12 +184,17 @@ class StudioTitleBar extends StatelessWidget {
                             : colors.outline,
                       ),
                       const SizedBox(width: 4),
-                      StudioStamp(sessionText),
+                      StudioStamp(
+                        sessionText,
+                        color: modern && activeSession ? Tracky.navy : null,
+                      ),
                       const SizedBox(width: 4),
                       Icon(
                         Icons.circle,
                         size: 6,
-                        color: activeSession
+                        color: modern && activeSession
+                            ? Tracky.navy
+                            : activeSession
                             ? colors.primaryContainer
                             : colors.outline,
                       ),

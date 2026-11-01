@@ -8,6 +8,7 @@ import '../../library/local_file_metadata.dart';
 import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
+import '../../theme/slush_theme.dart';
 import '../artwork.dart';
 import 'studio_symbols.dart';
 
@@ -121,6 +122,40 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                       .contains(_filter.toLowerCase()),
                 )
                 .toList();
+        // Slush: relleno menta (tema) y etiqueta de tinta; blanco sobre menta no se lee.
+        Widget tabChip(int tab, String label) {
+          final brasa = isBrasa(context);
+          final slush = isSlush(context);
+          final modern = isModern(context) && !slush;
+          final selected = _tab == tab;
+          return ChoiceChip(
+            showCheckmark: !isModern(context) && !brasa,
+            selectedColor: brasa
+                ? Brasa.cream
+                : modern
+                ? Tracky.navy
+                : null,
+            shape: slush
+                ? null
+                : RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      brasa
+                          ? 9999
+                          : modern
+                          ? 8
+                          : 4,
+                    ),
+                  ),
+            label: Text(label),
+            selected: selected,
+            labelStyle: brasa && selected
+                ? const TextStyle(color: Colors.black)
+                : modern && selected
+                ? const TextStyle(color: Colors.white)
+                : null,
+            onSelected: (_) => setState(() => _tab = tab),
+          );
+        }
         final desktop =
             constraints.maxWidth >= 960 &&
             MediaQuery.textScalerOf(context).scale(1) < 1.5;
@@ -271,82 +306,11 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                ChoiceChip(
-                  showCheckmark: !isModern(context) && !isBrasa(context),
-                  selectedColor: isBrasa(context)
-                      ? Brasa.cream
-                      : isModern(context)
-                      ? Tracky.navy
-                      : null,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      isBrasa(context)
-                          ? 9999
-                          : isModern(context)
-                          ? 8
-                          : 4,
-                    ),
-                  ),
-                  label: Text('Descargadas  ${complete.length}'),
-                  selected: _tab == 0,
-                  labelStyle: isBrasa(context) && _tab == 0
-                      ? const TextStyle(color: Colors.black)
-                      : isModern(context) && _tab == 0
-                      ? const TextStyle(color: Colors.white)
-                      : null,
-                  onSelected: (_) => setState(() => _tab = 0),
-                ),
-                ChoiceChip(
-                  showCheckmark: !isModern(context) && !isBrasa(context),
-                  selectedColor: isBrasa(context)
-                      ? Brasa.cream
-                      : isModern(context)
-                      ? Tracky.navy
-                      : null,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      isBrasa(context)
-                          ? 9999
-                          : isModern(context)
-                          ? 8
-                          : 4,
-                    ),
-                  ),
-                  label: Text('En progreso  ${active.length}'),
-                  selected: _tab == 1,
-                  labelStyle: isBrasa(context) && _tab == 1
-                      ? const TextStyle(color: Colors.black)
-                      : isModern(context) && _tab == 1
-                      ? const TextStyle(color: Colors.white)
-                      : null,
-                  onSelected: (_) => setState(() => _tab = 1),
-                ),
-                ChoiceChip(
-                  showCheckmark: !isModern(context) && !isBrasa(context),
-                  selectedColor: isBrasa(context)
-                      ? Brasa.cream
-                      : isModern(context)
-                      ? Tracky.navy
-                      : null,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      isBrasa(context)
-                          ? 9999
-                          : isModern(context)
-                          ? 8
-                          : 4,
-                    ),
-                  ),
-                  label: Text(
-                    'Conflictos / Re-sincronizar  ${conflicts.length}',
-                  ),
-                  selected: _tab == 2,
-                  labelStyle: isBrasa(context) && _tab == 2
-                      ? const TextStyle(color: Colors.black)
-                      : isModern(context) && _tab == 2
-                      ? const TextStyle(color: Colors.white)
-                      : null,
-                  onSelected: (_) => setState(() => _tab = 2),
+                tabChip(0, 'Descargadas  ${complete.length}'),
+                tabChip(1, 'En progreso  ${active.length}'),
+                tabChip(
+                  2,
+                  'Conflictos / Re-sincronizar  ${conflicts.length}',
                 ),
                 TextButton.icon(
                   onPressed: c.importFiles,

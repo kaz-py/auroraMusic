@@ -159,7 +159,7 @@ class _StudioTransportState extends State<StudioTransport> {
                               fontSize: 12,
                               color: brasa
                                   ? Brasa.steel
-                                  : modern
+                                  : modern && !isSlush(context)
                                   ? Tracky.slate
                                   : colors.onSurfaceVariant,
                             ),
@@ -490,7 +490,7 @@ class _StudioTransportState extends State<StudioTransport> {
         activeTrackColor: brasa || modern ? ink : null,
         inactiveTrackColor: brasa
             ? Brasa.ash
-            : modern
+            : modern && !isSlush(context)
             ? Tracky.slate.withValues(alpha: .28)
             : null,
         thumbColor: brasa
@@ -643,7 +643,11 @@ class TransportPlayButton extends StatelessWidget {
                       padding: const EdgeInsets.all(11),
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: brasa ? Colors.black : Tracky.navy,
+                        color: brasa
+                            ? Colors.black
+                            : isSlush(context)
+                            ? context.slush.paper
+                            : Tracky.navy,
                       ),
                     )
                   : Icon(

@@ -419,12 +419,16 @@ class _BandColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final brasa = isBrasa(context);
+    final slush = isSlush(context);
     final modern = isModern(context) || brasa;
     final style = TextStyle(
       fontFamily: modern ? 'Inter' : 'monospace',
       fontSize: modern ? 10 : 9,
       color: brasa
           ? (selected ? Brasa.cream : Brasa.steel)
+          : slush
+          // Seleccionada: sobre menta plana, tinta fija; si no, sobre papel.
+          ? (selected ? Slush.ink : colors.onSurfaceVariant)
           : modern
           ? (selected ? Tracky.navy : Tracky.slate)
           : selected
@@ -436,7 +440,11 @@ class _BandColumn extends StatelessWidget {
       children: [
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(eqGainLabel(band.gainDb), style: style),
+          // La ganancia va sobre papel (no sobre la banda menta): tinta del tema.
+          child: Text(
+            eqGainLabel(band.gainDb),
+            style: slush ? style.copyWith(color: colors.onSurface) : style,
+          ),
         ),
         GestureDetector(
           onDoubleTap: enabled ? onReset : null,
@@ -478,7 +486,9 @@ class _BandColumn extends StatelessWidget {
                 color: brasa && selected
                     ? Brasa.graphite
                     : modern && !brasa && selected
-                    ? Tracky.mint.withValues(alpha: .5)
+                    ? (slush
+                          ? Slush.mint
+                          : Tracky.mint.withValues(alpha: .5))
                     : null,
                 borderRadius: BorderRadius.circular(8),
               ),

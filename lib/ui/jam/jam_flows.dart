@@ -1,4 +1,5 @@
 import '../friends_page.dart';
+import '../../theme/slush_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/models.dart';
@@ -89,7 +90,10 @@ class _InviteSheet extends StatelessWidget {
     final brasa = isBrasa(context);
     final modern = isModern(context);
     // En la tarjeta oscura de Modern el texto va en blanco y los botones invertidos.
-    final soft = modern ? Colors.white70 : colors.onSurfaceVariant;
+    // En Slush la tarjeta es violeta: white70 allí no llega a 4,5:1.
+    final soft = modern
+        ? (isSlush(context) ? Colors.white : Colors.white70)
+        : colors.onSurfaceVariant;
     final onCard = modern
         ? const TextStyle(color: Colors.white)
         : const TextStyle();
@@ -97,8 +101,12 @@ class _InviteSheet extends StatelessWidget {
       backgroundColor: Colors.white,
       foregroundColor: Tracky.navy,
     );
+    // Slush rellena el OutlinedButton de papel; sin fondo propio el texto
+    // blanco quedaba blanco sobre blanco en claro.
     final ghost = OutlinedButton.styleFrom(
       foregroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
+      overlayColor: Colors.white,
       side: const BorderSide(color: Colors.white54),
     );
     Future<void> copy(String text, String done) async {

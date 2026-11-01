@@ -11,6 +11,7 @@ import '../shortcuts/shortcut_service.dart';
 import '../theme/brasa_theme.dart';
 import '../theme/modern_theme.dart';
 import '../theme/modern_widgets.dart';
+import '../theme/slush_theme.dart';
 import 'artwork.dart';
 import 'lyrics_brasa.dart';
 import 'lyrics_modern.dart';
@@ -1094,6 +1095,10 @@ class _LyricsPanelState extends State<LyricsPanel> {
                                             ? Theme.of(
                                                 context,
                                               ).colorScheme.onSurface
+                                            : isSlush(context)
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant
                                             : Tracky.slate,
                                       )
                                     : TextStyle(
