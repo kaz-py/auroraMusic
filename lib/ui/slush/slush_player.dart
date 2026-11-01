@@ -8,6 +8,7 @@ import '../../app_controller.dart';
 import '../../core/models.dart';
 import '../../lyrics/lyrics_service.dart';
 import '../../theme/slush_theme.dart';
+import '../../theme/accent_transition.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 
@@ -1175,7 +1176,7 @@ class SlushPlayerScreen extends StatelessWidget {
   Widget _mobile(BuildContext context) {
     final c = controller;
     final bg = slushScreenColor(
-      c.accentColor,
+      AccentScope.of(context, c.accentColor),
       dark: Theme.of(context).brightness == Brightness.dark,
     );
     Widget circle(IconData icon, VoidCallback? onTap, String tip) =>

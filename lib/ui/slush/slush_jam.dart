@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../jam/jam_controller.dart';
 import '../../jam/jam_models.dart';
 import '../../jam/jam_service.dart';
+import '../../theme/accent_transition.dart';
 import '../../theme/slush_theme.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
@@ -405,7 +406,7 @@ class SlushJamActive extends StatelessWidget {
 
   Widget _queue(BuildContext context) {
     final s = c.service;
-    final accent = c.app.accentColor;
+    final accent = AccentScope.of(context, c.app.accentColor);
     final tint = HSLColor.fromColor(
       accent,
     ).withSaturation(.7).withLightness(.88).toColor();

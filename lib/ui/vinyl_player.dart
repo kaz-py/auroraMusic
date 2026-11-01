@@ -6,6 +6,7 @@ import '../core/models.dart';
 
 import '../app_controller.dart';
 import '../follow/follow_service.dart';
+import '../theme/accent_transition.dart';
 import '../theme/brasa_theme.dart';
 import '../theme/modern_theme.dart';
 import '../theme/modern_widgets.dart';
@@ -763,7 +764,7 @@ extension on _VinylPlayerState {
       math.max(0.0, size),
       _VinylStyle(
         disc: const Color(0xff111111),
-        label: slushScreenColor(c.accentColor),
+        label: slushScreenColor(AccentScope.of(context, c.accentColor)),
         ring: Slush.ink,
         ringWidth: 2.5,
         shadow: const [],
