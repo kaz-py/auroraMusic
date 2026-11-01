@@ -366,21 +366,17 @@ class InnerTubeSource extends SourceBackend {
     );
   }
 
-  /// Artistas afines según YouTube Music (carrusel de la página del artista).
-  /// Cualquier fallo da lista vacía: es una pista, nunca un requisito.
+  /// Vacío solo si el artista no aparece; los errores de red o de formato se
+  /// propagan para que [ArtistGraph] los registre como fallo.
   Future<List<String>> relatedArtists(String artist) async {
-    try {
-      final norm = coherenceNorm(artist);
-      if (norm.isEmpty) return const [];
-      final page = await searchPage(artist, SearchKind.artists);
-      final hit = page.entries
-          .where((e) => coherenceNorm(e.title) == norm)
-          .firstOrNull;
-      if (hit == null) return const [];
-      return (await artistPage(hit.browseId)).relatedArtists;
-    } catch (_) {
-      return const [];
-    }
+    final norm = coherenceNorm(artist);
+    if (norm.isEmpty) return const [];
+    final page = await searchPage(artist, SearchKind.artists);
+    final hit = page.entries
+        .where((e) => coherenceNorm(e.title) == norm)
+        .firstOrNull;
+    if (hit == null) return const [];
+    return (await artistPage(hit.browseId)).relatedArtists;
   }
 
   static ArtistPage parseArtistPage(Map<String, dynamic> data) {

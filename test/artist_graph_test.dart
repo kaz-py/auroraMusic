@@ -70,6 +70,36 @@ void main() {
     },
   );
 
+  test('sin resultados no es fallo; el error de red sí', () async {
+    final g = graph(related: (a) async => const []);
+    await g.warm(['A']);
+    Map entry() =>
+        (jsonDecode(prefs.getString(ArtistGraph.prefsKey)!) as Map)['a'];
+    expect(entry()['ok'], isTrue);
+    clock = clock.add(ArtistGraph.ttl + const Duration(minutes: 1));
+    await graph(related: (a) async => throw 'sin red').warm(['A']);
+    expect(entry()['ok'], isFalse);
+  });
+
+  test('Last.fm inactivo: conserva etiquetas y marca fallo', () async {
+    var active = true;
+    final g = graph(
+      tags: (a) async => active ? ['Rock'] : throw StateError('inactivo'),
+    );
+    await g.warm(['A']);
+    expect(g.tagsOf('A'), ['rock']);
+    active = false;
+    clock = clock.add(ArtistGraph.ttl + const Duration(minutes: 1));
+    await g.warm(['A']);
+    expect(g.tagsOf('A'), ['rock']);
+    final e = (jsonDecode(prefs.getString(ArtistGraph.prefsKey)!) as Map)['a'];
+    expect(e['ok'], isFalse);
+    clock = clock.add(ArtistGraph.failureTtl);
+    active = true;
+    await g.warm(['A']);
+    expect(g.tagsOf('A'), ['rock']);
+  });
+
   test('warm corta al presupuesto', () async {
     final g = graph(
       related: (a) => Future.delayed(const Duration(seconds: 1), () => ['X']),

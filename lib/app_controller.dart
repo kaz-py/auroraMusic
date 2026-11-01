@@ -267,12 +267,14 @@ class AppController extends ChangeNotifier {
     },
     lastfmSimilar: lastfm == null
         ? null
-        : (a) async =>
-              lastfm!.active ? lastfm!.client.similarArtists(a) : const [],
+        : (a) async => lastfm!.active
+              ? lastfm!.client.similarArtists(a)
+              : throw StateError('Last.fm inactivo'),
     lastfmTags: lastfm == null
         ? null
-        : (a) async =>
-              lastfm!.active ? lastfm!.client.artistTopTags(a) : const [],
+        : (a) async => lastfm!.active
+              ? lastfm!.client.artistTopTags(a)
+              : throw StateError('Last.fm inactivo'),
   );
 
   /// Motor de recomendaciones compartido con la Jam; se crea una sola vez.
