@@ -3,6 +3,7 @@ import '../app_controller.dart';
 import '../dj/dj_modes.dart';
 import '../theme/brasa_theme.dart';
 import '../theme/modern_theme.dart';
+import '../theme/slush_theme.dart';
 import '../theme/modern_widgets.dart';
 import 'artwork.dart';
 import 'track_actions.dart';
@@ -379,13 +380,16 @@ class _DjSessionCardState extends State<DjSessionCard> {
                       label: Text(mode.label),
                       selected: c.djMode == mode,
                       onSelected: (_) => c.setDjMode(mode),
+                      // Slush usa el chip del tema (contorno y vivo/tinta).
                       showCheckmark: !isModern(context) && !brasa,
-                      side: isModern(context) || brasa ? BorderSide.none : null,
+                      side: !isSlush(context) && (isModern(context) || brasa)
+                          ? BorderSide.none
+                          : null,
                       shape: brasa ? const StadiumBorder() : null,
                       backgroundColor: brasa ? Brasa.graphite : null,
                       selectedColor: brasa
                           ? Brasa.cream
-                          : isModern(context)
+                          : isModern(context) && !isSlush(context)
                           ? Tracky.navy
                           : null,
                       labelStyle: brasa
@@ -395,7 +399,9 @@ class _DjSessionCardState extends State<DjSessionCard> {
                                   : Brasa.cream,
                               fontWeight: FontWeight.w600,
                             )
-                          : isModern(context) && c.djMode == mode
+                          : isModern(context) &&
+                                !isSlush(context) &&
+                                c.djMode == mode
                           ? const TextStyle(color: Colors.white)
                           : null,
                     ),

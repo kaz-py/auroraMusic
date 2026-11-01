@@ -751,6 +751,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         ),
                       ),
                       if (_section == 10 && c.usesOfficialYouTubeMusic ||
+                          (slushBar && _section == 4 && !c.jamPlaybackActive) ||
                           (!rail && isSlush(context) && !c.jamPlaybackActive))
                         const SizedBox.shrink()
                       else if (slushBar && !c.jamPlaybackActive)
@@ -1798,23 +1799,29 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         ),
       Expanded(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final hasSidebar = constraints.maxWidth >= 900;
-            final results = c.searchDetail != null
-                ? _searchDetail(c, c.searchDetail!)
-                : _searchFocus.hasFocus && _search.text.trim().isEmpty
-                ? _recentSearchList(c)
-                : _searchResults(c);
-            if (!hasSidebar) return results;
-            return Row(
-              children: [
-                SizedBox(width: 220, child: _recentSearchList(c)),
-                const VerticalDivider(width: 1),
-                Expanded(child: results),
-              ],
-            );
-          },
+        // Las bandas de ListTile pintan en el Material más cercano: sin este
+        // recorte la lista (Slush) se dibuja encima de pestañas y campo.
+        child: Material(
+          type: MaterialType.transparency,
+          clipBehavior: Clip.hardEdge,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final hasSidebar = constraints.maxWidth >= 900;
+              final results = c.searchDetail != null
+                  ? _searchDetail(c, c.searchDetail!)
+                  : _searchFocus.hasFocus && _search.text.trim().isEmpty
+                  ? _recentSearchList(c)
+                  : _searchResults(c);
+              if (!hasSidebar) return results;
+              return Row(
+                children: [
+                  SizedBox(width: 220, child: _recentSearchList(c)),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: results),
+                ],
+              );
+            },
+          ),
         ),
       ),
     ],

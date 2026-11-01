@@ -264,25 +264,31 @@ class HomeMusicPage extends StatelessWidget {
   ) {
     final text = MediaQuery.textScalerOf(context);
     final compact = width < 600;
-    final theme = Theme.of(context);
     var i = 0;
     Widget band(Widget child) => Padding(
       padding: const EdgeInsets.only(bottom: 28),
       child: SlushBand(
         tone: SlushBand.tones[i++ % SlushBand.tones.length],
         padding: EdgeInsets.all(compact ? 14 : 22),
-        child: Theme(
-          data: theme.copyWith(
-            textTheme: theme.textTheme.copyWith(
-              titleLarge: const TextStyle(
-                fontFamily: 'Bagel Fat One',
-                fontSize: 36,
-                height: 1,
-                color: Slush.ink,
+        // Builder: el tema se toma DENTRO de la banda (claro en vivo, incluso
+        // en oscuro); copiar el de fuera dejaba el texto crema sobre menta.
+        child: Builder(
+          builder: (ctx) {
+            final inner = Theme.of(ctx);
+            return Theme(
+              data: inner.copyWith(
+                textTheme: inner.textTheme.copyWith(
+                  titleLarge: const TextStyle(
+                    fontFamily: 'Bagel Fat One',
+                    fontSize: 36,
+                    height: 1,
+                    color: Slush.ink,
+                  ),
+                ),
               ),
-            ),
-          ),
-          child: child,
+              child: child,
+            );
+          },
         ),
       ),
     );
@@ -371,7 +377,12 @@ class HomeMusicPage extends StatelessWidget {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Para ti', style: theme.textTheme.titleLarge),
+                    Text(
+                      'Para ti',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Slush.ink,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       c.tracks.isEmpty
