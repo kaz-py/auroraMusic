@@ -179,8 +179,8 @@ void main() {
     );
     final dominant = [for (var i = 0; i < 25; i++) by('Dominante', i)];
     final others = [
-      for (var a = 0; a < 12; a++)
-        for (var n = 0; n < 3; n++) by('Otro$a', n),
+      for (var n = 0; n < 3; n++)
+        for (var a = 0; a < 12; a++) by('Otro$a', n),
     ];
 
     int longestRun(List<String> artists) {

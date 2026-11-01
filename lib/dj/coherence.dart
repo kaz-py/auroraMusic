@@ -4,7 +4,6 @@
 // (artista distinto, sin género ni vecindario en común, y el nombre del
 // artista semilla aparece únicamente en el título) y el llamador jamás vacía
 // el pool con él.
-import 'dart:math' as math;
 
 import '../core/models.dart';
 import 'ai_dj.dart';
@@ -182,14 +181,15 @@ CoherenceResult scoreCoherence(
 /// Puerta de coherencia común al motor y al DJ. Lo relacionado (puntuación
 /// >= [djRelatedThreshold]) entra siempre; lo demás, sin rechazos duros, solo
 /// para completar [limit] puestos. Cada artista cuenta como mucho [artistCap]
-/// puestos (la diversidad posterior no admite más) y en el corte entran todos
-/// los empatados. Nunca devuelve vacío si [items] no lo estaba.
+/// puestos (la diversidad posterior no admite más); en el corte entran
+/// exactamente los necesarios (empates por posición original). Nunca devuelve vacío si [items] no lo estaba.
 ({List<T> kept, bool relaxed}) coherenceGate<T>(
   List<T> items, {
   required CoherenceResult Function(T item) result,
   required String Function(T item) artist,
   required int limit,
   required int artistCap,
+  Map<String, int> used = const {}, // apariciones previas por artista
 }) {
   final related = <T>[], rest = <T>[];
   for (final i in items) {
@@ -200,7 +200,7 @@ CoherenceResult scoreCoherence(
       rest.add(i);
     }
   }
-  final perArtist = <String, int>{};
+  final perArtist = <String, int>{...used};
   var capacity = 0;
   for (final i in related) {
     final a = artist(i);
@@ -210,12 +210,12 @@ CoherenceResult scoreCoherence(
   final need = limit - capacity;
   var extra = <T>[];
   if (need > 0 && rest.isNotEmpty) {
-    rest.sort((a, b) => result(b).score.compareTo(result(a).score));
-    final cut = result(rest[math.min(need, rest.length) - 1]).score;
-    extra = [
-      for (final i in rest)
-        if (result(i).score >= cut) i,
-    ];
+    final idx = List.generate(rest.length, (k) => k)
+      ..sort((a, b) {
+        final c = result(rest[b]).score.compareTo(result(rest[a]).score);
+        return c != 0 ? c : a.compareTo(b);
+      });
+    extra = [for (final k in idx.take(need)) rest[k]];
   }
   final keep = {...related, ...extra};
   if (keep.isEmpty) return (kept: [...items], relaxed: items.isNotEmpty);

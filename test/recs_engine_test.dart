@@ -157,7 +157,11 @@ void main() {
   test('mezcla de fuentes ≈ 50/30/5 y razones en español', () async {
     List<DjCandidate> pool(String p, int n) => [
       for (var i = 0; i < n; i++)
-        DjCandidate(tr('$p$i', '$p artista $i'), '', prior: 0.5),
+        DjCandidate(
+          tr('$p$i', '$p artista $i', genres: ['rock']),
+          '',
+          prior: 0.5,
+        ),
     ];
     final api = SuggestionsApi(
       memory: mem(),
@@ -169,7 +173,12 @@ void main() {
       ],
     );
     final out = await api.getSuggestions(
-      ctx(const [], limit: 20, seed: 1, favs: [tr('fav', 'Artista fav')]),
+      ctx(
+        const [],
+        limit: 20,
+        seed: 1,
+        favs: [tr('fav', 'Artista fav', genres: ['rock'])],
+      ),
     );
     int n(RecBucket b) => out.where((s) => s.bucket == b).length;
     expect(n(RecBucket.similar), inInclusiveRange(7, 12));

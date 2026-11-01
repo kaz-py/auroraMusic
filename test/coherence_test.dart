@@ -150,6 +150,21 @@ void main() {
     expect(scoreCoherence(tr('z', 'x', 'Otro'), ctx).score, 0.25);
   });
 
+  test('corte: entran exactamente los necesarios entre empatados', () {
+    final ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+    final gate = coherenceGate<String>(
+      ids,
+      result: (i) => i == 'a'
+          ? const CoherenceResult(0.9, 'afín')
+          : const CoherenceResult(0.25, 'otro'),
+      artist: (i) => i,
+      limit: 2,
+      artistCap: 2,
+    );
+    expect(gate.kept, ['a', 'b']);
+    expect(gate.relaxed, isTrue);
+  });
+
   group('motor con vecindario', () {
     late ArtistGraph graph;
     final seed = tr('seed', 'Semilla', 'A');
