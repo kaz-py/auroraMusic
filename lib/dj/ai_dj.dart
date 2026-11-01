@@ -476,7 +476,10 @@ List<TrackRecommendation> rankDjCandidates({
       artistCap: artistCooldown ? math.max(1, (limit * 0.2).ceil()) : limit,
       // Mismas apariciones que bloquea allowed(): ventana de las últimas 9.
       used: artistCooldown
-          ? {for (final a in window.toSet()) a: window.where((x) => x == a).length}
+          ? {
+              for (final a in window.toSet())
+                a: window.where((x) => x == a).length,
+            }
           : const {},
     );
     pool

@@ -177,7 +177,9 @@ void main() {
         const [],
         limit: 20,
         seed: 1,
-        favs: [tr('fav', 'Artista fav', genres: ['rock'])],
+        favs: [
+          tr('fav', 'Artista fav', genres: ['rock']),
+        ],
       ),
     );
     int n(RecBucket b) => out.where((s) => s.bucket == b).length;
