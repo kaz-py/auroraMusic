@@ -160,6 +160,27 @@ void main() {
       expect(strict.map((r) => r.track.id), [related.id]);
     });
 
+    test('la puerta descuenta los artistas ya presentes en la cola', () {
+      final picks = rankDjCandidates(
+        candidates: [
+          DjCandidate(song('b1', artist: 'B'), 'b', prior: 0.5),
+          for (final z in ['Z1', 'Z2', 'Z3', 'Z4'])
+            DjCandidate(song(z.toLowerCase(), artist: z), 'z', prior: 0.1),
+        ],
+        profile: List.filled(djVectorDims, 0),
+        limit: 4,
+        queueTail: [
+          song('q1', artist: 'B'),
+          song('q2', artist: 'Y1'),
+          song('q3', artist: 'B'),
+          song('q4', artist: 'Y2'),
+        ],
+        coherence: CoherenceContext(artists: ['A'], neighbors: ['B']),
+      );
+      expect(picks, hasLength(4));
+      expect(picks.map((r) => r.track.artist), isNot(contains('B')));
+    });
+
     test('discovery queries come from the profile and do not repeat', () {
       final profile = buildTasteProfile(
         favorites: [

@@ -452,6 +452,19 @@ List<TrackRecommendation> rankDjCandidates({
     pool.add((candidate: candidate, vector: vector, relevance: relevance));
     if (coh != null) cohOf[candidate] = coh;
   }
+  final artistsSoFar = [
+    if (current != null && queueTail.isEmpty) djPrimaryArtist(current),
+    ...queueTail.map(djPrimaryArtist),
+  ];
+  final window = artistsSoFar.length > 9
+      ? artistsSoFar.sublist(artistsSoFar.length - 9)
+      : artistsSoFar;
+  bool allowed(String artist) {
+    if (artist.isEmpty || !artistCooldown) return true;
+    if (artistsSoFar.isNotEmpty && artistsSoFar.last == artist) return false;
+    return window.where((a) => a == artist).length < 2;
+  }
+
   if (cohOf.isNotEmpty && pool.isNotEmpty) {
     // Misma puerta que el motor: relacionado primero, lo demás para completar.
     final gate = coherenceGate(
@@ -461,23 +474,14 @@ List<TrackRecommendation> rankDjCandidates({
       limit: limit,
       // El enfriamiento admite dos por cada diez pistas.
       artistCap: artistCooldown ? math.max(1, (limit * 0.2).ceil()) : limit,
+      // Mismas apariciones que bloquea allowed(): ventana de las últimas 9.
+      used: artistCooldown
+          ? {for (final a in window.toSet()) a: window.where((x) => x == a).length}
+          : const {},
     );
     pool
       ..clear()
       ..addAll(gate.kept);
-  }
-
-  final artistsSoFar = [
-    if (current != null && queueTail.isEmpty) djPrimaryArtist(current),
-    ...queueTail.map(djPrimaryArtist),
-  ];
-  bool allowed(String artist) {
-    if (artist.isEmpty || !artistCooldown) return true;
-    if (artistsSoFar.isNotEmpty && artistsSoFar.last == artist) return false;
-    final window = artistsSoFar.length > 9
-        ? artistsSoFar.sublist(artistsSoFar.length - 9)
-        : artistsSoFar;
-    return window.where((a) => a == artist).length < 2;
   }
 
   bool heardOf(DjCandidate c) =>
