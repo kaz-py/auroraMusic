@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../core/models.dart';
+import '../theme/slush_theme.dart';
 import 'artwork_cache.dart';
 
 /// Logical artwork dimensions shared by every music surface.
@@ -68,13 +69,18 @@ class Artwork extends StatelessWidget {
           ? artworkContext.constrain(constraints)
           : math.min(size, bound);
       final colors = Theme.of(context).colorScheme;
+      // Slush: primary (tinta) al 10 % se funde con el papel y el icono
+      // primary queda tinta sobre tinta; fondo opaco lila/violeta y tinta del tema.
+      final slush = isSlush(context);
       final placeholder = Container(
-        color: colors.primary.withValues(alpha: .10),
+        color: slush
+            ? colors.surfaceContainerHigh
+            : colors.primary.withValues(alpha: .10),
         child: Center(
           child: Icon(
             Icons.music_note_rounded,
             size: side * .35,
-            color: colors.primary,
+            color: slush ? colors.onSurface : colors.primary,
           ),
         ),
       );

@@ -243,9 +243,11 @@ class _StudioTransportState extends State<StudioTransport> {
                   icon: const Icon(StudioSymbols.groups, size: 18),
                 );
           final bar = Container(
+            // Slush: en filas apiladas la cápsula completa recorta tiempos y
+            // botones en las esquinas; allí radio menor y más margen lateral.
             padding: EdgeInsets.symmetric(
-              horizontal: wide ? 24 : 12,
-              vertical: wide ? 8 : 6,
+              horizontal: wide ? 24 : (isSlush(context) ? 20 : 12),
+              vertical: wide ? 8 : (isSlush(context) ? 8 : 6),
             ),
             decoration: brasa
                 ? const BoxDecoration(
@@ -255,7 +257,7 @@ class _StudioTransportState extends State<StudioTransport> {
                 : isSlush(context)
                 ? BoxDecoration(
                     color: context.slush.paper,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(wide ? 999 : 28),
                     border: Border.fromBorderSide(context.slush.border),
                   )
                 : modern
