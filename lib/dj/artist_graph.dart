@@ -67,7 +67,10 @@ class ArtistGraph {
         _entries[e.key as String] = _Entry(
           v['t'] is int ? v['t'] as int : 0,
           v['ok'] == true,
-          {for (final s in (v['n'] as List? ?? const [])) '$s'},
+          {
+            for (final s in (v['n'] as List? ?? const []))
+              if (!isGenericArtistName('$s')) '$s',
+          },
           [for (final s in (v['g'] as List? ?? const [])) '$s'],
           fetched: v['f'] != false,
         );
@@ -154,7 +157,9 @@ class ArtistGraph {
             ...?old?.n, // lo aprendido por co-escucha no se pierde
             for (final l in neighbors)
               for (final a in l ?? const <String>[])
-                if (coherenceNorm(a).isNotEmpty && coherenceNorm(a) != key)
+                if (coherenceNorm(a).isNotEmpty &&
+                    coherenceNorm(a) != key &&
+                    !isGenericArtistName(a))
                   coherenceNorm(a),
           },
           [for (final g in tags ?? old?.g ?? const <String>[]) g.toLowerCase()],
@@ -184,7 +189,7 @@ class ArtistGraph {
     final counts = <String, int>{};
     for (final a in artists) {
       final n = coherenceNorm(a);
-      if (n.isNotEmpty && n != key) {
+      if (n.isNotEmpty && n != key && !isGenericArtistName(n)) {
         counts.update(n, (c) => c + 1, ifAbsent: () => 1);
       }
     }

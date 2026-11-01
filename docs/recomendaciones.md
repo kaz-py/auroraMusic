@@ -155,11 +155,29 @@ artista. Nunca vacía. `seedCoherence` construye el contexto de la semilla
 (pista actual, favoritos, escuchados, vecinos y etiquetas del grafo); ya no
 usa `queueTail`.
 
+**Relleno relajado (1.5.0)**: al completar con no relacionados, `coherenceGate`
+recibe `lastResort` (cubo `discovery`): esos van al final y solo entran si no
+queda otro candidato no relacionado (radio/similar/adjacent/lastfm primero);
+dentro de cada grupo, mayor puntuación y luego posición original. Así el
+descubrimiento de Spotify (fuera de perfil a propósito) ya no desplaza a la
+radio del mismo género.
+
+**Segundo salto**: `seedCoherence` añade como vecinos a los artistas que salen
+en las listas de 2+ vecinos de la semilla. Solo lee la caché del grafo (cero
+red extra); tiene efecto cuando esos vecinos ya están calentados. Género
+compartido de Spotify ya puntuaba como relacionado (`Track.genres`).
+
 **`ArtistGraph`** (`lib/dj/artist_graph.dart`): vecinos por artista desde
 artistas relacionados de YT Music y similares + etiquetas de Last.fm. Caché en
 prefs (`artistGraph`): TTL 14 d, fallos 1 h, máx. 400 entradas (se purgan las
 más antiguas). Calentamiento con presupuesto de 3 s. `learnCoListened(seed,
-artists)` añade vecinos por coescucha y nunca quita.
+artists)` añade vecinos por coescucha y nunca quita. Los «vecinos» que son etiquetas o
+palabras sueltas (`reggaeton urbano`, `latino`, `sky`, `icon`, `fuego`, nombres
+terminados en urbano/latino/songs/hits/playlist; `isGenericArtistName`) se
+descartan al ingerir, al cargar la caché y en las consultas de descubrimiento
+del DJ (`djDiscoveryQueries`). `parseArtistPage` ya solo toma tarjetas
+`MUSIC_PAGE_TYPE_ARTIST`; las etiquetas llegan porque YT las expone como
+canales de artista.
 
 ## Escalera de relajación y diagnóstico (2026-10-19)
 

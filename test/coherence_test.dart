@@ -175,7 +175,7 @@ void main() {
           'a': {
             't': DateTime.now().millisecondsSinceEpoch,
             'ok': true,
-            'n': ['b', 'c', 'd'],
+            'n': ['b', 'c', 'd', 'e'],
             'g': <String>[],
           },
         }),
@@ -230,6 +230,59 @@ void main() {
       expect(out.map((s) => s.track.id), isNot(contains(z.id)));
     });
 
+    test(
+      'relleno relajado: radio antes que descubrimiento (forma del probe)',
+      () async {
+        DjCandidate c(String a, RecBucket b, double prior) =>
+            DjCandidate(tr('${a}1', 'Tema $a', a), a, bucket: b, prior: prior);
+        final pool = [
+          for (final a in ['B', 'C', 'D', 'E']) c(a, RecBucket.similar, 0.3),
+          for (var i = 0; i < 8; i++) c('R$i', RecBucket.radio, 0.3),
+          for (final a in ['S1', 'S2', 'S3', 'S4'])
+            c(a, RecBucket.discovery, 0.6),
+        ];
+        final out = await suggest(pool, limit: 12);
+        final ids = out.map((s) => s.track.id).toSet();
+        for (final a in ['S1', 'S2', 'S3', 'S4']) {
+          expect(ids, isNot(contains('yt:${vid('${a}1')}')), reason: a);
+        }
+        expect(out, hasLength(12));
+        expect(out.where((s) => s.track.artist.startsWith('R')), hasLength(8));
+      },
+    );
+
+    test(
+      'descubrimiento solo completa si no queda otro no relacionado',
+      () async {
+        DjCandidate c(String a, RecBucket b) =>
+            DjCandidate(tr('${a}1', 'Tema $a', a), a, bucket: b, prior: 0.6);
+        final out = await suggest([
+          c('B', RecBucket.similar),
+          c('S1', RecBucket.discovery),
+          c('R1', RecBucket.radio),
+        ], limit: 3);
+        expect(out, hasLength(3), reason: 'la cola nunca queda vacía');
+      },
+    );
+
+    test('segundo salto: coincide en las listas de 2+ vecinos', () async {
+      SharedPreferences.setMockInitialValues({
+        ArtistGraph.prefsKey: jsonEncode({
+          for (final k in ['a', 'b', 'c'])
+            k: {
+              't': DateTime.now().millisecondsSinceEpoch,
+              'ok': true,
+              'n': k == 'a' ? ['b', 'c'] : ['x', if (k == 'b') 'y'],
+              'g': <String>[],
+            },
+        }),
+      });
+      final g = ArtistGraph(preferences: await SharedPreferences.getInstance());
+      final ctx = seedCoherence(features: const {}, current: seed, graph: g);
+      expect(ctx.neighbors, containsAll(['b', 'c', 'x']));
+      expect(ctx.neighbors, isNot(contains('y')));
+    });
+
     test('la cola no deriva la semilla', () async {
       final z2 = tr('z2', 'Otro Z', 'Z');
       final out = await suggest(
@@ -240,5 +293,36 @@ void main() {
       expect(out.single.track.id, z2.id);
       expect(out.single.coherence, lessThan(0.5));
     });
+  });
+
+  test('vecinos genéricos observados en el probe no entran', () async {
+    SharedPreferences.setMockInitialValues({});
+    final g = ArtistGraph(
+      preferences: await SharedPreferences.getInstance(),
+      youtubeRelated: (a) async => [
+        'Reggaeton Urbano',
+        'Reggaeton Latino',
+        'Sky',
+        'Icon',
+        'Fuego',
+        'Karol G',
+        'Little Mix',
+      ],
+    );
+    await g.warm(['Rels B']);
+    expect(g.neighborsOf('Rels B'), {'karol g', 'little mix'});
+    final profile = buildTasteProfile(
+      favorites: const [],
+      playlistTracks: const [],
+      history: const [],
+      events: const [],
+      known: const {},
+      now: DateTime(2026),
+    );
+    final q = djDiscoveryQueries(
+      profile,
+      neighbors: ['reggaeton urbano', 'sky', 'karol g'],
+    );
+    expect(q.map((e) => e.query), ['karol g songs']);
   });
 }

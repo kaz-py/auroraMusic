@@ -54,6 +54,50 @@ String coherenceNorm(String s) {
       .trim();
 }
 
+const _genericNames = {
+  'reggaeton',
+  'urbano',
+  'latino',
+  'latina',
+  'latin',
+  'pop',
+  'rock',
+  'rap',
+  'trap',
+  'hip hop',
+  'salsa',
+  'bachata',
+  'soul',
+  'jazz',
+  'dembow',
+  'sky',
+  'icon',
+  'fuego',
+  'music',
+  'musica',
+  'hits',
+  'mix',
+  'radio',
+  'playlist',
+};
+const _genericSuffix = {
+  'urbano',
+  'latino',
+  'latina',
+  'songs',
+  'hits',
+  'playlist',
+};
+
+/// Etiquetas de género o palabras sueltas que YouTube Music devuelve como
+/// «artista» (p. ej. «reggaeton urbano», «sky»); no son vecinos válidos.
+bool isGenericArtistName(String name) {
+  final n = coherenceNorm(name);
+  if (n.isEmpty || _genericNames.contains(n)) return true;
+  final words = n.split(' ');
+  return words.length > 1 && _genericSuffix.contains(words.last);
+}
+
 /// Artistas de la pista (principal + colaboradores + «feat.» del título).
 Set<String> coherenceArtists(Track t) {
   final out = <String>{};
@@ -182,7 +226,10 @@ CoherenceResult scoreCoherence(
 /// >= [djRelatedThreshold]) entra siempre; lo demás, sin rechazos duros, solo
 /// para completar [limit] puestos. Cada artista cuenta como mucho [artistCap]
 /// puestos (la diversidad posterior no admite más); en el corte entran
-/// exactamente los necesarios (empates por posición original). Nunca devuelve vacío si [items] no lo estaba.
+/// exactamente los necesarios. Al completar, [lastResort] manda al final a los
+/// de peor fuente (descubrimiento): no se usan mientras quede otro candidato;
+/// dentro de cada grupo, mayor puntuación y luego posición original. Nunca
+/// devuelve vacío si [items] no lo estaba.
 ({List<T> kept, bool relaxed}) coherenceGate<T>(
   List<T> items, {
   required CoherenceResult Function(T item) result,
@@ -190,6 +237,7 @@ CoherenceResult scoreCoherence(
   required int limit,
   required int artistCap,
   Map<String, int> used = const {}, // apariciones previas por artista
+  bool Function(T item)? lastResort,
 }) {
   final related = <T>[], rest = <T>[];
   for (final i in items) {
@@ -212,6 +260,11 @@ CoherenceResult scoreCoherence(
   if (need > 0 && rest.isNotEmpty) {
     final idx = List.generate(rest.length, (k) => k)
       ..sort((a, b) {
+        if (lastResort != null) {
+          final t =
+              (lastResort(rest[a]) ? 1 : 0) - (lastResort(rest[b]) ? 1 : 0);
+          if (t != 0) return t;
+        }
         final c = result(rest[b]).score.compareTo(result(rest[a]).score);
         return c != 0 ? c : a.compareTo(b);
       });

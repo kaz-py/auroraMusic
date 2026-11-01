@@ -335,7 +335,11 @@ List<DjQuery> djDiscoveryQueries(
     for (final a in skippedArtists) coherenceNorm(a),
   };
   for (final n in neighbors) {
-    if (n.isEmpty || known.contains(coherenceNorm(n))) continue;
+    if (n.isEmpty ||
+        isGenericArtistName(n) ||
+        known.contains(coherenceNorm(n))) {
+      continue;
+    }
     options.add((query: '$n songs', reason: 'Artista afín a lo que escuchas'));
   }
   for (var i = 0; i < 6; i++) {
@@ -472,6 +476,7 @@ List<TrackRecommendation> rankDjCandidates({
       result: (p) => cohOf[p.candidate]!,
       artist: (p) => djPrimaryArtist(p.candidate.track),
       limit: limit,
+      lastResort: (p) => p.candidate.bucket == RecBucket.discovery,
       // El enfriamiento admite dos por cada diez pistas.
       artistCap: artistCooldown ? math.max(1, (limit * 0.2).ceil()) : limit,
       // Mismas apariciones que bloquea allowed(): ventana de las últimas 9.

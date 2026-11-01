@@ -203,6 +203,22 @@ List<String> seedGraphArtists({
   ..._seedArtists(features, favoriteArtists, listenedArtists, current).take(8),
 }.where((a) => a.isNotEmpty).toList();
 
+/// Vecinos de primer salto más los artistas que aparecen en las listas de al
+/// menos dos de ellos (segundo salto). Solo caché: sin red.
+Set<String> _withSecondHop(ArtistGraph graph, Set<String> first) {
+  final counts = <String, int>{};
+  for (final n in first) {
+    for (final m in graph.neighborsOf(n)) {
+      counts.update(m, (c) => c + 1, ifAbsent: () => 1);
+    }
+  }
+  return {
+    ...first,
+    for (final e in counts.entries)
+      if (e.value >= 2) e.key,
+  };
+}
+
 /// Contexto de coherencia común a cola, motor y DJ: artistas del perfil, la
 /// pista actual, favoritos y lo escuchado; vecinos y etiquetas del [graph].
 CoherenceContext seedCoherence({
@@ -223,7 +239,7 @@ CoherenceContext seedCoherence({
     artists: artists,
     neighbors: graph == null
         ? const []
-        : {
+        : _withSecondHop(graph, {
             for (final a in seedGraphArtists(
               features: features,
               favoriteArtists: favoriteArtists,
@@ -231,7 +247,7 @@ CoherenceContext seedCoherence({
               current: current,
             ))
               ...graph.neighborsOf(a),
-          },
+          }),
     genres: {
       ..._featureTop(features, 'g:', 6),
       ...?current?.genres,
@@ -591,6 +607,7 @@ class SuggestionsApi {
         artist: (i) => i.artist,
         limit: ctx.limit,
         artistCap: math.max(1, (ctx.limit / 5).ceil()),
+        lastResort: (i) => i.candidate.bucket == RecBucket.discovery,
       );
       diag.coherenceRelaxed = gate.relaxed;
       items
