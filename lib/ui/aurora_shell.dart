@@ -214,6 +214,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   MusicPlaylist? _playlist;
   bool _likesSelected = false;
+  final List<int> _backStack = [];
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
   late final AudioBackend _audio;
@@ -394,7 +395,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _jamChanged();
   }
 
-  Future<void> _navigate(int value, {bool fromRequest = false}) async {
+  Future<void> _navigate(
+    int value, {
+    bool fromRequest = false,
+    bool recordBack = true,
+  }) async {
     if (value == 10 &&
         !fromRequest &&
         ref.read(controllerProvider).usesOfficialYouTubeMusic) {
@@ -414,6 +419,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ref.read(controllerProvider).cancelRecommendationDiscovery();
       }
       setState(() {
+        if (value == 0) {
+          _backStack.clear();
+        } else if (value != _section && recordBack) {
+          _backStack.add(_section);
+          if (_backStack.length > 20) _backStack.removeAt(0);
+        }
         _section = value;
         if (value == 9) _jamVisited = true;
         _musicVisited = value == 10;
@@ -428,6 +439,29 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     } finally {
       _navigationPending = false;
     }
+  }
+
+  bool _handleBack(AppController c) {
+    if (_section == 1 && c.searchDetail != null) {
+      c.openSearchEntry(null);
+      return true;
+    }
+    if (_playlist != null || _likesSelected) {
+      setState(() {
+        _playlist = null;
+        _likesSelected = false;
+      });
+      return true;
+    }
+    if (_backStack.isNotEmpty) {
+      _navigate(_backStack.removeLast(), recordBack: false);
+      return true;
+    }
+    if (_section != 0) {
+      _navigate(0);
+      return true;
+    }
+    return false;
   }
 
   double _volumeBeforeMute = 0.7;
@@ -773,6 +807,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                               ),
                       )
                     : NavigationBar(
+                        height: 64,
                         selectedIndex: math.max(
                           0,
                           _primarySections.indexOf(_section),
@@ -813,12 +848,22 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       ),
     );
-    if (web == null) return shell;
+    final guarded = PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // La página de YouTube Music gestiona su propio atrás.
+        if (_section == 10 && _musicKey.currentState != null) return;
+        if (!_handleBack(c)) SystemNavigator.pop();
+      },
+      child: shell,
+    );
+    if (web == null) return guarded;
     return ListenableBuilder(
       listenable: web,
       builder: (context, _) => Stack(
         fit: StackFit.expand,
-        children: [shell, ..._webEngineLayers(web)],
+        children: [guarded, ..._webEngineLayers(web)],
       ),
     );
   }
@@ -1157,12 +1202,14 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   }
 
   Widget _headerBar(AppController c, bool rail) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      rail ? 32 : 20,
-      isModern(context) ? 28 : 18,
-      rail ? 32 : 20,
-      isModern(context) ? 20 : 12,
-    ),
+    padding: rail
+        ? EdgeInsets.fromLTRB(
+            32,
+            isModern(context) ? 28 : 18,
+            32,
+            isModern(context) ? 20 : 12,
+          )
+        : const EdgeInsets.fromLTRB(16, 8, 8, 4),
     child: Row(
       children: [
         if (!rail) ...[const AuroraLogo(size: 28), const SizedBox(width: 10)],
@@ -1193,11 +1240,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   ),
                 ),
         ),
-        IconButton(
-          tooltip: 'Importar archivos de audio',
-          onPressed: c.ready ? c.importFiles : null,
-          icon: const Icon(Icons.create_new_folder_outlined),
-        ),
+        if (rail)
+          IconButton(
+            tooltip: 'Importar archivos de audio',
+            onPressed: c.ready ? c.importFiles : null,
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
         if (_section != 1)
           IconButton(
             tooltip: 'Buscar música',
@@ -1214,8 +1262,17 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           PopupMenuButton<int>(
             tooltip: 'Más vistas',
             icon: const Icon(Icons.more_horiz),
-            onSelected: _navigate,
+            onSelected: (v) =>
+                v == -1 ? (c.ready ? c.importFiles() : null) : _navigate(v),
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: -1,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.create_new_folder_outlined),
+                  title: Text('Importar archivos'),
+                ),
+              ),
               PopupMenuItem(
                 value: 12,
                 child: ListTile(
@@ -1443,6 +1500,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           controller: c,
           follow: ref.read(followServiceProvider),
           onSection: _navigate,
+          onBack: () => _handleBack(ref.read(controllerProvider)),
         );
       case 5:
         if (isSlush(context) && MediaQuery.sizeOf(context).width >= 900) {
@@ -1897,69 +1955,61 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   Widget _searchDetail(AppController c, SearchEntry entry) {
     final tracks = c.searchDetailTracks;
-    return Column(
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Volver a los resultados',
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => c.openSearchEntry(null),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Volver a los resultados',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => c.openSearchEntry(null),
+            ),
+            Expanded(
+              child: Text(
+                entry.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              Expanded(
-                child: Text(
-                  entry.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
         if (entry.kind == SearchKind.artists)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FollowButton(
-                service: ref.read(followServiceProvider),
-                name: entry.title,
-                browseId: entry.browseId,
-                imageUrl: entry.artworkUrl,
-              ),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FollowButton(
+              service: ref.read(followServiceProvider),
+              name: entry.title,
+              browseId: entry.browseId,
+              imageUrl: entry.artworkUrl,
             ),
           ),
         if (c.searchDetailLoading) const LinearProgressIndicator(minHeight: 2),
         if (tracks.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  FilledButton.icon(
-                    onPressed: () => c.playTrack(tracks.first, context: tracks),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Reproducir todo'),
-                  ),
-                  TrackBatchButtons(controller: c, tracks: tracks),
-                ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              FilledButton.icon(
+                onPressed: () => c.playTrack(tracks.first, context: tracks),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Reproducir todo'),
               ),
-            ),
+              TrackBatchButtons(controller: c, tracks: tracks),
+            ],
           ),
-        Expanded(
-          child: tracks.isNotEmpty
-              ? ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: tracks.length,
-                  itemBuilder: (_, i) => _trackTile(c, tracks[i], tracks),
-                )
-              : c.searchDetailLoading
+      ],
+    );
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: tracks.isEmpty ? 2 : tracks.length + 1,
+      itemBuilder: (_, i) {
+        if (i == 0) return header;
+        if (tracks.isNotEmpty) return _trackTile(c, tracks[i - 1], tracks);
+        return SizedBox(
+          height: 320,
+          child: c.searchDetailLoading
               ? _empty(Icons.album_outlined, 'Cargando…', entry.title)
               : _empty(
                   c.searchDetailError != null
@@ -1970,8 +2020,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                       : 'Sin canciones',
                   c.searchDetailError ?? 'Este resultado no tiene canciones.',
                 ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -1995,149 +2045,154 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 )
                 .whereType<Track>()
                 .toList();
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () => setState(() {
-                    _playlist = null;
-                    _likesSelected = false;
-                  }),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Todas las listas'),
-                ),
-                if (_likesSelected)
-                  Text(
-                    'Me gusta',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                if (items.isNotEmpty)
-                  TrackBatchButtons(controller: c, tracks: items),
-                if (playlist != null) ...[
-                  PlaylistPhotoMenu(
-                    controller: c,
-                    playlist: playlist,
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: PlaylistCover(
-                            playlist: playlist,
-                            tracks: playlistCoverTracks(c, playlist),
-                            size: 72,
-                          ),
-                        ),
-                        Positioned(
-                          right: 2,
-                          bottom: 2,
-                          child: Tooltip(
-                            message: 'Cambiar foto',
-                            child: GestureDetector(
-                              key: const ValueKey('playlist-cover-camera'),
-                              onTap: () =>
-                                  changePlaylistPhoto(context, c, playlist),
-                              child: const CircleAvatar(
-                                radius: 12,
-                                backgroundColor: Colors.black54,
-                                child: Icon(
-                                  Icons.photo_camera,
-                                  size: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    key: const ValueKey('playlist-change-photo'),
-                    onPressed: () => changePlaylistPhoto(context, c, playlist),
-                    icon: const Icon(Icons.photo_outlined),
-                    label: const Text('Cambiar foto'),
-                  ),
-                  if (playlist.photoPath != null)
-                    TextButton(
-                      key: const ValueKey('playlist-remove-photo'),
-                      onPressed: () => c.setPlaylistPhoto(playlist, null),
-                      child: const Text('Quitar foto'),
-                    ),
-                  PlaylistSendButton(controller: c, playlist: playlist),
-                  OutlinedButton(
-                    onPressed: () async {
-                      final name = await _askText(
-                        'Renombrar lista',
-                        'Nombre',
-                        initial: playlist.name,
-                      );
-                      if (name != null) c.renamePlaylist(playlist, name);
-                    },
-                    child: const Text('Renombrar'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      if (await _confirm(
-                        'Eliminar lista',
-                        'Se eliminará «${playlist.name}». Tus archivos permanecerán en la biblioteca.',
-                      )) {
-                        c.deletePlaylist(playlist);
-                        setState(() => _playlist = null);
-                      }
-                    },
-                    child: const Text('Eliminar'),
-                  ),
-                ],
-              ],
+      final header = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _playlist = null;
+                _likesSelected = false;
+              }),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Todas las listas'),
             ),
-          ),
-          Expanded(
-            child: items.isEmpty
-                ? _empty(
-                    _likesSelected ? Icons.favorite_border : Icons.playlist_add,
-                    _likesSelected
-                        ? 'Aún no hay canciones que te gusten'
-                        : 'Esta lista está esperando música',
-                    _likesSelected
-                        ? 'Marca una canción con Me gusta para verla aquí.'
-                        : 'Añade canciones desde el menú de cualquier resultado o canción.',
-                  )
-                : PlaylistDetailTools(
-                    tracks: items,
-                    onPlay: (v) => c.playTrack(v.first, context: v),
-                    builder: (v, canReorder) => playlist == null || !canReorder
-                        ? ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: v.length,
-                            itemBuilder: (_, i) => _trackTile(
-                              c,
-                              v[i],
-                              v,
-                              key: ValueKey('${playlist?.id}-${v[i].id}'),
-                              playlist: playlist,
-                            ),
-                          )
-                        : ReorderableListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: v.length,
-                            onReorder: (oldIndex, newIndex) =>
-                                c.reorderPlaylist(playlist, oldIndex, newIndex),
-                            itemBuilder: (_, i) => _trackTile(
-                              c,
-                              v[i],
-                              v,
-                              key: ValueKey('${playlist.id}-${v[i].id}'),
-                              playlist: playlist,
+            if (_likesSelected)
+              Text('Me gusta', style: Theme.of(context).textTheme.titleMedium),
+            if (items.isNotEmpty)
+              TrackBatchButtons(controller: c, tracks: items),
+            if (playlist != null) ...[
+              PlaylistPhotoMenu(
+                controller: c,
+                playlist: playlist,
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: PlaylistCover(
+                        playlist: playlist,
+                        tracks: playlistCoverTracks(c, playlist),
+                        size: 72,
+                      ),
+                    ),
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: Tooltip(
+                        message: 'Cambiar foto',
+                        child: GestureDetector(
+                          key: const ValueKey('playlist-cover-camera'),
+                          onTap: () =>
+                              changePlaylistPhoto(context, c, playlist),
+                          child: const CircleAvatar(
+                            radius: 12,
+                            backgroundColor: Colors.black54,
+                            child: Icon(
+                              Icons.photo_camera,
+                              size: 14,
+                              color: Colors.white,
                             ),
                           ),
-                  ),
-          ),
-        ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('playlist-change-photo'),
+                onPressed: () => changePlaylistPhoto(context, c, playlist),
+                icon: const Icon(Icons.photo_outlined),
+                label: const Text('Cambiar foto'),
+              ),
+              if (playlist.photoPath != null)
+                TextButton(
+                  key: const ValueKey('playlist-remove-photo'),
+                  onPressed: () => c.setPlaylistPhoto(playlist, null),
+                  child: const Text('Quitar foto'),
+                ),
+              PlaylistSendButton(controller: c, playlist: playlist),
+              OutlinedButton(
+                onPressed: () async {
+                  final name = await _askText(
+                    'Renombrar lista',
+                    'Nombre',
+                    initial: playlist.name,
+                  );
+                  if (name != null) c.renamePlaylist(playlist, name);
+                },
+                child: const Text('Renombrar'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (await _confirm(
+                    'Eliminar lista',
+                    'Se eliminará «${playlist.name}». Tus archivos permanecerán en la biblioteca.',
+                  )) {
+                    c.deletePlaylist(playlist);
+                    setState(() => _playlist = null);
+                  }
+                },
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ],
+        ),
+      );
+      if (items.isEmpty) {
+        return ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            header,
+            SizedBox(
+              height: 320,
+              child: _empty(
+                _likesSelected ? Icons.favorite_border : Icons.playlist_add,
+                _likesSelected
+                    ? 'Aún no hay canciones que te gusten'
+                    : 'Esta lista está esperando música',
+                _likesSelected
+                    ? 'Marca una canción con Me gusta para verla aquí.'
+                    : 'Añade canciones desde el menú de cualquier resultado o canción.',
+              ),
+            ),
+          ],
+        );
+      }
+      return PlaylistDetailTools(
+        tracks: items,
+        onPlay: (v) => c.playTrack(v.first, context: v),
+        header: header,
+        builder: (v, canReorder) => playlist == null || !canReorder
+            ? ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: v.length + 1,
+                itemBuilder: (_, i) => i == 0
+                    ? header
+                    : _trackTile(
+                        c,
+                        v[i - 1],
+                        v,
+                        key: ValueKey('${playlist?.id}-${v[i - 1].id}'),
+                        playlist: playlist,
+                      ),
+              )
+            : ReorderableListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                header: header,
+                itemCount: v.length,
+                onReorder: (oldIndex, newIndex) =>
+                    c.reorderPlaylist(playlist, oldIndex, newIndex),
+                itemBuilder: (_, i) => _trackTile(
+                  c,
+                  v[i],
+                  v,
+                  key: ValueKey('${playlist.id}-${v[i].id}'),
+                  playlist: playlist,
+                ),
+              ),
       );
     }
     return Column(

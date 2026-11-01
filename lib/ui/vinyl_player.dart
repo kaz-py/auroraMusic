@@ -21,10 +21,14 @@ class VinylPlayer extends StatefulWidget {
     required this.controller,
     this.follow,
     this.onSection,
+    this.onBack,
   });
 
   /// Slush: cambia de sección del shell (0 inicio, 4 vinilo, 5 cola, 6 letras, 13 EQ).
   final ValueChanged<int>? onSection;
+
+  /// Atrás del reproductor (móvil); lo resuelve el shell.
+  final VoidCallback? onBack;
   final AppController controller;
 
   /// Si se pasa, junto al artista aparece «Seguir / Siguiendo».
@@ -751,6 +755,7 @@ extension on _VinylPlayerState {
     cassette: _cassette,
     onToggleCassette: () => _setCassette(!_cassette),
     onSection: widget.onSection,
+    onBack: widget.onBack,
     recordBuilder: (size) => _record(
       context,
       c,
