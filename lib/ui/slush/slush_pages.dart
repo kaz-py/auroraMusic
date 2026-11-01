@@ -19,15 +19,21 @@ const slushPalette = [
   Color(0xffffb48a),
 ];
 
-/// Fondo plano de pantalla: [base] aclarado y teñido con el color de portada.
-Color slushTone(BuildContext context, Color base) => Color.lerp(
-  Color.lerp(base, Colors.white, .55)!,
-  Theme.of(context).colorScheme.surface,
-  .25,
-)!;
+/// Fondo plano de pantalla: [base] aclarado (u oscurecido, en oscuro) y teñido
+/// con el color de portada.
+Color slushTone(BuildContext context, Color base) {
+  final theme = Theme.of(context);
+  final dark = theme.brightness == Brightness.dark;
+  final tint = dark ? Colors.black : Colors.white; // destino del lerp: negro (oscuro) o blanco (claro)
+  return Color.lerp(
+    Color.lerp(base, tint, dark ? .80 : .55)!,
+    theme.colorScheme.surface,
+    .25,
+  )!;
+}
 
 /// Pantalla Slush con titular gigante, pegatina, píldoras de estado y el
-/// contenido en una tarjeta blanca con borde y sombra dura (o suelto, si
+/// contenido en una tarjeta de papel con borde y sombra dura (o suelto, si
 /// [card] es falso y ya trae sus propias tarjetas).
 class SlushPage extends StatelessWidget {
   const SlushPage({
@@ -53,80 +59,106 @@ class SlushPage extends StatelessWidget {
       builder: (context, box) {
         final wide = box.maxWidth >= 700;
         final pad = wide ? 28.0 : 16.0;
-        final font = wide ? 96.0 : 52.0;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(pad, wide ? 16 : 10, pad, 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      label: title,
-                      child: ExcludeSemantics(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontFamily: _display,
-                              fontSize: font,
-                              height: .95,
-                              letterSpacing: -font * .02,
-                              color: Slush.ink,
-                              shadows: [
-                                for (final o in const [
-                                  Offset(2, 0),
-                                  Offset(-2, 0),
-                                  Offset(0, 2),
-                                  Offset(0, -2),
-                                ])
-                                  Shadow(color: Slush.ink, offset: o),
-                              ],
-                            ),
+        final font = wide ? 96.0 : 40.0;
+        final header = <Widget>[
+          Padding(
+            padding: EdgeInsets.fromLTRB(pad, wide ? 16 : 10, pad, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    label: title,
+                    child: ExcludeSemantics(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontFamily: _display,
+                            fontSize: font,
+                            height: .95,
+                            letterSpacing: -font * .02,
+                            color: context.slush.ink,
+                            shadows: [
+                              for (final o in const [
+                                Offset(2, 0),
+                                Offset(-2, 0),
+                                Offset(0, 2),
+                                Offset(0, -2),
+                              ])
+                                Shadow(color: context.slush.ink, offset: o),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
+                ),
+                if (box.maxWidth >= 360) ...[
                   const SizedBox(width: 8),
                   SlushSticker(
                     sticker,
-                    size: wide ? 92 : 64,
+                    size: wide ? 92 : 48,
                     color: slushPalette[title.length % slushPalette.length],
                   ),
                 ],
+              ],
+            ),
+          ),
+          if (pills.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(pad, 0, pad, 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < pills.length; i++)
+                    SlushPill(
+                      pills[i],
+                      color: i == 0
+                          ? context.slush.paper
+                          : slushPalette[(i + 1) % slushPalette.length],
+                    ),
+                ],
               ),
             ),
-            if (pills.isNotEmpty)
-              Padding(
-                padding: EdgeInsets.fromLTRB(pad, 0, pad, 8),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    for (var i = 0; i < pills.length; i++)
-                      SlushPill(
-                        pills[i],
-                        color: i == 0
-                            ? Colors.white
-                            : slushPalette[(i + 1) % slushPalette.length],
-                      ),
-                  ],
+        ];
+        final body = card
+            ? Padding(
+                padding: EdgeInsets.fromLTRB(pad, 6, pad + 4, 12),
+                child: SlushCard(child: child),
+              )
+            : child;
+        if (!wide) {
+          // En el teléfono el titular se va con el scroll del contenido; cada
+          // pantalla empieza arriba (la clave evita heredar el desplazamiento).
+          return NestedScrollView(
+            key: ValueKey(title),
+            headerSliverBuilder: (_, _) => [
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: header,
                 ),
               ),
-            Expanded(
-              child: card
-                  ? Padding(
-                      padding: EdgeInsets.fromLTRB(pad, 6, pad + 4, 12),
-                      child: SlushCard(child: child),
-                    )
-                  : child,
+            ],
+            body: Builder(
+              builder: (ctx) => PrimaryScrollController(
+                controller: PrimaryScrollController.of(ctx),
+                automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+                child: body,
+              ),
             ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...header,
+            Expanded(child: body),
           ],
         );
       },
@@ -134,25 +166,21 @@ class SlushPage extends StatelessWidget {
   );
 }
 
-/// Tarjeta blanca de borde negro, esquinas grandes y sombra dura.
+/// Tarjeta de papel con contorno, esquinas grandes y sombra dura.
 class SlushCard extends StatelessWidget {
-  const SlushCard({super.key, required this.child, this.color = Colors.white});
+  const SlushCard({super.key, required this.child});
   final Widget child;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    const shape = RoundedRectangleBorder(
-      side: Slush.border,
-      borderRadius: BorderRadius.all(Radius.circular(24)),
+    final shape = RoundedRectangleBorder(
+      side: context.slush.border,
+      borderRadius: const BorderRadius.all(Radius.circular(24)),
     );
     return DecoratedBox(
-      decoration: const ShapeDecoration(
-        shape: shape,
-        shadows: Slush.hardShadow,
-      ),
+      decoration: ShapeDecoration(shape: shape, shadows: context.slush.shadows),
       child: Material(
-        color: color,
+        color: context.slush.paper,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: child,
@@ -191,10 +219,10 @@ class SlushEmpty extends StatelessWidget {
                   Transform.rotate(
                     angle: -.08,
                     child: DecoratedBox(
-                      decoration: const ShapeDecoration(
+                      decoration: ShapeDecoration(
                         color: Slush.lilac,
-                        shape: CircleBorder(side: Slush.border),
-                        shadows: Slush.hardShadow,
+                        shape: CircleBorder(side: context.slush.border),
+                        shadows: context.slush.shadows,
                       ),
                       child: SizedBox.square(
                         dimension: 104,
@@ -214,21 +242,21 @@ class SlushEmpty extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: _display,
                 fontSize: 30,
                 height: 1.05,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
             const SizedBox(height: 10),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
                 height: 1.5,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
           ],
@@ -256,10 +284,14 @@ class SlushLikesCard extends StatelessWidget {
         const Expanded(
           child: Text(
             'Me gusta',
-            style: TextStyle(fontFamily: _display, fontSize: 26),
+            style: TextStyle(
+              fontFamily: _display,
+              fontSize: 26,
+              color: Slush.ink,
+            ),
           ),
         ),
-        SlushPill('$count canciones', color: Colors.white),
+        SlushPill('$count canciones', color: context.slush.paper),
         const SizedBox(width: 8),
         const Icon(Icons.chevron_right, color: Slush.ink),
       ],
@@ -284,11 +316,11 @@ class _SlushTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
-      side: Slush.border,
+      side: context.slush.border,
       borderRadius: BorderRadius.circular(radius),
     );
     return DecoratedBox(
-      decoration: ShapeDecoration(shape: shape, shadows: Slush.hardShadow),
+      decoration: ShapeDecoration(shape: shape, shadows: context.slush.shadows),
       child: Material(
         color: color,
         shape: shape,
@@ -344,7 +376,7 @@ class SlushPlaylistGrid extends StatelessWidget {
                     children: [
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          border: Border.fromBorderSide(Slush.border),
+                          border: Border.fromBorderSide(context.slush.border),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: ClipRRect(
@@ -374,7 +406,7 @@ class SlushPlaylistGrid extends StatelessWidget {
                       const SizedBox(height: 6),
                       SlushPill(
                         '${playlists[i].trackIds.length} canciones',
-                        color: Colors.white,
+                        color: context.slush.paper,
                       ),
                     ],
                   ),

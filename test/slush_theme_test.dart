@@ -15,14 +15,6 @@ void main() {
     }
   });
 
-  test('Slush es claro, con tinta negra y marca propia', () {
-    final t = slushTheme(Brightness.dark, const Color(0xff2255cc));
-    expect(t.brightness, Brightness.light);
-    expect(t.colorScheme.onSurface, Slush.ink);
-    expect(t.extension<SlushMarker>(), isNotNull);
-    expect(t.colorScheme.surface.computeLuminance(), greaterThan(.6));
-  });
-
   double ratio(Color a, Color b) {
     final x = a.computeLuminance(), y = b.computeLuminance();
     return (math.max(x, y) + .05) / (math.min(x, y) + .05);
@@ -35,6 +27,31 @@ void main() {
     Color(0xffffcc00),
     Color(0xff8844cc),
   ];
+
+  test('Slush claro: tinta negra, papel blanco y marca propia', () {
+    final t = slushTheme(Brightness.light, const Color(0xff2255cc));
+    expect(t.brightness, Brightness.light);
+    expect(t.colorScheme.onSurface, Slush.ink);
+    expect(t.extension<SlushMarker>(), isNotNull);
+    expect(t.extension<SlushPalette>(), SlushPalette.light);
+    expect(t.colorScheme.surface.computeLuminance(), greaterThan(.6));
+  });
+
+  test('Slush oscuro: paleta crema sobre papel oscuro con contraste AA', () {
+    final t = slushTheme(Brightness.dark, const Color(0xffe86927));
+    final p = t.extension<SlushPalette>()!;
+    expect(t.brightness, Brightness.dark);
+    expect(p, SlushPalette.dark);
+    expect(t.extension<SlushMarker>(), isNotNull);
+    expect(ratio(p.ink, p.paper), greaterThanOrEqualTo(4.5));
+    expect(ratio(p.ink, t.colorScheme.surface), greaterThanOrEqualTo(4.5));
+    for (final a in accents) {
+      final s = slushTheme(Brightness.dark, a).colorScheme;
+      expect(ratio(s.onSurface, s.surface), greaterThanOrEqualTo(4.5));
+      expect(ratio(s.onSurfaceVariant, s.surface), greaterThanOrEqualTo(4.5));
+      expect(s.surface.computeLuminance(), lessThan(.2));
+    }
+  });
 
   test('Slush: contraste AA en texto y controles', () {
     for (final a in accents) {

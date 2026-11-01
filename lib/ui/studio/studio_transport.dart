@@ -254,9 +254,9 @@ class _StudioTransportState extends State<StudioTransport> {
                   )
                 : isSlush(context)
                 ? BoxDecoration(
-                    color: Colors.white,
+                    color: context.slush.paper,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.fromBorderSide(Slush.border),
+                    border: Border.fromBorderSide(context.slush.border),
                   )
                 : modern
                 ? BoxDecoration(
@@ -627,7 +627,7 @@ class TransportPlayButton extends StatelessWidget {
                 ? (brasa
                       ? Brasa.cream
                       : isSlush(context)
-                      ? Slush.ink
+                      ? context.slush.ink
                       : Tracky.mint)
                 : colors.surfaceContainerHigh,
             shape: const CircleBorder(),
@@ -654,7 +654,7 @@ class TransportPlayButton extends StatelessWidget {
                           ? (brasa
                                 ? Colors.black
                                 : isSlush(context)
-                                ? Colors.white
+                                ? context.slush.paper
                                 : Tracky.navy)
                           : colors.outline,
                       size: brasa ? 22 : 24,

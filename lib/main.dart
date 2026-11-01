@@ -219,11 +219,7 @@ class AuroraApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Aurora',
       debugShowCheckedModeBanner: false,
-      themeMode: settings.$4 == 'brasa'
-          ? ThemeMode.dark
-          : settings.$4 == 'slush'
-          ? ThemeMode.light
-          : settings.$1,
+      themeMode: settings.$4 == 'brasa' ? ThemeMode.dark : settings.$1,
       theme: build(
         settings.$4 == 'brasa' ? Brightness.dark : Brightness.light,
         settings.$2,

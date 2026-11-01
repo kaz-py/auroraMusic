@@ -9,7 +9,6 @@ import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import 'slush_decor.dart';
 
-const _ink = Slush.ink;
 const _display = 'Bagel Fat One';
 
 /// «2 h 04» / «45 min» a partir de la suma de duraciones; null si no hay datos.
@@ -46,7 +45,9 @@ class SlushHome extends StatelessWidget {
       builder: (context, box) {
         final w = box.maxWidth;
         final wide = w >= 760;
-        final h = wide ? (w * .4).clamp(420.0, 470.0) : 430.0;
+        final h = wide
+            ? (MediaQuery.sizeOf(context).height * .62).clamp(420.0, 640.0)
+            : 430.0;
         final font = wide
             ? (h * .5).clamp(120.0, 240.0)
             : (w * .34).clamp(90.0, 150.0);
@@ -64,7 +65,12 @@ class SlushHome extends StatelessWidget {
                 left: -24,
                 right: -24,
                 child: IgnorePointer(
-                  child: CustomPaint(painter: _RibbonPainter(wide ? .14 : .1)),
+                  child: CustomPaint(
+                    painter: _RibbonPainter(
+                      wide ? .14 : .1,
+                      context.slush.line,
+                    ),
+                  ),
                 ),
               ),
               Positioned(
@@ -81,7 +87,7 @@ class SlushHome extends StatelessWidget {
                         fontSize: font,
                         height: .8,
                         letterSpacing: -font * .02,
-                        color: _ink,
+                        color: context.slush.ink,
                         shadows: [
                           for (final o in const [
                             Offset(2, 0),
@@ -89,7 +95,7 @@ class SlushHome extends StatelessWidget {
                             Offset(0, 2),
                             Offset(0, -2),
                           ])
-                            Shadow(color: _ink, offset: o),
+                            Shadow(color: context.slush.ink, offset: o),
                         ],
                       ),
                     ),
@@ -106,10 +112,12 @@ class SlushHome extends StatelessWidget {
                 top: h * (wide ? .56 : .46),
                 child: Transform.rotate(
                   angle: -.12,
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 56,
                     height: 52,
-                    child: CustomPaint(painter: _HeartPainter()),
+                    child: CustomPaint(
+                      painter: _HeartPainter(context.slush.line),
+                    ),
                   ),
                 ),
               ),
@@ -149,10 +157,12 @@ class SlushHome extends StatelessWidget {
                   top: h * .2,
                   child: Transform.rotate(
                     angle: .5,
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: 52,
                       height: 60,
-                      child: CustomPaint(painter: _ArrowPainter()),
+                      child: CustomPaint(
+                        painter: _ArrowPainter(context.slush.line),
+                      ),
                     ),
                   ),
                 ),
@@ -254,8 +264,8 @@ class _PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: dark ? _ink : Colors.white,
-    shape: const StadiumBorder(side: BorderSide(color: _ink, width: 2)),
+    color: dark ? context.slush.ink : context.slush.paper,
+    shape: StadiumBorder(side: context.slush.border),
     child: InkWell(
       customBorder: const StadiumBorder(),
       onTap: onTap,
@@ -264,7 +274,11 @@ class _PillButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: dark ? Colors.white : _ink),
+            Icon(
+              icon,
+              size: 16,
+              color: dark ? context.slush.paper : context.slush.ink,
+            ),
             const SizedBox(width: 6),
             Text(
               label,
@@ -272,7 +286,7 @@ class _PillButton extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: .3,
-                color: dark ? Colors.white : _ink,
+                color: dark ? context.slush.paper : context.slush.ink,
               ),
             ),
           ],
@@ -303,8 +317,8 @@ class _MixCard extends StatelessWidget {
     decoration: BoxDecoration(
       color: Slush.lilac,
       borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: _ink, width: 2.5),
-      boxShadow: Slush.hardShadow,
+      border: Border.all(color: context.slush.line, width: 2.5),
+      boxShadow: context.slush.shadows,
     ),
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -337,7 +351,11 @@ class _MixCard extends StatelessWidget {
                 children: [
                   const Text(
                     'MIX DEL DÍA',
-                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Slush.ink,
+                    ),
                   ),
                   Text(
                     time == null
@@ -346,6 +364,7 @@ class _MixCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
+                      color: Slush.ink,
                     ),
                   ),
                 ],
@@ -354,14 +373,17 @@ class _MixCard extends StatelessWidget {
             Tooltip(
               message: 'Reproducir mix',
               child: Material(
-                color: _ink,
+                color: context.slush.ink,
                 shape: const CircleBorder(),
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: onPlay,
-                  child: const SizedBox.square(
+                  child: SizedBox.square(
                     dimension: 40,
-                    child: Icon(Icons.play_arrow_rounded, color: Colors.white),
+                    child: Icon(
+                      Icons.play_arrow_rounded,
+                      color: context.slush.paper,
+                    ),
                   ),
                 ),
               ),
@@ -387,8 +409,8 @@ class _StackCard extends StatelessWidget {
     decoration: BoxDecoration(
       color: color,
       borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: _ink, width: 2.5),
-      boxShadow: Slush.hardShadow,
+      border: Border.all(color: context.slush.line, width: 2.5),
+      boxShadow: context.slush.shadows,
     ),
     child: track == null
         ? null
@@ -406,18 +428,18 @@ class _DjTag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(3),
     decoration: ShapeDecoration(
-      color: Colors.white,
-      shape: const StadiumBorder(side: BorderSide(color: _ink, width: 2)),
+      color: context.slush.paper,
+      shape: StadiumBorder(side: context.slush.border),
     ),
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       decoration: ShapeDecoration(
         color: Slush.lilac,
-        shape: const StadiumBorder(side: BorderSide(color: _ink, width: 2)),
+        shape: StadiumBorder(side: context.slush.border),
       ),
       child: const Text(
         'DJ AUROR',
-        style: TextStyle(fontFamily: _display, fontSize: 16, color: _ink),
+        style: TextStyle(fontFamily: _display, fontSize: 16, color: Slush.ink),
       ),
     ),
   );
@@ -433,25 +455,26 @@ class _NoteDisc extends StatelessWidget {
     decoration: BoxDecoration(
       color: Slush.yellow,
       shape: BoxShape.circle,
-      border: Border.all(color: _ink, width: 2.5),
-      boxShadow: Slush.hardShadow,
+      border: Border.all(color: context.slush.line, width: 2.5),
+      boxShadow: context.slush.shadows,
     ),
-    child: const Icon(Icons.music_note_rounded, color: _ink, size: 26),
+    child: const Icon(Icons.music_note_rounded, color: Slush.ink, size: 26),
   );
 }
 
 Paint _fill(Color c) => Paint()..color = c;
-Paint _line(double w) => Paint()
+Paint _line(double w, [Color color = Slush.ink]) => Paint()
   ..style = PaintingStyle.stroke
   ..strokeWidth = w
   ..strokeJoin = StrokeJoin.round
   ..strokeCap = StrokeCap.round
-  ..color = _ink;
+  ..color = color;
 
-/// Cinta azul con bordes negros y líneas blancas, de lado a lado.
+/// Cinta azul con bordes de tinta y líneas blancas, de lado a lado.
 class _RibbonPainter extends CustomPainter {
-  const _RibbonPainter(this.thickness);
+  const _RibbonPainter(this.thickness, this.line);
   final double thickness;
+  final Color line;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -465,18 +488,20 @@ class _RibbonPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = width
       ..color = c;
-    canvas.drawPath(path, stroke(t + 8, _ink));
+    canvas.drawPath(path, stroke(t + 8, line));
     canvas.drawPath(path, stroke(t, Slush.blue));
-    canvas.drawPath(path, stroke(t * .55, Colors.white));
+    canvas.drawPath(path, stroke(t * .55, Colors.white)); // sobre color vivo
     canvas.drawPath(path, stroke(t * .3, Slush.blue));
   }
 
   @override
-  bool shouldRepaint(_RibbonPainter old) => old.thickness != thickness;
+  bool shouldRepaint(_RibbonPainter old) =>
+      old.thickness != thickness || old.line != line;
 }
 
 class _HeartPainter extends CustomPainter {
-  const _HeartPainter();
+  const _HeartPainter(this.line);
+  final Color line;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -487,7 +512,7 @@ class _HeartPainter extends CustomPainter {
       ..cubicTo(w * .9, -h * .1, w * 1.2, h * .5, w / 2, h * .95)
       ..close();
     canvas.drawPath(p, _fill(Slush.orange));
-    canvas.drawPath(p, _line(3));
+    canvas.drawPath(p, _line(3, line));
     canvas.drawArc(
       Rect.fromLTWH(w * .16, h * .2, w * .2, h * .2),
       math.pi,
@@ -497,16 +522,17 @@ class _HeartPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round
-        ..color = Colors.white,
+        ..color = Colors.white, // sobre color vivo
     );
   }
 
   @override
-  bool shouldRepaint(_HeartPainter old) => false;
+  bool shouldRepaint(_HeartPainter old) => old.line != line;
 }
 
 class _ArrowPainter extends CustomPainter {
-  const _ArrowPainter();
+  const _ArrowPainter(this.line);
+  final Color line;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -518,11 +544,11 @@ class _ArrowPainter extends CustomPainter {
       ..lineTo(w * .4, h)
       ..close();
     canvas.drawPath(p, _fill(Slush.violet));
-    canvas.drawPath(p, _line(3));
+    canvas.drawPath(p, _line(3, line));
   }
 
   @override
-  bool shouldRepaint(_ArrowPainter old) => false;
+  bool shouldRepaint(_ArrowPainter old) => old.line != line;
 }
 
 /// Portada geométrica del mix: ojo concéntrico y sol amarillo.
@@ -541,10 +567,10 @@ class _CoverPainter extends CustomPainter {
     final s = size.shortestSide;
     final c = Offset(size.width * .55, size.height * .58);
     for (final (rad, color, ring) in [
-      (.36, Colors.white, true),
+      (.36, Colors.white, true), // sobre color vivo
       (.27, Slush.blue, true),
-      (.2, Colors.white, true),
-      (.1, _ink, false),
+      (.2, Colors.white, true), // sobre color vivo
+      (.1, Slush.ink, false),
     ]) {
       canvas.drawCircle(c, s * rad, _fill(color));
       if (ring) canvas.drawCircle(c, s * rad, _line(3));

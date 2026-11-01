@@ -15,10 +15,10 @@ BoxDecoration modernLyricsBackdrop(BuildContext context) {
   // Slush: tarjeta blanca de letras con contorno y sombra dura.
   if (isSlush(context)) {
     return BoxDecoration(
-      color: Colors.white,
+      color: context.slush.paper,
       borderRadius: BorderRadius.circular(24),
-      border: Border.fromBorderSide(Slush.border),
-      boxShadow: Slush.hardShadow,
+      border: Border.fromBorderSide(context.slush.border),
+      boxShadow: context.slush.shadows,
     );
   }
   return BoxDecoration(
@@ -78,8 +78,8 @@ class ModernLyricsList extends StatelessWidget {
             height: 1.25,
             letterSpacing: -.3,
             fontWeight: on ? FontWeight.w800 : FontWeight.w600,
-            color: slush && !on
-                ? const Color(0xff8d8d8d)
+            color: slush
+                ? (on ? Slush.ink : context.slush.ink.withValues(alpha: .5))
                 : on
                 ? c.onSurface
                 : c.onSurface.withValues(alpha: .42),

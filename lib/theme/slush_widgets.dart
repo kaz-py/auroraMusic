@@ -24,7 +24,7 @@ class SlushSticker extends StatelessWidget {
     child: SizedBox.square(
       dimension: size,
       child: CustomPaint(
-        painter: _BurstPainter(color),
+        painter: _BurstPainter(color, context.slush.line),
         child: Center(
           child: Text(
             label,
@@ -42,8 +42,9 @@ class SlushSticker extends StatelessWidget {
 }
 
 class _BurstPainter extends CustomPainter {
-  const _BurstPainter(this.color);
+  const _BurstPainter(this.color, this.line);
   final Color color;
+  final Color line;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -64,12 +65,13 @@ class _BurstPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeJoin = StrokeJoin.round
-        ..color = Slush.ink,
+        ..color = line,
     );
   }
 
   @override
-  bool shouldRepaint(_BurstPainter old) => old.color != color;
+  bool shouldRepaint(_BurstPainter old) =>
+      old.color != color || old.line != line;
 }
 
 /// Píldora con relleno de color y contorno negro (etiquetas de estado).
@@ -82,16 +84,17 @@ class SlushPill extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: ShapeDecoration(
       color: color,
-      shape: const StadiumBorder(side: BorderSide(color: Slush.ink, width: 2)),
+      shape: StadiumBorder(side: context.slush.border),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
-          color: Slush.ink,
+          // Sobre papel el texto sigue al tema; sobre color vivo, negro.
+          color: color == context.slush.paper ? context.slush.ink : Slush.ink,
         ),
       ),
     ),
@@ -142,12 +145,15 @@ class SlushWave extends StatelessWidget {
     child: SizedBox(
       height: height,
       width: double.infinity,
-      child: CustomPaint(painter: _WavePainter()),
+      child: CustomPaint(painter: _WavePainter(context.slush.line)),
     ),
   );
 }
 
 class _WavePainter extends CustomPainter {
+  const _WavePainter(this.line);
+  final Color line;
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
@@ -160,7 +166,7 @@ class _WavePainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke + 6
-        ..color = Slush.ink,
+        ..color = line,
     );
     canvas.drawPath(
       path,
@@ -172,5 +178,5 @@ class _WavePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_WavePainter old) => false;
+  bool shouldRepaint(_WavePainter old) => old.line != line;
 }

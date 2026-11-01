@@ -120,6 +120,7 @@ const _icons = [
   Icons.people_outline,
 ];
 const _primarySections = [0, 1, 8, 2, 3];
+const _slushPrimarySections = [0, 1, 2, 8, 9];
 
 class AuroraShell extends ConsumerStatefulWidget {
   const AuroraShell({super.key});
@@ -697,7 +698,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                     isPlaying: () => c.audio.isPlaying,
                                   ),
                                   Expanded(
-                                    child: isModern(context)
+                                    child:
+                                        isModern(context) && !isSlush(context)
                                         ? Align(
                                             alignment: Alignment.topCenter,
                                             child: ConstrainedBox(
@@ -781,29 +783,29 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                     : isSlush(context)
                     ? SlushBottomBar(
                         icons: [
-                          for (final s in _primarySections)
+                          for (final s in _slushPrimarySections)
                             switch (s) {
-                              8 => Icons.auto_awesome,
                               2 => Icons.queue_music,
+                              8 => Icons.auto_awesome,
+                              9 => Icons.groups_outlined,
                               _ => _icons[s],
                             },
                         ],
                         labels: [
-                          for (final s in _primarySections) _sections[s],
+                          for (final s in _slushPrimarySections) _sections[s],
                         ],
-                        selected: math.max(
-                          0,
-                          _primarySections.indexOf(_section),
-                        ),
-                        onSelect: (i) => _navigate(_primarySections[i]),
+                        selected: _slushPrimarySections.indexOf(_section),
+                        onSelect: (i) => _navigate(_slushPrimarySections[i]),
                         mini:
-                            c.jamPlaybackActive ||
+                            _section == 4 ||
+                                c.jamPlaybackActive ||
                                 (_section == 10 && c.usesOfficialYouTubeMusic)
                             ? null
                             : SlushMiniPlayer(
                                 controller: c,
-                                onOpen: () => _showPlayer(c),
+                                onOpen: () => _navigate(4),
                                 onToggle: () => _togglePlay(c),
+                                onNext: c.next,
                               ),
                       )
                     : NavigationBar(
@@ -819,7 +821,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         backgroundColor: brasa
                             ? Brasa.void_
                             : isSlush(context)
-                            ? Slush.ink
+                            ? context.slush.ink
                             : isModern(context)
                             ? Theme.of(context).colorScheme.surfaceContainerLow
                             : null,
@@ -1503,7 +1505,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           onBack: () => _handleBack(ref.read(controllerProvider)),
         );
       case 5:
-        if (isSlush(context) && MediaQuery.sizeOf(context).width >= 900) {
+        if (isSlush(context)) {
           return SlushEqQueue(
             controller: c,
             onNavigate: _navigate,
@@ -1512,6 +1514,23 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         }
         return _slushTabs(c, 5, QueuePanel(controller: c));
       case 6:
+        if (isSlush(context) && MediaQuery.sizeOf(context).width < 900) {
+          return Column(
+            children: [
+              SlushPlayerHeader(
+                controller: c,
+                current: 6,
+                onSection: _navigate,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  child: SlushLyricsCard(controller: c),
+                ),
+              ),
+            ],
+          );
+        }
         return _slushTabs(
           c,
           6,
@@ -1527,7 +1546,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       case 8:
         return DjDiscoveryPage(controller: c, onSearch: () => _navigate(1));
       case 13:
-        if (isSlush(context) && MediaQuery.sizeOf(context).width >= 900) {
+        if (isSlush(context)) {
           return SlushEqQueue(controller: c, onNavigate: _navigate);
         }
         return _slushTabs(
@@ -2339,13 +2358,14 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         final tile = ListTile(
           shape: isSlush(context)
               ? RoundedRectangleBorder(
-                  side: Slush.border,
+                  side: context.slush.border,
                   borderRadius: BorderRadius.circular(16),
                 )
               : active
               ? auroraSelectedShape(context)
               : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           selectedTileColor: isSlush(context) ? Slush.mint : null,
+          selectedColor: isSlush(context) ? Slush.ink : null,
           selected: active,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
@@ -2387,12 +2407,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         _time(t.duration),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-              TrackMenuButton(
-                controller: c,
-                track: t,
-                extras: extras,
-                quickAdd: true,
-                quickAddVisible: hot,
+              IconButtonTheme(
+                data: isSlush(context) && active
+                    ? IconButtonThemeData(
+                        style: IconButton.styleFrom(foregroundColor: Slush.ink),
+                      )
+                    : IconButtonTheme.of(context),
+                child: TrackMenuButton(
+                  controller: c,
+                  track: t,
+                  extras: extras,
+                  quickAdd: true,
+                  quickAddVisible: hot,
+                ),
               ),
             ],
           ),
@@ -2671,12 +2698,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           const SizedBox(height: 16),
           Text('Modo', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          if (c.themeKind == 'brasa' || c.themeKind == 'slush')
-            Text(
-              c.themeKind == 'slush'
-                  ? 'Slush es siempre claro.'
-                  : 'Brasa es siempre oscuro.',
-            )
+          if (c.themeKind == 'brasa')
+            const Text('Brasa es siempre oscuro.')
           else
             Wrap(
               spacing: 8,

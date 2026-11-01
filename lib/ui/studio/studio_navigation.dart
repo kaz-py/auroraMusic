@@ -581,13 +581,13 @@ class StudioSidebar extends StatelessWidget {
                           style: TextButton.styleFrom(
                             alignment: Alignment.centerLeft,
                             foregroundColor: isSlush(context)
-                                ? Slush.ink
+                                ? context.slush.ink
                                 : colors.onSurfaceVariant,
                             backgroundColor: isSlush(context)
-                                ? Colors.white
+                                ? context.slush.paper
                                 : null,
                             shape: isSlush(context)
-                                ? const StadiumBorder(side: Slush.border)
+                                ? StadiumBorder(side: context.slush.border)
                                 : null,
                           ),
                           onPressed: () => onPlaylist(playlist),
@@ -850,7 +850,7 @@ class StudioSidebar extends StatelessWidget {
     if (isModern(context)) {
       final slush = isSlush(context);
       final fg = slush
-          ? Slush.ink
+          ? (chosen ? Slush.ink : context.slush.ink)
           : chosen
           ? colors.onPrimary
           : colors.onSurfaceVariant;
@@ -860,12 +860,12 @@ class StudioSidebar extends StatelessWidget {
           message: tooltip,
           child: Material(
             color: slush
-                ? (chosen ? Slush.mint : Colors.white)
+                ? (chosen ? Slush.mint : context.slush.paper)
                 : chosen
                 ? colors.primary
                 : Colors.transparent,
             shape: slush
-                ? const StadiumBorder(side: Slush.border)
+                ? StadiumBorder(side: context.slush.border)
                 : const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
