@@ -24,7 +24,7 @@ const slushPalette = [
 Color slushTone(BuildContext context, Color base) {
   final theme = Theme.of(context);
   final dark = theme.brightness == Brightness.dark;
-  final tint = dark ? Colors.black : Colors.white; // sobre color vivo
+  final tint = dark ? Colors.black : Colors.white; // destino del lerp: negro (oscuro) o blanco (claro)
   return Color.lerp(
     Color.lerp(base, tint, dark ? .80 : .55)!,
     theme.colorScheme.surface,

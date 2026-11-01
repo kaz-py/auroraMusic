@@ -404,3 +404,13 @@ class SlushMarker extends ThemeExtension<SlushMarker> {
 
 bool isSlush(BuildContext context) =>
     Theme.of(context).extension<SlushMarker>() != null;
+
+/// Tema claro para el contenido dentro de superficies vivas: tinta sobre color
+/// vivo también en modo oscuro.
+final slushVividTheme = slushTheme(Brightness.light, Slush.lilac);
+
+/// Envuelve [child] con [slushVividTheme] solo en modo oscuro.
+Widget slushOnVivid(BuildContext context, Widget child) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? Theme(data: slushVividTheme, child: child)
+    : child;

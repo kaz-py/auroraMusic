@@ -23,15 +23,6 @@ const _tones = [
 Color _tone(String name) =>
     _tones[name.codeUnits.fold(0, (a, b) => a + b) % _tones.length];
 
-/// Tema claro de Slush para los controles (campos, botones, interruptores)
-/// dentro de tarjetas vivas: tinta sobre blanco también en modo oscuro.
-final _vividTheme = slushTheme(Brightness.light, Slush.lilac);
-
-Widget _onVivid(BuildContext context, Widget child) =>
-    Theme.of(context).brightness == Brightness.dark
-    ? Theme(data: _vividTheme, child: child)
-    : child;
-
 BoxDecoration _box(
   BuildContext context,
   Color color,
@@ -203,7 +194,7 @@ class SlushJamActive extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: _box(context, Slush.violet, 22),
-                child: _onVivid(
+                child: slushOnVivid(
                   context,
                   Wrap(
                     spacing: 18,
@@ -638,7 +629,7 @@ class SlushJamActive extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: _box(context, Slush.lilac, 22),
-      child: _onVivid(
+      child: slushOnVivid(
         context,
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,7 +763,7 @@ class SlushJamIdle extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: _box(context, Slush.lilac, 22),
-            child: _onVivid(
+            child: slushOnVivid(
               context,
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -38,9 +38,12 @@ class SlushBand extends StatelessWidget {
       border: Border.fromBorderSide(context.slush.border),
       boxShadow: context.slush.shadows,
     ),
-    child: DefaultTextStyle.merge(
-      style: const TextStyle(color: Slush.ink),
-      child: child,
+    child: slushOnVivid(
+      context,
+      DefaultTextStyle.merge(
+        style: const TextStyle(color: Slush.ink),
+        child: child,
+      ),
     ),
   );
 }
