@@ -379,9 +379,9 @@ class HomeMusicPage extends StatelessWidget {
                   children: [
                     Text(
                       'Para ti',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Slush.ink,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(color: Slush.ink),
                     ),
                     const SizedBox(height: 8),
                     Text(

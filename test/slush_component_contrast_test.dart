@@ -50,10 +50,7 @@ void main() {
 
       Color? labelColor(String s) => t
           .widget<RichText>(
-            find.descendant(
-              of: find.text(s),
-              matching: find.byType(RichText),
-            ),
+            find.descendant(of: find.text(s), matching: find.byType(RichText)),
           )
           .text
           .style

@@ -486,9 +486,7 @@ class _BandColumn extends StatelessWidget {
                 color: brasa && selected
                     ? Brasa.graphite
                     : modern && !brasa && selected
-                    ? (slush
-                          ? Slush.mint
-                          : Tracky.mint.withValues(alpha: .5))
+                    ? (slush ? Slush.mint : Tracky.mint.withValues(alpha: .5))
                     : null,
                 borderRadius: BorderRadius.circular(8),
               ),

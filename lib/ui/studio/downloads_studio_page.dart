@@ -156,6 +156,7 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
             onSelected: (_) => setState(() => _tab = tab),
           );
         }
+
         final desktop =
             constraints.maxWidth >= 960 &&
             MediaQuery.textScalerOf(context).scale(1) < 1.5;
@@ -308,10 +309,7 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
               children: [
                 tabChip(0, 'Descargadas  ${complete.length}'),
                 tabChip(1, 'En progreso  ${active.length}'),
-                tabChip(
-                  2,
-                  'Conflictos / Re-sincronizar  ${conflicts.length}',
-                ),
+                tabChip(2, 'Conflictos / Re-sincronizar  ${conflicts.length}'),
                 TextButton.icon(
                   onPressed: c.importFiles,
                   icon: const Icon(StudioSymbols.uploadFile),
