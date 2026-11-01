@@ -1635,6 +1635,9 @@ class AppController extends ChangeNotifier {
       _expiryRetries = 0;
       _recoveryProgressPosition = audio.position;
     }
+    if (audio.isPlaying && audio.position >= _openFailureWindow) {
+      _openFailureSkips = 0;
+    }
     // The web engine reports its own actionable errors; no stream to renew.
     final streamPlayback = _usingRemote && !webPlayback;
     if (audioError != null &&
@@ -1646,6 +1649,16 @@ class AppController extends ChangeNotifier {
         _expiryRetries < _maxStreamRecoveryAttempts &&
         _isRecoverableStreamError(audioError)) {
       unawaited(_recoverExpiredStream());
+    } else if (audioError != null &&
+        streamPlayback &&
+        _recoverableRemoteTrackId == currentTrack?.id &&
+        _playIntent &&
+        !_recovering &&
+        !busy &&
+        audio.position < _openFailureWindow &&
+        _isRecoverableStreamError(audioError)) {
+      // Retries spent and the stream never really started: next track.
+      _skipUnopenableStream();
     } else if (audioError != null &&
         streamPlayback &&
         (failure == YouTubeFailure.blocked ||
@@ -1680,6 +1693,27 @@ class AppController extends ChangeNotifier {
   }
 
   int _failedSkips = 0;
+
+  /// A stream that errors before this much playback "never opened".
+  static const _openFailureWindow = Duration(seconds: 5);
+  static const _maxOpenFailureSkips = 3;
+  int _openFailureSkips = 0;
+
+  /// Moves on when a stream that never started failed past its retries, so a
+  /// dead URL does not park the queue. Bounded to avoid a loop of failures.
+  void _skipUnopenableStream() {
+    if (!_playIntent ||
+        _openFailureSkips >= _maxOpenFailureSkips ||
+        !_hasNextToAdvance) {
+      return;
+    }
+    _openFailureSkips++;
+    unawaited(next(fromCompletion: true));
+  }
+
+  bool get _hasNextToAdvance => shuffle
+      ? queue.length - _shufflePlayed.length > 0
+      : repeat == RepeatMode.all || queueIndex < queue.length - 1;
 
   /// true solo cuando `next(fromCompletion)` lleva a la pista que va a sonar.
   bool _autoAdvance = false;
@@ -1817,7 +1851,7 @@ class AppController extends ChangeNotifier {
       return currentTrack != null && source.isExpiredStream(currentTrack!);
     }
     return RegExp(
-      r'410|expired|termin[oó] antes de completar|premature\s+(?:eof|end)|timed?\s*out|timeout|socketexception|httpexception|connection\s+(?:reset|closed|aborted)|network_connection_(?:failed|timeout)|broken\s+pipe|unexpected\s+eof',
+      r'410|4xx\s+client\s+error|expired|termin[oó] antes de completar|premature\s+(?:eof|end)|timed?\s*out|timeout|socketexception|httpexception|connection\s+(?:reset|closed|aborted)|network_connection_(?:failed|timeout)|broken\s+pipe|unexpected\s+eof',
       caseSensitive: false,
     ).hasMatch(message);
   }
@@ -2218,7 +2252,7 @@ class AppController extends ChangeNotifier {
           _pendingResolveVideoId = videoId;
         }
       }
-      final resolved = availableLocally
+      var resolved = availableLocally
           ? ResolvedAudio(input: local, duration: track.duration)
           : await source.resolve(track);
       if (generation != _playGeneration || _disposed) return;
@@ -2226,11 +2260,32 @@ class AppController extends ChangeNotifier {
       _loadedAudioInput = resolved.input;
       // Before load so the system session never shows the previous track.
       _publishMetadata(track);
-      await audio.load(
-        resolved,
-        ffmpegExecutable: source.ffmpegExecutable,
-        start: _resumePosition,
-      );
+      try {
+        await audio.load(
+          resolved,
+          ffmpegExecutable: source.ffmpegExecutable,
+          start: _resumePosition,
+        );
+      } catch (loadError) {
+        // The CDN can refuse one URL (410 from the loopback proxy, expiry):
+        // a fresh resolve usually lands on another URL, so retry once.
+        if (availableLocally ||
+            fromRecovery ||
+            generation != _playGeneration ||
+            _disposed ||
+            !_isRecoverableStreamError('$loadError')) {
+          rethrow;
+        }
+        source.invalidateResolvedAudio(track);
+        resolved = await source.resolve(track);
+        if (generation != _playGeneration || _disposed) return;
+        _loadedAudioInput = resolved.input;
+        await audio.load(
+          resolved,
+          ffmpegExecutable: source.ffmpegExecutable,
+          start: _resumePosition,
+        );
+      }
       if (_youtubeMusicActive) {
         await audio.pause();
         return;
@@ -2286,9 +2341,7 @@ class AppController extends ChangeNotifier {
             autoAdvance &&
             !fromRecovery &&
             _failedSkips < 3 &&
-            (shuffle
-                ? queue.length - _shufflePlayed.length > 0
-                : repeat == RepeatMode.all || queueIndex < queue.length - 1)) {
+            _hasNextToAdvance) {
           _failedSkips++;
           unawaited(next(fromCompletion: true));
         }
@@ -2392,6 +2445,7 @@ class AppController extends ChangeNotifier {
     busy = true;
     _notify();
     _resumePosition = resumePosition;
+    var exhausted = false;
     try {
       while (_expiryRetries < _maxStreamRecoveryAttempts) {
         _expiryRetries++;
@@ -2426,15 +2480,24 @@ class AppController extends ChangeNotifier {
               YouTubeFailure.blocked,
               YouTubeFailure.accessDenied,
             }.contains(YouTubeRequestPolicy.classify(error!))) {
-          break;
+          return;
         }
       }
+      exhausted = true;
     } finally {
       if (recoveryGeneration == _recoveryGeneration) {
         _recovering = false;
         busy = false;
         _notify();
       }
+    }
+    if (exhausted &&
+        resumePosition < _openFailureWindow &&
+        recoveryGeneration == _recoveryGeneration &&
+        occurrence == queueIndex &&
+        currentTrack?.id == trackId &&
+        !_disposed) {
+      _skipUnopenableStream();
     }
   }
 

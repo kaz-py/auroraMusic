@@ -40,6 +40,9 @@ class FakeAudio extends AudioBackend {
   Stream<void> get completed => completions.stream;
   ResolvedAudio? loaded;
   int loadCount = 0;
+
+  /// Errors thrown by the next load() calls, one per call.
+  final loadErrors = <Object>[];
   @override
   Future<void> initialize() async {}
   @override
@@ -48,6 +51,7 @@ class FakeAudio extends AudioBackend {
     String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
+    if (loadErrors.isNotEmpty) throw loadErrors.removeAt(0);
     loaded = source;
     loadCount++;
     position = start;

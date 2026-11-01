@@ -177,6 +177,8 @@ void main() {
     'HTTP 410',
     'Source error: Response code: 410',
     'Connection closed unexpectedly',
+    '[in#0 @ 000001] Error opening input: Server returned 4XX Client Error, '
+        'but not one of 40{0,1,3,4}',
     'premature EOF',
   ]) {
     test('proxy-surfaced "$message" refreshes the stream', () async {
@@ -194,6 +196,73 @@ void main() {
       expect(source.resolved, ['one', 'one']);
     });
   }
+
+  const open4xx =
+      '[in#0 @ 000001] Error opening input: Server returned 4XX Client Error, '
+      'but not one of 40{0,1,3,4}';
+
+  test('a stream that never opens advances after its refresh failed', () async {
+    final source = FakeSource();
+    final audio = _FailingAudio();
+    final controller = await createTestController(
+      source: source,
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    audio.failedLoadsRemaining = 1;
+    audio.lastError = open4xx;
+    audio.notifyListeners();
+    await _settle(controller);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await _settle(controller);
+    expect(source.resolved, ['one', 'one', 'two']);
+    expect(controller.currentTrack?.id, 'two');
+  });
+
+  test('a second 4XX right after the refresh advances, not loops', () async {
+    final source = FakeSource();
+    final audio = FakeAudio();
+    final controller = await createTestController(
+      source: source,
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    audio.lastError = open4xx;
+    audio.notifyListeners();
+    await _settle(controller);
+    expect(source.resolved, ['one', 'one']);
+    audio.lastError = open4xx;
+    audio.notifyListeners();
+    await _settle(controller);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(source.resolved, ['one', 'one', 'two']);
+    expect(controller.currentTrack?.id, 'two');
+  });
+
+  test('a 4XX after real playback is not skipped', () async {
+    final source = FakeSource();
+    final audio = FakeAudio();
+    final controller = await createTestController(
+      source: source,
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    audio.position = const Duration(seconds: 40);
+    audio.lastError = open4xx;
+    audio.notifyListeners();
+    await _settle(controller);
+    audio.lastError = open4xx;
+    audio.notifyListeners();
+    await _settle(controller);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(controller.currentTrack?.id, 'one');
+  });
 
   test('failed refresh is not retried; 60 s of progress re-arms it', () async {
     final source = FakeSource();

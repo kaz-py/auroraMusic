@@ -769,7 +769,13 @@ class InnerTubeSource extends SourceBackend {
   void reportPlaybackFailure(String message) {
     final id = _currentVideoId;
     if (id == null) return;
-    final status = RegExp(r'\b(400|401|403|410)\b').firstMatch(message)?[1];
+    var status = RegExp(r'\b(400|401|403|410)\b').firstMatch(message)?[1];
+    // ffmpeg prints "Server returned 4XX Client Error, but not one of
+    // 40{0,1,3,4}" for the 410 the loopback proxy answers on an upstream failure.
+    if (status == null &&
+        RegExp(r'4xx client error', caseSensitive: false).hasMatch(message)) {
+      status = '410';
+    }
     _orchestrator?.reportFailure(
       id,
       httpStatus: status == null ? null : int.parse(status),
