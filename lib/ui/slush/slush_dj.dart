@@ -701,9 +701,7 @@ class _SwitchRow extends StatelessWidget {
         value: value,
         onChanged: onChanged,
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? Slush.yellow
-              : context.slush.paper,
+          (s) => s.contains(WidgetState.selected) ? Slush.yellow : Slush.lilac,
         ),
       ),
       const SizedBox(width: 8),

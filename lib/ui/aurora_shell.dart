@@ -2351,12 +2351,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         _time(t.duration),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-              TrackMenuButton(
-                controller: c,
-                track: t,
-                extras: extras,
-                quickAdd: true,
-                quickAddVisible: hot,
+              IconButtonTheme(
+                data: isSlush(context) && active
+                    ? IconButtonThemeData(
+                        style: IconButton.styleFrom(foregroundColor: Slush.ink),
+                      )
+                    : IconButtonTheme.of(context),
+                child: TrackMenuButton(
+                  controller: c,
+                  track: t,
+                  extras: extras,
+                  quickAdd: true,
+                  quickAddVisible: hot,
+                ),
               ),
             ],
           ),

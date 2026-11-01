@@ -335,7 +335,7 @@ class _QueueCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
@@ -345,7 +345,7 @@ class _QueueCard extends StatelessWidget {
                         fontFamily: 'Bagel Fat One',
                         fontSize: 52,
                         height: 1,
-                        color: Slush.ink,
+                        color: context.slush.ink,
                       ),
                     ),
                   ),
@@ -532,9 +532,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
         value: v,
         onChanged: f,
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? Slush.yellow
-              : context.slush.paper,
+          (s) => s.contains(WidgetState.selected) ? Slush.yellow : Slush.lilac,
         ),
       ),
       Text(

@@ -1,6 +1,7 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/slush_theme.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/slush/slush_dj.dart';
 import 'package:aurora_music/ui/slush/slush_eq_queue.dart';
@@ -79,13 +80,46 @@ void main() {
         dark('$screen');
       }
 
-      tester.takeException(); // desborde de 2 px del Inicio con fuentes de test
+      // Solo el Inicio tolera un desborde de 2 px (fuentes de test); cualquier otro error falla.
+      final inicio = tester.takeException();
+      expect(
+        inicio == null || inicio.toString().contains('overflowed'),
+        isTrue,
+        reason: 'Inicio: $inicio',
+      );
       dark('Inicio');
       if (wide) {
         await go(find.text('BUSCAR'), SlushPage);
         await go(find.text('DJ'), SlushDj);
         await go(find.text('JAM'), SlushJamIdle);
         await go(find.byTooltip('Ecualizador'), SlushEqQueue);
+        double lum(Color a, Color b) {
+          final l1 = a.computeLuminance(), l2 = b.computeLuminance();
+          return (l1 > l2 ? l1 + .05 : l2 + .05) /
+              (l1 > l2 ? l2 + .05 : l1 + .05);
+        }
+
+        final ctx = tester.element(find.byType(SlushEqQueue));
+        final cola = tester.widget<Text>(
+          find.byWidgetPredicate(
+            (w) => w is Text && w.data == 'COLA' && w.style?.fontSize == 52,
+          ),
+        );
+        expect(
+          lum(cola.style!.color!, ctx.slush.paper),
+          greaterThanOrEqualTo(4.5),
+        );
+        final sw = tester.widgetList<Switch>(find.byType(Switch));
+        for (final s in sw.where((s) => !s.value)) {
+          final st = <WidgetState>{};
+          final thumb =
+              s.thumbColor?.resolve(st) ??
+              Theme.of(ctx).switchTheme.thumbColor?.resolve(st);
+          final track = s.trackColor?.resolve(st);
+          if (thumb != null && track != null) {
+            expect(lum(thumb, track), greaterThanOrEqualTo(3));
+          }
+        }
         await go(find.text('VINILO'), SlushPlayerScreen);
       } else {
         await go(find.byTooltip('Buscar'), SlushPage);
