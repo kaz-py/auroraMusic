@@ -185,9 +185,9 @@ void main() {
       app.refillEngineTimeout = const Duration(milliseconds: 80);
       final seed = song('lib', 0);
       await app.playTrack(seed);
-      await eventually(() => app.queue.length >= 1 + kQueueLookahead);
       final ids = radio.map((t) => t.id).toSet();
-      expect(app.queue.skip(1).where((t) => ids.contains(t.id)), isNotEmpty);
+      // Sin relación con la semilla solo entran las 3 más coherentes.
+      await eventually(() => app.queue.skip(1).any((t) => ids.contains(t.id)));
     });
 
     test('rellena al EMPEZAR la última pista (sin esperar a que acabe, '

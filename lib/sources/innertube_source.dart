@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../core/models.dart';
 import '../core/source_backend.dart';
+import '../dj/coherence.dart';
 import '../follow/follow_models.dart';
 import 'stream/audio_proxy.dart';
 import 'stream/resolved_stream.dart';
@@ -371,6 +372,19 @@ class InnerTubeSource extends SourceBackend {
     );
   }
 
+  /// Vacío solo si el artista no aparece; los errores de red o de formato se
+  /// propagan para que [ArtistGraph] los registre como fallo.
+  Future<List<String>> relatedArtists(String artist) async {
+    final norm = coherenceNorm(artist);
+    if (norm.isEmpty) return const [];
+    final page = await searchPage(artist, SearchKind.artists);
+    final hit = page.entries
+        .where((e) => coherenceNorm(e.title) == norm)
+        .firstOrNull;
+    if (hit == null) return const [];
+    return (await artistPage(hit.browseId)).relatedArtists;
+  }
+
   static ArtistPage parseArtistPage(Map<String, dynamic> data) {
     final header = data['header'] as Map? ?? const {};
     final head =
@@ -383,6 +397,8 @@ class InnerTubeSource extends SourceBackend {
             as String?;
     final seen = <String>{};
     final releases = <ArtistRelease>[];
+    final related = <String>[];
+    final relatedKeys = <String>{};
     void walk(Object? node) {
       if (node is Map) {
         final row = node['musicTwoRowItemRenderer'];
@@ -394,6 +410,12 @@ class InnerTubeSource extends SourceBackend {
           final title =
               ((row['title']?['runs'] as List?)?.firstOrNull as Map?)?['text']
                   as String?;
+          if (page == 'MUSIC_PAGE_TYPE_ARTIST' &&
+              title != null &&
+              title.trim().isNotEmpty &&
+              relatedKeys.add(title.trim().toLowerCase())) {
+            related.add(title.trim());
+          }
           if (id != null &&
               page == 'MUSIC_PAGE_TYPE_ALBUM' &&
               title != null &&
@@ -430,6 +452,7 @@ class InnerTubeSource extends SourceBackend {
       name: name,
       imageUrl: _artwork(head?['thumbnail']),
       releases: releases,
+      relatedArtists: related,
     );
   }
 

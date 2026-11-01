@@ -151,17 +151,22 @@ void main() {
   test(
     'adaptador de la Jam con motor: razones, sin repetir y sin red',
     () async {
-      final radio = [for (var i = 0; i < 12; i++) yt('radio$i', 'Art $i')];
+      Track rock(Track t) => t.copyWith(genres: ['rock']);
+      final radio = [
+        for (var i = 0; i < 12; i++) rock(yt('radio$i', 'Art $i')),
+      ];
       JamSuggestionAdapter adapter({bool online = true}) =>
           JamSuggestionAdapter(
             related: (_) async => online ? radio : throw Exception('sin red'),
             seeds: () => [yt('semilla', 'S')],
-            local: () => [for (var i = 0; i < 8; i++) yt('local$i', 'Loc $i')],
+            local: () => [
+              for (var i = 0; i < 8; i++) rock(yt('local$i', 'Loc $i')),
+            ],
             api: SuggestionsApi(memory: RecsMemory(persist: false)),
           );
       final api = adapter();
-      final a = await api.build(current: yt('actual', 'Z'));
-      final b = await api.build(current: yt('actual', 'Z'));
+      final a = await api.build(current: rock(yt('actual', 'Z')));
+      final b = await api.build(current: rock(yt('actual', 'Z')));
       expect(a.length, jamSuggestionsPerPerson);
       expect(a.every((s) => s.reason.isNotEmpty), isTrue);
       expect(a.any((s) => s.reason == 'Radio de YouTube'), isTrue);

@@ -26,8 +26,11 @@ import 'follow/follow_boost.dart';
 import 'library/library_database.dart';
 import 'jam/jam_models.dart' show jamCleanName;
 import 'lastfm/lastfm_service.dart';
+import 'lastfm/lastfm_stats.dart';
 import 'profile/avatar_image.dart';
 import 'dj/ai_dj.dart';
+import 'dj/artist_graph.dart';
+import 'dj/coherence.dart';
 import 'dj/dj_modes.dart';
 import 'dj/recommendations.dart';
 import 'dj/reco_memory.dart';
@@ -255,6 +258,26 @@ class AppController extends ChangeNotifier {
   Future<void>? _refillFuture;
   SuggestionsApi? _suggestionsApi;
 
+  /// Vecindario de artistas (YouTube Music, Last.fm y co-escucha en la radio)
+  /// con etiquetas de género; lo usan el motor, la cola y el DJ.
+  late final ArtistGraph artistGraph = ArtistGraph(
+    preferences: preferences,
+    youtubeRelated: switch (source) {
+      final InnerTubeSource s => s.relatedArtists,
+      _ => null,
+    },
+    lastfmSimilar: lastfm == null
+        ? null
+        : (a) async => lastfm!.active
+              ? lastfm!.client.similarArtists(a)
+              : throw StateError('Last.fm inactivo'),
+    lastfmTags: lastfm == null
+        ? null
+        : (a) async => lastfm!.active
+              ? lastfm!.client.artistTopTags(a)
+              : throw StateError('Last.fm inactivo'),
+  );
+
   /// Motor de recomendaciones compartido con la Jam; se crea una sola vez.
   SuggestionsApi get suggestionsApi {
     if (_suggestionsApi != null) return _suggestionsApi!;
@@ -269,6 +292,7 @@ class AppController extends ChangeNotifier {
     syncMix();
     lastfm?.addListener(syncMix);
     return _suggestionsApi = SuggestionsApi(
+      graph: artistGraph,
       mix: mix,
       sources: source is InnerTubeSource
           ? [
@@ -314,6 +338,53 @@ class AppController extends ChangeNotifier {
     ).whenComplete(() => _refillFuture = null);
   }
 
+  /// Artistas de las señales del usuario: favoritos, saltados (30 últimos
+  /// eventos) y escuchados enteros (10 últimos). Los eventos de pistas que no
+  /// están en la biblioteca usan el artista guardado en el evento.
+  ({Set<String> favorites, Set<String> skipped, Set<String> listened})
+  _djArtistSignals() {
+    final byId = {for (final t in tracks) t.id: t};
+    String artistOf(DjEvent e) => switch (byId[e.trackId]) {
+      final t? => djPrimaryArtist(t),
+      null => e.artist,
+    };
+    final events = _djEvents.reversed.take(30).toList();
+    return (
+      favorites: {
+        for (final id in favoriteIds)
+          if (byId[id] case final t?) djPrimaryArtist(t),
+      }..remove(''),
+      skipped: {
+        for (final e in events)
+          if (e.signal == DjSignal.skip) artistOf(e),
+      }..remove(''),
+      listened: {
+        for (final e
+            in events.where((e) => e.signal == DjSignal.complete).take(10))
+          artistOf(e),
+      }..remove(''),
+    );
+  }
+
+  /// Contexto de coherencia de la semilla actual (sin la cola: no deriva).
+  CoherenceContext _seedCoherence(TasteProfile profile) {
+    final signals = _djArtistSignals();
+    return seedCoherence(
+      features: profile.features,
+      favoriteArtists: signals.favorites,
+      listenedArtists: signals.listened,
+      current: currentTrack,
+      graph: artistGraph,
+    );
+  }
+
+  CoherenceResult _coherenceOf(Track t, CoherenceContext ctx) => scoreCoherence(
+    t,
+    ctx,
+    decade: djDecade(t),
+    genres: artistGraph.tagsOf(djPrimaryArtist(t)),
+  );
+
   /// Sugerencias del motor local (mismo filtro de coherencia para el DJ y el
   /// autoplay). Un fallo o un tiempo agotado no apagan nada: se anota un aviso
   /// discreto, se reintenta con espera creciente y quien llama cae a lo local.
@@ -326,10 +397,37 @@ class AppController extends ChangeNotifier {
         .expand(recommendationTrackKeys)
         .toSet();
     final extra = <DjCandidate>[];
-    List<Suggestion> radioOnly() => [
-      for (final c in extra)
-        Suggestion(c.track, c.reason, '', bucket: RecBucket.radio),
-    ];
+    final taste = selfTaste;
+    final signals = _djArtistSignals();
+    // Radio sola (motor caído o en espera): solo lo relacionado con la
+    // semilla; si nada lo está, las 3 más coherentes. Nunca vacía si hay radio.
+    List<Suggestion> radioOnly() {
+      final coh = _seedCoherence(taste.profile);
+      final scored = [
+        for (final c in extra) (c: c, r: _coherenceOf(c.track, coh)),
+      ];
+      var keep = [
+        for (final s in scored)
+          if (coh.isEmpty || s.r.score >= djRelatedThreshold) s,
+      ];
+      if (keep.isEmpty) {
+        keep = ([
+          ...scored,
+        ]..sort((a, b) => b.r.score.compareTo(a.r.score))).take(3).toList();
+      }
+      return [
+        for (final s in keep)
+          Suggestion(
+            s.c.track,
+            s.c.reason,
+            '',
+            bucket: RecBucket.radio,
+            coherence: s.r.score,
+            coherenceReason: s.r.reason,
+          ),
+      ];
+    }
+
     try {
       final src = source;
       final id = current?.id.startsWith('yt:') == true
@@ -350,6 +448,11 @@ class AppController extends ChangeNotifier {
               ),
             );
           }
+          // Co-escucha: artistas que se repiten en la radio son vecinos.
+          artistGraph.learnCoListened(
+            djPrimaryArtist(current!),
+            related.map(djPrimaryArtist),
+          );
         } catch (_) {}
       }
       // Radio de YouTube como suplente si el motor local falla o está en espera.
@@ -360,12 +463,16 @@ class AppController extends ChangeNotifier {
       final picks = await suggestionsApi
           .getSuggestions(
             SessionContext(
-              participants: [selfTaste],
+              participants: [taste],
               mode: _djMode,
               current: current,
               library: tracks,
               recentKeys: recent,
               queueTail: queue.skip(max(0, queue.length - 3)).toList(),
+              favoriteArtists: signals.favorites,
+              skippedArtists: signals.skipped,
+              listenedArtists: signals.listened,
+              filters: djFilters,
               extraCandidates: extra,
               limit: limit,
               heardShare: djHeardShare(_djMode),
@@ -507,7 +614,19 @@ class AppController extends ChangeNotifier {
       await _commitFill(picked, before, allowed, insertAt);
       return;
     }
-    take([mixed, tracks]);
+    // Biblioteca de respaldo: primero lo coherente con la semilla (orden
+    // estable: `sort` de Dart no lo es, así que se desempata por posición).
+    final coh = _seedCoherence(_tasteProfile());
+    final scores = [for (final t in tracks) _coherenceOf(t, coh).score];
+    final order = List.generate(tracks.length, (i) => i)
+      ..sort((a, b) {
+        final c = scores[b].compareTo(scores[a]);
+        return c != 0 ? c : a.compareTo(b);
+      });
+    take([
+      mixed,
+      [for (final i in order) tracks[i]],
+    ]);
     final favorites = [
       for (final t in tracks)
         if (favoriteIds.contains(t.id)) t,
@@ -1079,7 +1198,10 @@ class AppController extends ChangeNotifier {
     // One signal per playback: duplicate completion events must not skew taste.
     if (_djSignalGeneration == _playGeneration) return;
     _djSignalGeneration = _playGeneration;
-    _djEvents = [..._djEvents, DjEvent(signal, track.id, DateTime.now())];
+    _djEvents = [
+      ..._djEvents,
+      DjEvent(signal, track.id, DateTime.now(), artist: djPrimaryArtist(track)),
+    ];
     if (_djEvents.length > djMaxEvents) {
       _djEvents = _djEvents.sublist(_djEvents.length - djMaxEvents);
     }
@@ -1170,10 +1292,20 @@ class AppController extends ChangeNotifier {
 
     // Discovery: queries built from the taste profile, results embedded.
     if (discovery) {
+      final signals = _djArtistSignals();
+      final top = tasteTop(profile, 'a:', 1).firstOrNull ?? '';
+      final libraryArtists = {
+        for (final t in tracks) coherenceNorm(djPrimaryArtist(t)),
+      };
       final queries = djDiscoveryQueries(
         profile,
         used: _djUsedQueries,
         fallback: current,
+        neighbors: [
+          for (final n in artistGraph.neighborsOf(top))
+            if (!libraryArtists.contains(n)) n,
+        ],
+        skippedArtists: signals.skipped,
       );
       for (final query in queries) {
         if (stale()) return;
@@ -1215,11 +1347,7 @@ class AppController extends ChangeNotifier {
     final limit = djUpcomingTarget - _upcomingCount;
     if (limit <= 0) return;
     _personalDjSeenKeys.addAll(queue.expand(recommendationTrackKeys));
-    final skippedArtists = {
-      for (final event in _djEvents.reversed.take(30))
-        if (event.signal == DjSignal.skip)
-          if (byId[event.trackId] case final track?) djPrimaryArtist(track),
-    };
+    final signals = _djArtistSignals();
     final picks = rankDjCandidates(
       candidates: [
         for (final candidate in candidates)
@@ -1230,13 +1358,21 @@ class AppController extends ChangeNotifier {
       current: current,
       blockedKeys: _personalDjSeenKeys,
       recentKeys: recentTracks.take(20).expand(recommendationTrackKeys).toSet(),
-      skippedArtists: skippedArtists,
+      skippedArtists: signals.skipped,
       queueTail: queue.skip(max(0, queueIndex)).toList(),
       filters: djFilters,
       lambda: 1 - _djDiversity,
       artistCooldown: _djArtistCooldown,
       heardKeys: {for (final t in tracks) ...recommendationTrackKeys(t)},
       heardShare: djHeardShare(_djMode),
+      coherence: seedCoherence(
+        features: profile.features,
+        favoriteArtists: signals.favorites,
+        listenedArtists: signals.listened,
+        current: current,
+        graph: artistGraph,
+      ),
+      graph: artistGraph,
       adjust: (t) =>
           djModeBonus(
             _djMode,
