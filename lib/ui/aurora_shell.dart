@@ -3379,7 +3379,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   children: [
                     const Expanded(
                       child: Text(
-                        'A continuación',
+                        'Cola',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w600,

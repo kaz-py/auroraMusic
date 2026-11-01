@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../app_controller.dart';
 import '../../audio/eq_model.dart';
@@ -92,9 +93,17 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
                     ),
                   )
                 else ...[
-                  eq,
-                  const SizedBox(height: 20),
-                  side,
+                  // En la pestaña COLA lo primero es la cola; en la del
+                  // ecualizador, el ecualizador.
+                  if (widget.showQueueTab) ...[
+                    side,
+                    const SizedBox(height: 20),
+                    eq,
+                  ] else ...[
+                    eq,
+                    const SizedBox(height: 20),
+                    side,
+                  ],
                 ],
               ],
             ),
@@ -304,7 +313,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
   );
 }
 
-class _QueueCard extends StatelessWidget {
+class _QueueCard extends StatefulWidget {
   const _QueueCard({
     required this.controller,
     required this.onSearch,
@@ -316,17 +325,225 @@ class _QueueCard extends StatelessWidget {
   /// Ocupa toda la altura disponible (escritorio) en vez de encogerse.
   final bool fill;
 
+  @override
+  State<_QueueCard> createState() => _QueueCardState();
+}
+
+class _QueueCardState extends State<_QueueCard> {
+  /// Alto medio de una fila: solo estima dónde está una fila aún sin construir.
+  static const _rowExtent = 60.0;
+
+  final _scroll = ScrollController();
+  final _currentKey = GlobalKey();
+  String? _sig;
+
+  /// La lista sigue a la canción mientras el usuario no se aleje a mano.
+  bool _follow = true;
+  bool _endPending = false;
+  bool _syncQueued = false;
+
+  /// Dónde queda la fila actual respecto a la ventana: -1 arriba, 1 abajo.
+  int _away = 0;
+  bool _showPlayed = false;
+
+  /// Filas escuchadas ocultas arriba (desplazan los índices de la lista).
+  int _hidden = 0;
+
+  AppController get _c => widget.controller;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   static String _kind(Track t) =>
       t.isLocal ? (t.pageUrl != null ? 'DESCARGADA' : 'LOCAL') : 'YOUTUBE';
   static String _time(Duration v) =>
       '${v.inMinutes}:${(v.inSeconds % 60).toString().padLeft(2, '0')}';
+  static String _left(Duration v) {
+    final m = (v.inSeconds / 60).ceil();
+    return m >= 60
+        ? '${m ~/ 60} H ${(m % 60).toString().padLeft(2, '0')} MIN'
+        : '$m MIN';
+  }
+
+  /// Resumen vivo: cuántas faltan y cuánto queda (lo que resta de la actual
+  /// más lo que viene). En aleatorio el orden lo decide el azar.
+  String _summary(bool ordered) {
+    final c = _c;
+    final q = c.queue;
+    if (q.isEmpty) return '';
+    if (c.shuffle) return 'ALEATORIO · ${q.length} EN COLA';
+    if (!ordered) return '${q.length} EN COLA';
+    final rest = q.skip(c.queueIndex + 1).toList();
+    var left = c.queue[c.queueIndex].duration - c.audio.position;
+    if (left.isNegative) left = Duration.zero;
+    var unknown = false;
+    for (final t in rest) {
+      left += t.duration;
+      unknown |= t.duration == Duration.zero;
+    }
+    return '${rest.length} A CONTINUACIÓN · ${_left(left)}${unknown ? '+' : ''} RESTANTES';
+  }
+
+  // --- scroll -------------------------------------------------------------
+
+  RenderAbstractViewport? _viewportOf(RenderObject? ro) =>
+      ro == null ? null : RenderAbstractViewport.maybeOf(ro);
+
+  /// 0 = la fila actual se ve entera; -1 = queda arriba; 1 = queda abajo.
+  int _awayDirection() {
+    if (!_scroll.hasClients || _c.currentTrack == null) return 0;
+    final p = _scroll.position;
+    final ro = _currentKey.currentContext?.findRenderObject();
+    final vp = _viewportOf(ro);
+    if (ro == null || vp == null) {
+      return (_c.queueIndex - _hidden) * _rowExtent < p.pixels ? -1 : 1;
+    }
+    double at(double a) => vp
+        .getOffsetToReveal(ro, a)
+        .offset
+        .clamp(p.minScrollExtent, p.maxScrollExtent);
+    if (p.pixels > at(0) + 1) return -1;
+    if (p.pixels < at(1) - 1) return 1;
+    return 0;
+  }
+
+  void _setAway(int d) {
+    if (d != _away && mounted) setState(() => _away = d);
+  }
+
+  /// Lleva la fila actual a la vista (sin mover nada si ya se ve).
+  void _reveal({bool animate = true, int retry = 1}) {
+    if (!mounted || !_scroll.hasClients) return;
+    if (_awayDirection() == 0) return _setAway(0);
+    final p = _scroll.position;
+    final ro = _currentKey.currentContext?.findRenderObject();
+    final vp = _viewportOf(ro);
+    final built = ro != null && vp != null;
+    final target =
+        (built
+                ? vp.getOffsetToReveal(ro, .3).offset
+                : (_c.queueIndex - _hidden) * _rowExtent -
+                      p.viewportDimension * .3)
+            .clamp(p.minScrollExtent, p.maxScrollExtent);
+    _setAway(0);
+    if (animate && built && !_c.reducedMotion) {
+      _scroll.animateTo(
+        target,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _scroll.jumpTo(target);
+    }
+    // Sin construir solo se estimó: se afina cuando la fila ya existe.
+    if (!built && retry > 0) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _reveal(animate: animate, retry: retry - 1),
+      );
+    }
+  }
+
+  void _onChange(String sig) {
+    if (sig == _sig) return;
+    final first = _sig == null;
+    _sig = sig;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_follow) {
+        _reveal(animate: !first);
+      } else {
+        _setAway(_awayDirection());
+      }
+    });
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.depth != 0) return false;
+    // Solo el gesto o la rueda del usuario son «UserScroll»: animateTo no.
+    if (n is UserScrollNotification && n.direction != ScrollDirection.idle) {
+      _follow = false;
+    }
+    if (n is ScrollEndNotification) _endPending = true;
+    if ((n is ScrollUpdateNotification || n is ScrollEndNotification) &&
+        !_syncQueued) {
+      _syncQueued = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncQueued = false;
+        if (!mounted) return;
+        final d = _awayDirection();
+        // Al soltar con la actual a la vista, la lista vuelve a seguirla.
+        if (_endPending && d == 0) _follow = true;
+        _endPending = false;
+        _setAway(d);
+      });
+    }
+    return false;
+  }
+
+  void _goCurrent() {
+    _follow = true;
+    _reveal();
+  }
+
+  // --- build --------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: widget.controller,
     builder: (context, _) {
-      final c = controller;
+      final c = _c;
       final q = c.queue;
+      final cur = c.queueIndex;
+      // Con orden real (sin aleatorio) lo ya escuchado va aparte y atenuado.
+      final ordered = !c.shuffle && cur >= 0 && cur < q.length;
+      final played = ordered ? cur : 0;
+      _hidden = ordered && !_showPlayed ? played : 0;
+      _onChange('$cur:${c.currentTrack?.id}:${q.length}:$_hidden');
+      final count = q.length - _hidden;
+      final platform = Theme.of(context).platform;
+      // En el móvil arrastrar una fila es desplazar: reordenar pide mantener.
+      final desktop = const {
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+      }.contains(platform);
+      Widget itemBuilder(BuildContext context, int i) => _row(
+        context,
+        q[i + _hidden],
+        i + _hidden,
+        played: played,
+        ordered: ordered,
+        desktop: desktop,
+      );
+      Future<void> reorder(int o, int n) =>
+          c.reorderQueue(o + _hidden, n + _hidden);
+      final list = NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: ReorderableListView.builder(
+          scrollController: _scroll,
+          shrinkWrap: !widget.fill,
+          buildDefaultDragHandles: false,
+          itemCount: count,
+          onReorder: reorder,
+          itemBuilder: itemBuilder,
+        ),
+      );
+      final stack = Stack(
+        children: [
+          list,
+          if (_away != 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 6,
+              child: Center(child: _goPill(context)),
+            ),
+        ],
+      );
+      final summary = _summary(ordered);
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _card(context),
@@ -365,36 +582,36 @@ class _QueueCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (summary.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  summary,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .6,
+                    color: context.slush.ink,
+                  ),
+                ),
+              ),
             const SizedBox(height: 10),
             if (q.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(child: Text('No hay canciones en la cola')),
               )
-            else if (fill)
-              Expanded(
-                child: ReorderableListView.builder(
-                  buildDefaultDragHandles: false,
-                  itemCount: q.length,
-                  onReorder: c.reorderQueue,
-                  itemBuilder: (context, i) => _row(context, q[i], i),
-                ),
-              )
+            else if (widget.fill)
+              Expanded(child: stack)
             else
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 340),
-                child: ReorderableListView.builder(
-                  shrinkWrap: true,
-                  buildDefaultDragHandles: false,
-                  itemCount: q.length,
-                  onReorder: c.reorderQueue,
-                  itemBuilder: (context, i) => _row(context, q[i], i),
-                ),
+                child: stack,
               ),
-            if (fill && q.isEmpty) const Spacer(),
+            if (widget.fill && q.isEmpty) const Spacer(),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: onSearch,
+              onPressed: widget.onSearch,
               icon: const Icon(Icons.add, size: 16),
               label: const Text(
                 'REPRODUCIR A CONTINUACIÓN…',
@@ -407,9 +624,78 @@ class _QueueCard extends StatelessWidget {
     },
   );
 
-  Widget _row(BuildContext context, Track t, int i) {
-    final c = controller;
+  Widget _goPill(BuildContext context) => Material(
+    color: Slush.yellow,
+    elevation: 2,
+    shape: StadiumBorder(side: context.slush.border),
+    child: InkWell(
+      customBorder: const StadiumBorder(),
+      onTap: _goCurrent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _away < 0 ? Icons.arrow_upward : Icons.arrow_downward,
+              size: 14,
+              color: Slush.ink,
+            ),
+            const SizedBox(width: 6),
+            const Text(
+              'IR A LA ACTUAL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Slush.ink,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _caption(BuildContext context, String text, {VoidCallback? onTap}) =>
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
+          child: Row(
+            children: [
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .8,
+                  color: context.slush.ink,
+                ),
+              ),
+              if (onTap != null) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  _showPlayed ? Icons.expand_less : Icons.expand_more,
+                  size: 16,
+                  color: context.slush.ink,
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+
+  Widget _row(
+    BuildContext context,
+    Track t,
+    int i, {
+    required int played,
+    required bool ordered,
+    required bool desktop,
+  }) {
+    final c = _c;
     final active = i == c.queueIndex;
+    final dim = ordered && i < c.queueIndex;
     // Sobre lila el contenido va en tinta fija (también en oscuro), con tema
     // claro para iconos y menús.
     final Widget Function(BuildContext, Widget) wrap = active
@@ -418,15 +704,21 @@ class _QueueCard extends StatelessWidget {
     final extras = [
       (label: 'Quitar de la cola', run: () => c.removeFromQueue(i)),
     ];
-    return ReorderableDragStartListener(
-      key: ValueKey('$i:${t.id}'),
-      index: i,
-      child: TrackActionsRegion(
-        controller: c,
-        track: t,
-        extras: extras,
-        builder: (context, _) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+    final String? caption = !ordered
+        ? null
+        : i == c.queueIndex + 1
+        ? 'A CONTINUACIÓN'
+        : null;
+    final togglePlayed = ordered && played > 0 && i == _hidden;
+    final body = TrackActionsRegion(
+      controller: c,
+      track: t,
+      extras: extras,
+      builder: (context, _) => Padding(
+        key: active ? _currentKey : null,
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Opacity(
+          opacity: dim ? .5 : 1,
           child: Material(
             color: active ? Slush.lilac : context.slush.paper,
             shape: RoundedRectangleBorder(
@@ -437,7 +729,10 @@ class _QueueCard extends StatelessWidget {
               customBorder: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
-              onTap: () => c.playQueueAt(i),
+              onTap: () {
+                _follow = true;
+                c.playQueueAt(i);
+              },
               child: wrap(
                 context,
                 Builder(
@@ -479,7 +774,10 @@ class _QueueCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        SlushPill(_kind(t), color: context.slush.paper),
+                        if (active)
+                          const SlushPill('Sonando', color: Slush.yellow)
+                        else
+                          SlushPill(_kind(t), color: context.slush.paper),
                         const SizedBox(width: 6),
                         Text(
                           _time(t.duration),
@@ -503,6 +801,34 @@ class _QueueCard extends StatelessWidget {
         ),
       ),
     );
+    final child = caption == null && !togglePlayed
+        ? body
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (togglePlayed)
+                _caption(
+                  context,
+                  'ESCUCHADAS · $played',
+                  onTap: () => setState(() => _showPlayed = !_showPlayed),
+                ),
+              ?(caption == null ? null : _caption(context, caption)),
+              body,
+            ],
+          );
+    final key = ValueKey('$i:${t.id}');
+    return desktop
+        ? ReorderableDragStartListener(
+            key: key,
+            index: i - _hidden,
+            child: child,
+          )
+        : ReorderableDelayedDragStartListener(
+            key: key,
+            index: i - _hidden,
+            child: child,
+          );
   }
 }
 

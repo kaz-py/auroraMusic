@@ -71,7 +71,7 @@ void main() {
     expect(find.text('music.youtube.com'), findsNothing);
     await tester.tap(find.byTooltip('Cola de reproducción').last);
     await tester.pumpAndSettle();
-    expect(find.text('A continuación'), findsOneWidget);
+    expect(find.text('Cola'), findsOneWidget);
     expect(controller.queue.single.id, track.id);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

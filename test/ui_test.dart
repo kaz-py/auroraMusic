@@ -929,7 +929,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Cola de reproducción'));
     await tester.pumpAndSettle();
-    expect(find.text('A continuación'), findsOneWidget);
+    expect(find.text('Cola'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
