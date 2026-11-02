@@ -1,0 +1,60 @@
+#!/bin/sh
+# Guarda de interfaz (visibilidad + responsive). Opt-in: ver docs/ui_guard.md.
+# Solo corre si el commit toca la interfaz; salta con `git commit --no-verify`.
+# Prueba el árbol de trabajo, no el índice: haz `git stash --keep-index` si
+# tienes cambios sin añadir que no quieres probar.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+printf '%s\n' "$staged" | grep -Eq '^(lib/ui/|lib/theme/|lib/main\.dart$|test/ui_guard/)' || exit 0
+
+root=$(git rev-parse --show-toplevel) || exit 0
+cd "$root" || exit 0
+
+if [ -n "$FLUTTER" ]; then
+  flutter_bin="$FLUTTER"
+elif [ -f "C:/flutter/flutter/bin/flutter.bat" ]; then
+  flutter_bin="C:/flutter/flutter/bin/flutter.bat"
+elif command -v flutter >/dev/null 2>&1; then
+  flutter_bin=flutter
+else
+  echo "pre-commit: Flutter no encontrado (define FLUTTER o añádelo al PATH); guarda de interfaz omitida." >&2
+  exit 0
+fi
+
+log=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/ui_guard.$$.log")
+trap 'rm -f "$log"' EXIT INT TERM
+
+echo "pre-commit: guarda de interfaz (quick). Salta con --no-verify." >&2
+
+# Otra ejecución de flutter test puede tener bloqueado sqlite3.dll
+# (PathExistsException / errno 183): se borra y se reintenta.
+attempt=0
+while :; do
+  attempt=$((attempt + 1))
+  dll=build/native_assets/windows/sqlite3.dll
+  # Si otro proceso lo tiene abierto no se puede borrar, pero sí renombrar.
+  rm -f "$dll" 2>/dev/null || mv "$dll" "$dll.old.$$" 2>/dev/null
+  "$flutter_bin" test --no-pub --reporter expanded test/ui_guard >"$log" 2>&1
+  status=$?
+  if [ "$status" -ne 0 ] && [ "$attempt" -lt 3 ] &&
+    grep -Eq 'PathExistsException|errno = 183|sqlite3\.dll' "$log" &&
+    ! grep -q 'UI-GUARD' "$log"; then
+    sleep 5
+    continue
+  fi
+  break
+done
+
+[ "$status" -eq 0 ] && exit 0
+
+echo "" >&2
+echo "Guarda de interfaz: el commit se rechaza." >&2
+if grep -q 'UI-GUARD' "$log"; then
+  grep 'UI-GUARD' "$log" | sed 's/^.*UI-GUARD/UI-GUARD/' | awk '!seen[$0]++' | head -n 60 >&2
+  echo "" >&2
+  echo "Arréglalo, o anótalo en test/ui_guard/known_issues.dart si es imposible hoy." >&2
+else
+  tail -n 40 "$log" >&2
+fi
+echo "Detalle: docs/ui_guard.md. Saltar solo si es imprescindible: git commit --no-verify" >&2
+exit 1
