@@ -1637,6 +1637,14 @@ class AppController extends ChangeNotifier {
     if (audio.isPlaying && audio.position >= _openFailureWindow) {
       _openFailureSkips = 0;
     }
+    if (_pendingPlay != null &&
+        _pendingPlay!.id == currentTrack?.id &&
+        _pendingPlayGeneration == _playGeneration &&
+        audioError == null &&
+        audio.isPlaying &&
+        audio.position >= _openFailureWindow) {
+      unawaited(_confirmPlay());
+    }
     // The web engine reports its own actionable errors; no stream to renew.
     final streamPlayback = _usingRemote && !webPlayback;
     if (audioError != null &&
@@ -1692,6 +1700,34 @@ class AppController extends ChangeNotifier {
   }
 
   int _failedSkips = 0;
+
+  Track? _pendingPlay;
+  int _pendingPlayGeneration = -1;
+
+  /// Escribe historial y memoria de la pista cargada cuando suena de verdad.
+  Future<void> _confirmPlay() async {
+    final track = _pendingPlay;
+    final generation = _pendingPlayGeneration;
+    if (track == null) return;
+    _pendingPlay = null;
+    try {
+      await database.recordPlay(track.id);
+      if (generation != _playGeneration || _disposed) return;
+      recentTracks = [
+        track,
+        ...recentTracks.where((item) => item.id != track.id),
+      ].take(100).toList();
+      // La memoria anti-repetición del motor cuenta lo que SUENA.
+      unawaited(
+        RecsMemory.shared
+            .record([track], DateTime.now())
+            .then((_) {}, onError: (Object _) {}),
+      );
+      _notify();
+    } catch (exception) {
+      _report(exception);
+    }
+  }
 
   /// A stream that errors before this much playback "never opened".
   static const _openFailureWindow = Duration(seconds: 5);
@@ -2316,18 +2352,10 @@ class AppController extends ChangeNotifier {
       await _remember(readyTrack);
       if (generation != _playGeneration || _disposed) return;
       _publishMetadata(readyTrack);
-      await database.recordPlay(track.id);
-      if (generation != _playGeneration || _disposed) return;
-      recentTracks = [
-        readyTrack,
-        ...recentTracks.where((item) => item.id != track.id),
-      ].take(100).toList();
-      // La memoria anti-repetición del motor cuenta lo que SUENA.
-      unawaited(
-        RecsMemory.shared
-            .record([readyTrack], DateTime.now())
-            .then((_) {}, onError: (Object _) {}),
-      );
+      // Historial y memoria esperan a que suene de verdad (_confirmPlay):
+      // una pista que falla al abrir no cuenta como escuchada.
+      _pendingPlay = readyTrack;
+      _pendingPlayGeneration = generation;
       await _saveQueue();
       _failedSkips = 0;
       unawaited(_updateAccent(track));
@@ -2546,6 +2574,7 @@ class AppController extends ChangeNotifier {
     if (_jamPlaybackActive) return;
     if (!keepDj) stopPersonalDj();
     ++_playGeneration;
+    _pendingPlay = null;
     _playIntent = false;
     _cancelRecovery();
     _cancelPendingResolution();
@@ -2581,6 +2610,7 @@ class AppController extends ChangeNotifier {
       return;
     }
     _recordDjSignal(DjSignal.complete);
+    if (_pendingPlayGeneration == _playGeneration) await _confirmPlay();
     if (repeat == RepeatMode.one) {
       _resumePosition = Duration.zero;
       await _playCurrent();

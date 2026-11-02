@@ -78,6 +78,12 @@ class FakeAudio extends AudioBackend {
     notifyListeners();
   }
 
+  /// Simula reproducción real: avanza la posición y avisa a los oyentes.
+  void advanceTo(Duration value) {
+    position = value;
+    notifyListeners();
+  }
+
   @override
   Future<void> seek(Duration value) async {
     position = value;

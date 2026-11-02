@@ -135,6 +135,9 @@ void main() {
       expect(app.youtubeMusicRequest, isNull);
       expect(utility.resolved, isEmpty);
       expect(app.currentTrack?.isLocal, isTrue);
+      expect(app.recentTracks, isEmpty);
+      audio.advanceTo(const Duration(seconds: 6));
+      await Future<void>.delayed(Duration.zero);
       expect(app.recentTracks.single.id, local.id);
       await app.next();
       expect(audio.loaded?.input, radioTrack.pageUrl);

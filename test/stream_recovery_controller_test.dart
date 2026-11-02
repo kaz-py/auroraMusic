@@ -379,4 +379,57 @@ void main() {
     expect(audio.isPlaying, isFalse);
     expect(audio.loadCount, 1);
   });
+  test('a track that fails to open is never recorded as played', () async {
+    final source = FakeSource();
+    final audio = _FailingAudio();
+    final controller = await createTestController(
+      source: source,
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    expect(controller.recentTracks, isEmpty);
+    audio.failedLoadsRemaining = 1;
+    audio.lastError = open4xx;
+    audio.notifyListeners();
+    await _settle(controller);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await _settle(controller);
+    expect(controller.currentTrack?.id, 'two');
+    expect(controller.recentTracks, isEmpty);
+    expect(await controller.database.readHistory(), isEmpty);
+  });
+
+  test('playback is recorded once, after 5 s of real progress', () async {
+    final audio = FakeAudio();
+    final controller = await createTestController(
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    await _tick(audio, 3);
+    expect(controller.recentTracks, isEmpty);
+    await _tick(audio, 6);
+    await _tick(audio, 7);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(controller.recentTracks.map((t) => t.id), ['one']);
+    expect(await controller.database.readHistory(), ['one']);
+  });
+
+  test('next before the 5 s threshold leaves no history behind', () async {
+    final audio = FakeAudio();
+    final controller = await createTestController(
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    await _tick(audio, 2);
+    await controller.next();
+    await _tick(audio, 6);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(controller.recentTracks.map((t) => t.id), ['two']);
+  });
 }
