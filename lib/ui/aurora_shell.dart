@@ -783,7 +783,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 bottomNavigationBar: rail
                     ? null
                     : isSlush(context)
-                    ? SlushBottomBar(
+                    ? MediaQuery.withClampedTextScaling(
+                        maxScaleFactor: 1.3,
+                        child: SlushBottomBar(
                         icons: [
                           for (final s in _slushPrimarySections)
                             switch (s) {
@@ -809,6 +811,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 onToggle: () => _togglePlay(c),
                                 onNext: c.next,
                               ),
+                        ),
                       )
                     : NavigationBar(
                         height: 64,
@@ -1440,7 +1443,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   Widget _content(AppController c) => Stack(
     fit: StackFit.expand,
     children: [
-      Offstage(offstage: [9, 10, 11].contains(_section), child: _page(c)),
+      Offstage(
+        offstage: [9, 10, 11].contains(_section),
+        child: isSlush(context)
+            ? _SlushSectionFade(section: _section, child: _page(c))
+            : _page(c),
+      ),
       if (_musicVisited && c.usesOfficialYouTubeMusic)
         YouTubeMusicPage(
           key: _musicKey,
@@ -3929,4 +3937,42 @@ String _time(Duration value) {
   final seconds = math.max(0, value.inSeconds);
   final minutes = seconds ~/ 60;
   return '${minutes.toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+}
+
+/// Slush: entrada de sección (opacidad + 8 px, 220 ms `easeOut`) al cambiar de
+/// pestaña. El hijo conserva su estado; con movimiento reducido es un corte.
+class _SlushSectionFade extends StatefulWidget {
+  const _SlushSectionFade({required this.section, required this.child});
+  final int section;
+  final Widget child;
+
+  @override
+  State<_SlushSectionFade> createState() => _SlushSectionFadeState();
+}
+
+class _SlushSectionFadeState extends State<_SlushSectionFade>
+    with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(
+    vsync: this,
+    duration: SlushMotion.sectionIn,
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(_SlushSectionFade old) {
+    super.didUpdateWidget(old);
+    if (old.section != widget.section && !SlushMotion.reduce(context)) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      SlushMotion.fadeSlide(_c, widget.child);
 }
