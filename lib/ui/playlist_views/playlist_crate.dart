@@ -515,19 +515,19 @@ class _CrateLook {
     if (isSlush(context)) {
       return _CrateLook(
         interior: BoxDecoration(
-          borderRadius: top(14),
+          borderRadius: top(SlushRadius.r16),
           color: Slush.lilac,
           border: Border.fromBorderSide(context.slush.border),
         ),
         shade: Slush.ink.withValues(alpha: .12),
-        topRadius: top(14),
+        topRadius: top(SlushRadius.r16),
         slat: [Slush.yellow, Slush.yellow],
         slatShadow: Slush.ink,
         edgeLight: Colors.white.withValues(alpha: .6),
         hardSlat: true,
-        slatRadius: 14,
+        slatRadius: SlushRadius.r16,
         slatOutline: Slush.ink,
-        slatOutlineWidth: 2.5,
+        slatOutlineWidth: SlushStroke.base,
         plate: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: context.slush.paper,
@@ -537,7 +537,7 @@ class _CrateLook {
           ],
         ),
         plateInk: context.slush.ink,
-        plateSub: context.slush.ink.withValues(alpha: .75),
+        plateSub: context.slush.ink2,
         sleeveRadius: 6,
         sleeveBorder: const Border.fromBorderSide(
           BorderSide(color: Slush.ink, width: 2),

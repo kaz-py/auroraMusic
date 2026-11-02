@@ -422,7 +422,7 @@ class _CassetteLook {
         hardware: false,
         labelBg: context.slush.paper,
         labelInk: context.slush.ink,
-        labelSub: context.slush.ink.withValues(alpha: .75),
+        labelSub: context.slush.ink2,
         labelRadius: 6,
         labelBorder: Border.fromBorderSide(context.slush.border),
         window: Slush.ink,

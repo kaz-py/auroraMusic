@@ -265,11 +265,12 @@ class HomeMusicPage extends StatelessWidget {
     final text = MediaQuery.textScalerOf(context);
     final compact = width < 600;
     var i = 0;
+    final gap = SlushSpacing.sectionGap(width);
     Widget band(Widget child) => Padding(
-      padding: const EdgeInsets.only(bottom: 28),
+      padding: EdgeInsets.only(bottom: gap),
       child: SlushBand(
         tone: SlushBand.tones[i++ % SlushBand.tones.length],
-        padding: EdgeInsets.all(compact ? 14 : 22),
+        padding: EdgeInsets.all(compact ? SlushSpacing.s16 : SlushSpacing.s24),
         // Builder: el tema se toma DENTRO de la banda (claro en vivo, incluso
         // en oscuro); copiar el de fuera dejaba el texto crema sobre menta.
         child: Builder(
@@ -280,8 +281,8 @@ class HomeMusicPage extends StatelessWidget {
                 textTheme: inner.textTheme.copyWith(
                   titleLarge: const TextStyle(
                     fontFamily: 'Bagel Fat One',
-                    fontSize: 36,
-                    height: 1,
+                    fontSize: 22,
+                    height: 1.2,
                     color: Slush.ink,
                   ),
                 ),
@@ -292,14 +293,10 @@ class HomeMusicPage extends StatelessWidget {
         ),
       ),
     );
-    final itemW = compact ? 170.0 : 200.0;
+    final itemW = width >= Breakpoints.large ? 240.0 : 200.0;
+    final margin = SlushSpacing.margin(width);
     return ListView(
-      padding: EdgeInsets.fromLTRB(
-        compact ? 16 : 32,
-        compact ? 8 : 24,
-        compact ? 16 : 32,
-        140,
-      ),
+      padding: EdgeInsets.fromLTRB(margin, compact ? 8 : 24, margin, 140),
       children: [
         if (compact)
           SlushMobileHome(controller: c, onSearch: onSearch)
@@ -331,7 +328,7 @@ class HomeMusicPage extends StatelessWidget {
             ],
           ),
         ],
-        const SizedBox(height: 28),
+        SizedBox(height: gap),
         if (c.recentTracks.isNotEmpty && !compact)
           band(
             HorizontalMusicRow(
@@ -388,6 +385,10 @@ class HomeMusicPage extends StatelessWidget {
                       c.tracks.isEmpty
                           ? 'Añade canciones reproducibles y aparecerán recomendaciones aquí.'
                           : 'No hay recomendaciones disponibles con tus filtros y escucha actual.',
+                      style: const TextStyle(
+                        color: Slush.ink,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
