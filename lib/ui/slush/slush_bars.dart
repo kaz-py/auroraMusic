@@ -1,11 +1,12 @@
-import '../friends_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../app_controller.dart';
 import '../../core/models.dart';
 import '../../core/window_controls.dart';
 import '../../theme/slush_theme.dart';
 import '../artwork.dart';
+import '../friends_page.dart';
 
 /// Pestañas de la barra superior: (sección del shell, etiqueta).
 const slushTabs = <(int, String)>[
@@ -141,7 +142,7 @@ class SlushTopBar extends StatelessWidget {
                 'Buscar',
                 Icons.search,
                 () => onNavigate(1),
-                size: 30,
+                size: 32,
               ),
               const SizedBox(width: 8),
               Material(
@@ -150,11 +151,13 @@ class SlushTopBar extends StatelessWidget {
                 child: InkWell(
                   customBorder: const StadiumBorder(),
                   onTap: onSession,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: SlushControl.touch,
+                      minHeight: SlushControl.dense,
                     ),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -163,13 +166,13 @@ class SlushTopBar extends StatelessWidget {
                           size: 14,
                           color: context.slush.paper,
                         ),
-                        if (w > 900) ...[
+                        if (Breakpoints.isWide(w)) ...[
                           const SizedBox(width: 6),
                           Text(
                             sessionText,
                             style: TextStyle(
                               color: context.slush.paper,
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: .3,
                             ),
@@ -181,14 +184,14 @@ class SlushTopBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _round(context, 'Crear lista', Icons.add, onAdd, size: 30),
+              _round(context, 'Crear lista', Icons.add, onAdd, size: 32),
               const SizedBox(width: 8),
               _round(
                 context,
                 'Ajustes',
                 Icons.tune,
                 () => onNavigate(7),
-                size: 30,
+                size: 32,
               ),
               if (WindowControls.supported) ...[
                 const SizedBox(width: 6),
@@ -212,37 +215,77 @@ class SlushTopBar extends StatelessWidget {
   }
 }
 
-class _Tab extends StatelessWidget {
+class _Tab extends StatefulWidget {
   const _Tab(this.label, {required this.active, required this.onTap});
   final String label;
   final bool active;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    selected: active,
-    child: Material(
-      color: active ? context.slush.ink : Colors.transparent,
-      shape: const StadiumBorder(),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .3,
-              color: active ? context.slush.paper : context.slush.ink,
+  State<_Tab> createState() => _TabState();
+}
+
+class _TabState extends State<_Tab> {
+  bool _hover = false;
+  bool _focus = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    // 32 con puntero fino (denso), 44 táctil.
+    final fine = RendererBinding.instance.mouseTracker.mouseIsConnected;
+    final minHeight = fine ? SlushControl.dense : SlushControl.touch;
+    final fill = widget.active
+        ? p.ink
+        : _hover
+        ? p.hoverFill
+        : Colors.transparent;
+    return Semantics(
+      button: true,
+      selected: widget.active,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        onShowFocusHighlight: (v) => setState(() => _focus = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: SlushMotion.hover,
+            curve: SlushMotion.easeOut,
+            constraints: BoxConstraints(minHeight: minHeight),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            alignment: Alignment.center,
+            decoration: ShapeDecoration(
+              color: fill,
+              shape: const StadiumBorder(),
+            ),
+            foregroundDecoration: _focus
+                ? ShapeDecoration(shape: StadiumBorder(side: p.focusRing))
+                : null,
+            child: Text(
+              widget.label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .3,
+                color: widget.active ? p.paper : p.ink,
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 String _mmss(Duration d) {
@@ -354,7 +397,7 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
       );
       final progress = Row(
         children: [
-          Text(_mmss(pos), style: const TextStyle(fontSize: 10)),
+          Text(_mmss(pos), style: const TextStyle(fontSize: 12)),
           Expanded(
             child: SliderTheme(
               data: slider,
@@ -375,7 +418,7 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
               ),
             ),
           ),
-          Text(_mmss(dur), style: const TextStyle(fontSize: 10)),
+          Text(_mmss(dur), style: const TextStyle(fontSize: 12)),
         ],
       );
       return Padding(
@@ -432,7 +475,7 @@ class _SlushPlayerBarState extends State<SlushPlayerBar> {
                                     t.artist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 11),
+                                    style: const TextStyle(fontSize: 12),
                                   ),
                               ],
                             ),

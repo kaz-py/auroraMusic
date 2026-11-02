@@ -45,7 +45,7 @@ class SlushMobileTopBar extends StatelessWidget {
     child: Row(
       children: [
         SizedBox.square(
-          dimension: 40,
+          dimension: SlushControl.touch,
           child: _circle(
             context,
             const Text('A', style: TextStyle(fontFamily: _bagel, fontSize: 20)),
@@ -56,7 +56,7 @@ class SlushMobileTopBar extends StatelessWidget {
           tooltip: 'Más vistas',
           onSelected: onMore,
           child: SizedBox.square(
-            dimension: 40,
+            dimension: SlushControl.touch,
             child: _circle(context, const Icon(Icons.more_horiz, size: 20)),
           ),
           itemBuilder: (_) => [
@@ -72,17 +72,15 @@ class SlushMobileTopBar extends StatelessWidget {
           ],
         ),
         const SizedBox(width: 8),
-        Semantics(
-          button: true,
-          label: 'Ajustes',
-          child: GestureDetector(
-            onTap: onSettings,
-            child: SizedBox.square(
-              dimension: 40,
-              child: _circle(
-                context,
-                const Icon(Icons.dark_mode_outlined, size: 20),
-              ),
+        SlushPressable(
+          elevation: SlushElevation.none,
+          semanticLabel: 'Ajustes',
+          onTap: onSettings,
+          child: SizedBox.square(
+            dimension: SlushControl.touch,
+            child: _circle(
+              context,
+              const Icon(Icons.dark_mode_outlined, size: 20),
             ),
           ),
         ),
@@ -318,7 +316,8 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
   }
 }
 
-/// Mini reproductor en píldora de tinta (crema en oscuro).
+/// Mini reproductor en píldora de 56: oscuro = `raised` + borde de control;
+/// claro = tinta con texto de papel. Progreso de 3 px en el borde inferior.
 class SlushMiniPlayer extends StatelessWidget {
   const SlushMiniPlayer({
     super.key,
@@ -337,63 +336,113 @@ class SlushMiniPlayer extends StatelessWidget {
       final t = controller.currentTrack;
       if (t == null) return const SizedBox.shrink();
       final playing = controller.audio.isPlaying;
+      final p = context.slush;
+      final dark = Theme.of(context).brightness == Brightness.dark;
+      final bg = dark ? p.raised : p.ink;
+      final fg = dark ? p.ink : p.paper;
+      final sub = dark ? p.ink2 : const Color(0xffd9d4ca);
+      final dur = controller.audio.duration.inMilliseconds;
+      final frac = dur > 0
+          ? (controller.audio.position.inMilliseconds / dur).clamp(0.0, 1.0)
+          : 0.0;
+      Widget button(
+        String tip,
+        IconData icon,
+        VoidCallback onTap, {
+        Color? fill,
+        required Color iconColor,
+      }) => Tooltip(
+        message: tip,
+        child: SlushPressable(
+          elevation: SlushElevation.none,
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: SlushControl.touch,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+              child: Icon(icon, size: 26, color: iconColor),
+            ),
+          ),
+        ),
+      );
       return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Material(
-          color: context.slush.ink,
-          shape: const StadiumBorder(),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: onOpen,
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Row(
+        padding: const EdgeInsets.only(bottom: SlushSpacing.s8),
+        child: _MiniEnter(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Material(
+              color: bg,
+              clipBehavior: Clip.antiAlias,
+              shape: StadiumBorder(side: p.border),
+              child: Stack(
                 children: [
-                  ClipOval(child: Artwork(track: t, size: 40, radius: 0)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.slush.paper,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
+                  _MiniFace(
+                    onTap: onOpen,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Row(
+                        children: [
+                          ClipOval(
+                            child: Artwork(track: t, size: 40, radius: 0),
                           ),
-                        ),
-                        Text(
-                          t.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.slush.paper.withValues(alpha: .7),
-                            fontSize: 11,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: fg,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  t.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: sub, fontSize: 12),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                          button(
+                            playing ? 'Pausar' : 'Reproducir',
+                            playing
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            onToggle,
+                            fill: dark ? Slush.mint : p.paper,
+                            iconColor: dark ? Slush.ink : p.ink,
+                          ),
+                          button(
+                            'Siguiente',
+                            Icons.skip_next_rounded,
+                            onNext,
+                            iconColor: fg,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  IconButton.filled(
-                    tooltip: playing ? 'Pausar' : 'Reproducir',
-                    style: IconButton.styleFrom(
-                      backgroundColor: context.slush.paper,
-                      foregroundColor: context.slush.ink,
-                    ),
-                    onPressed: onToggle,
-                    icon: Icon(
-                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Siguiente',
-                    onPressed: onNext,
-                    icon: Icon(
-                      Icons.skip_next_rounded,
-                      color: context.slush.paper,
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: frac,
+                          child: const SizedBox(
+                            height: 3,
+                            child: ColoredBox(color: Slush.mint),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -406,8 +455,90 @@ class SlushMiniPlayer extends StatelessWidget {
   );
 }
 
+/// Cara tocable del mini reproductor con anillo de foco.
+class _MiniFace extends StatefulWidget {
+  const _MiniFace({required this.onTap, required this.child});
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_MiniFace> createState() => _MiniFaceState();
+}
+
+class _MiniFaceState extends State<_MiniFace> {
+  bool _focus = false;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    foregroundDecoration: _focus
+        ? const ShapeDecoration(
+            shape: StadiumBorder(
+              side: BorderSide(color: Slush.yellow, width: SlushStroke.strong),
+            ),
+          )
+        : null,
+    child: InkWell(
+      customBorder: const StadiumBorder(),
+      onTap: widget.onTap,
+      onFocusChange: (v) => setState(() => _focus = v),
+      child: widget.child,
+    ),
+  );
+}
+
+/// «Mini aparece»: 240 ms `drawer`, translateY 100 % → 0 + opacidad; con
+/// movimiento reducido solo opacidad.
+class _MiniEnter extends StatefulWidget {
+  const _MiniEnter({required this.child});
+  final Widget child;
+
+  @override
+  State<_MiniEnter> createState() => _MiniEnterState();
+}
+
+class _MiniEnterState extends State<_MiniEnter>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: SlushMotion.miniPlayerIn,
+  );
+  late final CurvedAnimation _curve = CurvedAnimation(
+    parent: _c,
+    curve: SlushMotion.drawer,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = SlushMotion.reduce(context);
+    _c.duration = reduce ? SlushMotion.reduced : SlushMotion.miniPlayerIn;
+    if (!_c.isCompleted && !_c.isAnimating) _c.forward();
+  }
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final faded = FadeTransition(opacity: _curve, child: widget.child);
+    if (SlushMotion.reduce(context)) return faded;
+    return SlideTransition(
+      position: Tween(
+        begin: const Offset(0, 1),
+        end: Offset.zero,
+      ).animate(_curve),
+      child: faded,
+    );
+  }
+}
+
 /// Zona inferior de Slush en móvil: mini reproductor (opcional) y barra de
-/// iconos en píldora de papel; el destino activo va en círculo de tinta.
+/// iconos en píldora de papel; el destino activo va en círculo de tinta
+/// (claro) o píldora amarilla (oscuro).
 class SlushBottomBar extends StatelessWidget {
   const SlushBottomBar({
     super.key,
@@ -424,59 +555,116 @@ class SlushBottomBar extends StatelessWidget {
   final Widget? mini;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ?mini,
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: context.slush.paper,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.fromBorderSide(context.slush.border),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  for (var i = 0; i < icons.length; i++)
-                    Semantics(
-                      button: true,
-                      selected: i == selected,
-                      label: labels[i],
-                      child: Tooltip(
-                        message: labels[i],
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => onSelect(i),
-                          child: Container(
-                            width: 48,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: i == selected ? context.slush.ink : null,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Icon(
-                              icons[i],
-                              size: 22,
-                              color: i == selected
-                                  ? context.slush.paper
-                                  : context.slush.ink,
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final scaler = MediaQuery.textScalerOf(context);
+    final showLabels = scaler.scale(14) / 14 >= 1.3;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ?mini,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: p.paper,
+                borderRadius: BorderRadius.circular(SlushRadius.pill),
+                border: Border.fromBorderSide(p.border),
+                boxShadow: p.shadowsFor(SlushElevation.control),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < icons.length; i++)
+                      Expanded(
+                        child: Semantics(
+                          button: true,
+                          selected: i == selected,
+                          label: labels[i],
+                          child: Tooltip(
+                            message: labels[i],
+                            child: Center(
+                              child: SlushPressable(
+                                elevation: SlushElevation.none,
+                                onTap: () => onSelect(i),
+                                child: _BottomTab(
+                                  icon: icons[i],
+                                  label: showLabels ? labels[i] : null,
+                                  fill: i != selected
+                                      ? Colors.transparent
+                                      : dark
+                                      ? Slush.yellow
+                                      : p.ink,
+                                  color: i != selected
+                                      ? p.ink
+                                      : dark
+                                      ? Slush.ink
+                                      : p.paper,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _BottomTab extends StatelessWidget {
+  const _BottomTab({
+    required this.icon,
+    required this.fill,
+    required this.color,
+    this.label,
+  });
+  final IconData icon;
+  final String? label;
+  final Color fill, color;
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: SlushMotion.select,
+    curve: SlushMotion.easeOut,
+    alignment: Alignment.center,
+    constraints: const BoxConstraints(
+      minWidth: SlushControl.bar,
+      minHeight: SlushControl.touch,
+    ),
+    padding: label == null
+        ? EdgeInsets.zero
+        : const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+    decoration: BoxDecoration(
+      color: fill,
+      borderRadius: BorderRadius.circular(SlushRadius.pill),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 24, color: color),
+        if (label != null)
+          Text(
+            label!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+      ],
     ),
   );
 }
