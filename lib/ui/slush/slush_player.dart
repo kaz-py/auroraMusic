@@ -1038,7 +1038,7 @@ class SlushPlayerScreen extends StatelessWidget {
               Text(
                 '+${c.queue.length - i}',
                 key: const ValueKey('next-up-remaining'),
-                style: _label.copyWith(fontWeight: FontWeight.w800),
+                style: _inkLabel(context).copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),

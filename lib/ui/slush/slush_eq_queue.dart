@@ -238,14 +238,11 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
               setState(() => _sleepChoice = null);
               return;
             }
-            Duration d;
             if (v < 0) {
-              final left = c.audio.duration - c.audio.position;
-              d = left > Duration.zero ? left : const Duration(minutes: 1);
+              c.setSleepAtTrackEnd();
             } else {
-              d = Duration(minutes: v);
+              c.setSleepTimer(Duration(minutes: v));
             }
-            c.setSleepTimer(d);
             setState(() => _sleepChoice = v);
           },
           child: Container(
@@ -888,9 +885,11 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           (s) => s.contains(WidgetState.selected) ? Slush.yellow : Slush.lilac,
         ),
       ),
-      Text(
-        t,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+      Flexible(
+        child: Text(
+          t,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
       ),
     ],
   );

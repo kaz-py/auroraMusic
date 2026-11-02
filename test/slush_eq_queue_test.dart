@@ -103,6 +103,20 @@ void main() {
       expect(_verticalScrollables(tester), 1);
       expect(find.text('No hay canciones en la cola'), findsNothing);
     });
+
+    testWidgets('EQ en estrecho $w: sin overflow con texto grande', (
+      tester,
+    ) async {
+      final app = await _app(tester, [_song]);
+      await _pump(
+        tester,
+        SlushEqQueue(controller: app, onNavigate: (_) {}),
+        size: Size(w, 780),
+        scale: 2,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ReorderableListView), findsNothing);
+    });
   }
 
   testWidgets('chip «A continuación» abre la cola y muestra cuántas faltan', (
