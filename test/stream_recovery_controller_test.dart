@@ -432,4 +432,37 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(controller.recentTracks.map((t) => t.id), ['two']);
   });
+  test('sleep at track end pauses when that track completes', () async {
+    final audio = FakeAudio();
+    final controller = await createTestController(
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    controller.setSleepAtTrackEnd();
+    await controller.next();
+    expect(controller.currentTrack?.id, 'two');
+    expect(controller.sleepRemaining, isNotNull);
+    audio.position = audio.duration;
+    audio.completions.add(null);
+    await _settle(controller);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(audio.isPlaying, isFalse);
+    expect(controller.currentTrack?.id, 'two');
+    expect(controller.sleepRemaining, isNull);
+  });
+
+  test('stop cancels sleep at track end', () async {
+    final audio = FakeAudio();
+    final controller = await createTestController(
+      audio: audio,
+      tracks: [_first, _second],
+    );
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(_first, context: [_first, _second]);
+    controller.setSleepAtTrackEnd();
+    await controller.stopPlayback();
+    expect(controller.sleepRemaining, isNull);
+  });
 }

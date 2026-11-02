@@ -701,6 +701,7 @@ class AppController extends ChangeNotifier {
   Color accentColor = const Color(0xffe86927);
   Timer? _sleepTimer;
   DateTime? _sleepEnd;
+  bool _sleepAtTrackEnd = false;
   int _playGeneration = 0;
   int _recoveryGeneration = 0;
   int _searchGeneration = 0;
@@ -1406,6 +1407,10 @@ class AppController extends ChangeNotifier {
   }
 
   Duration? get sleepRemaining {
+    if (_sleepAtTrackEnd) {
+      final left = audio.duration - audio.position;
+      return left.isNegative ? Duration.zero : left;
+    }
     final end = _sleepEnd;
     if (end == null) return null;
     final remaining = end.difference(DateTime.now());
@@ -2121,6 +2126,7 @@ class AppController extends ChangeNotifier {
   }) async {
     _playIntent = true;
     _expiryRetries = 0;
+    if (replaceQueue) _sleepAtTrackEnd = false;
     final remembered = {for (final item in tracks) item.id: item};
     final selected = remembered[track.id] ?? track;
     if (_routeToYouTubeMusic(selected)) return;
@@ -2574,6 +2580,7 @@ class AppController extends ChangeNotifier {
     if (_jamPlaybackActive) return;
     if (!keepDj) stopPersonalDj();
     ++_playGeneration;
+    _sleepAtTrackEnd = false;
     _pendingPlay = null;
     _playIntent = false;
     _cancelRecovery();
@@ -2611,6 +2618,12 @@ class AppController extends ChangeNotifier {
     }
     _recordDjSignal(DjSignal.complete);
     if (_pendingPlayGeneration == _playGeneration) await _confirmPlay();
+    if (_sleepAtTrackEnd) {
+      _sleepAtTrackEnd = false;
+      _notify();
+      await pausePlayback();
+      return;
+    }
     if (repeat == RepeatMode.one) {
       _resumePosition = Duration.zero;
       await _playCurrent();
@@ -3972,7 +3985,15 @@ class AppController extends ChangeNotifier {
     _notify();
   }
 
+  /// Para al terminar la pista que suena; si se salta a otra, vale la nueva.
+  void setSleepAtTrackEnd() {
+    setSleepTimer(null);
+    _sleepAtTrackEnd = true;
+    _notify();
+  }
+
   void setSleepTimer(Duration? duration) {
+    _sleepAtTrackEnd = false;
     _sleepTimer?.cancel();
     _sleepEnd = duration == null ? null : DateTime.now().add(duration);
     if (duration != null) {
