@@ -134,34 +134,25 @@ class SlushPage extends StatelessWidget {
                 child: SlushCard(child: child),
               )
             : child;
-        if (!wide) {
-          // En el teléfono el titular se va con el scroll del contenido; cada
-          // pantalla empieza arriba (la clave evita heredar el desplazamiento).
-          return NestedScrollView(
-            key: ValueKey(title),
-            headerSliverBuilder: (_, _) => [
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: header,
-                ),
-              ),
-            ],
-            body: Builder(
-              builder: (ctx) => PrimaryScrollController(
-                controller: PrimaryScrollController.of(ctx),
-                automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
-                child: body,
+        // El titular se va con el scroll del contenido a cualquier ancho; cada
+        // pantalla empieza arriba (la clave evita heredar el desplazamiento).
+        return NestedScrollView(
+          key: ValueKey(title),
+          headerSliverBuilder: (_, _) => [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: header,
               ),
             ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...header,
-            Expanded(child: body),
           ],
+          body: Builder(
+            builder: (ctx) => PrimaryScrollController(
+              controller: PrimaryScrollController.of(ctx),
+              automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+              child: body,
+            ),
+          ),
         );
       },
     ),
