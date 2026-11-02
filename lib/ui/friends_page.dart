@@ -8,6 +8,9 @@ import '../core/models.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
 import '../theme/slush_theme.dart';
+import '../theme/slush_widgets.dart';
+import 'slush/slush_decor.dart';
+import 'slush/slush_pages.dart';
 import 'undo_snackbar.dart';
 
 /// Avatar genérico (silueta tintada con el acento) cuando no hay foto.
@@ -19,10 +22,11 @@ class FriendAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final slush = isSlush(context);
     final fallback = Icon(
       Icons.person,
       size: size * .6,
-      color: isSlush(context) ? context.slush.ink : colors.primary,
+      color: slush ? Slush.ink : colors.primary,
     );
     final url = user.avatarUrl;
     return Semantics(
@@ -34,7 +38,7 @@ class FriendAvatar extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.primary.withValues(alpha: .16),
+          color: slush ? Slush.lilac : colors.primary.withValues(alpha: .16),
           border: isSlush(context)
               ? Border.fromBorderSide(context.slush.border)
               : null,
@@ -64,6 +68,35 @@ String friendsAgo(DateTime t, [DateTime? now]) {
 
 void _say(BuildContext context, String text) =>
     showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
+
+/// Botón primario Slush: menta con tinta y contorno de control, 44 mínimo.
+ButtonStyle? _mint(BuildContext context) => isSlush(context)
+    ? FilledButton.styleFrom(
+        backgroundColor: Slush.mint,
+        foregroundColor: Slush.ink,
+        minimumSize: const Size(SlushControl.touch, SlushControl.touch),
+        side: context.slush.border,
+      )
+    : null;
+
+/// Fila de bandeja Slush: tarjeta `raised` con borde suave, sin sombra.
+Widget _slushRaised(BuildContext context, Widget child) {
+  final p = context.slush;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: SlushSpacing.s12),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: p.raised,
+        borderRadius: BorderRadius.circular(SlushRadius.r16),
+        border: Border.fromBorderSide(p.borderSoft),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(SlushSpacing.s12),
+        child: child,
+      ),
+    ),
+  );
+}
 
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({
@@ -155,7 +188,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     final searching = _query.text.trim().length >= 3;
     return LayoutBuilder(
       builder: (context, box) => ListView(
-        padding: EdgeInsets.all(box.maxWidth >= 700 ? 24 : 16),
+        padding: EdgeInsets.all(
+          isSlush(context)
+              ? SlushSpacing.margin(box.maxWidth)
+              : box.maxWidth >= 700
+              ? 24
+              : 16,
+        ),
         children: [
           Wrap(
             spacing: 8,
@@ -200,24 +239,55 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     );
   }
 
-  Widget _chip(int i, String label, [int badge = 0]) => ChoiceChip(
-    key: ValueKey('friends-tab-$i'),
-    selected: _tab == i,
-    label: Text(badge > 0 ? '$label · $badge' : label),
-    onSelected: (_) => setState(() {
+  Widget _chip(int i, String label, [int badge = 0]) {
+    final text = badge > 0 ? '$label · $badge' : label;
+    void select() => setState(() {
       _tab = i;
       _seenTimer?.cancel();
-    }),
-  );
+    });
+    if (isSlush(context)) {
+      return SlushChip(
+        text,
+        key: ValueKey('friends-tab-$i'),
+        color: context.slush.paper,
+        selected: _tab == i,
+        onTap: select,
+      );
+    }
+    return ChoiceChip(
+      key: ValueKey('friends-tab-$i'),
+      selected: _tab == i,
+      label: Text(text),
+      onSelected: (_) => select(),
+    );
+  }
 
-  Widget _empty(String text) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 32),
-    child: Text(
-      text,
-      textAlign: TextAlign.center,
-      style: Theme.of(context).textTheme.bodyMedium,
-    ),
-  );
+  Widget _empty(
+    String text, {
+    String title = 'Nada por aquí',
+    IconData icon = Icons.people_outline,
+  }) {
+    if (isSlush(context)) {
+      final h = (MediaQuery.sizeOf(context).height * .6).clamp(320.0, 520.0);
+      return SizedBox(
+        height: h,
+        child: SlushEmpty(
+          icon: icon,
+          title: title,
+          message: text,
+          sticker: 'VACÍO',
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
 
   List<Widget> _searchResults(FriendsService f) {
     if (_searching) {
@@ -228,15 +298,30 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         ),
       ];
     }
-    if (_results.isEmpty) return [_empty('Nadie con ese nombre.')];
+    if (_results.isEmpty) {
+      return [
+        _empty(
+          'Nadie con ese nombre.',
+          title: 'Sin resultados',
+          icon: Icons.person_search_outlined,
+        ),
+      ];
+    }
     return [
       for (final u in _results)
         _UserRow(
           user: u,
           trailing: switch (f.relationTo(u.id)) {
-            'friend' => const Text('Amigos'),
-            'sent' => const Text('Enviada'),
+            'friend' =>
+              isSlush(context)
+                  ? const SlushPill('Amigos', color: Slush.lilac)
+                  : const Text('Amigos'),
+            'sent' =>
+              isSlush(context)
+                  ? const SlushPill('Enviada', color: Slush.yellow)
+                  : const Text('Enviada'),
             'incoming' => FilledButton.tonal(
+              style: _mint(context),
               onPressed: () => _act(() async {
                 final r = f.incoming.firstWhere((r) => r.user.id == u.id);
                 return f.accept(r.id);
@@ -245,6 +330,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             ),
             _ => FilledButton.tonal(
               key: ValueKey('friends-add-${u.id}'),
+              style: _mint(context),
               onPressed: () => _act(() => f.sendRequest(u.id)),
               child: const Text('Añadir'),
             ),
@@ -259,6 +345,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         _empty(
           'Aún no tienes amigos. Busca a alguien por su nombre de usuario '
           'para enviarle una solicitud.',
+          title: 'Aún sin amigos',
         ),
       ];
     }
@@ -302,7 +389,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
   List<Widget> _requestRows(FriendsService f) {
     if (f.incoming.isEmpty && f.outgoing.isEmpty) {
-      return [_empty('No tienes solicitudes pendientes.')];
+      return [
+        _empty(
+          'No tienes solicitudes pendientes.',
+          title: 'Sin solicitudes',
+          icon: Icons.mark_email_unread_outlined,
+        ),
+      ];
     }
     return [
       for (final r in f.incoming)
@@ -319,6 +412,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                 onPressed: () => _act(() => f.decline(r.id)),
               ),
               IconButton.filledTonal(
+                style: isSlush(context)
+                    ? IconButton.styleFrom(
+                        backgroundColor: Slush.mint,
+                        foregroundColor: Slush.ink,
+                        side: context.slush.border,
+                      )
+                    : null,
                 key: ValueKey('friends-accept-${r.id}'),
                 tooltip: 'Aceptar',
                 icon: const Icon(Icons.check),
@@ -344,6 +444,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       return [
         _empty(
           'Aquí aparecerán las canciones, listas e invitaciones que te envíen tus amigos.',
+          title: 'Bandeja vacía',
+          icon: Icons.inbox_outlined,
         ),
       ];
     }
@@ -380,6 +482,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                   ),
                 ),
                 FilledButton.tonalIcon(
+                  style: _mint(context),
                   key: ValueKey('inbox-save-${item.id}'),
                   icon: const Icon(Icons.library_add_outlined, size: 18),
                   label: const Text('Guardar en mi biblioteca'),
@@ -399,10 +502,16 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
               subtitle: item.jamExpired()
                   ? 'Invitación caducada'
                   : 'Jam en vivo',
+              status: isSlush(context)
+                  ? (item.jamExpired()
+                        ? const SlushPill('Caducada', color: Slush.lilac)
+                        : const SlushPill('En vivo', color: Slush.orange))
+                  : null,
               icon: Icons.groups_outlined,
               actions: [
                 if (!item.jamExpired() && widget.onJoinJam != null)
                   FilledButton.icon(
+                    style: _mint(context),
                     key: ValueKey('inbox-join-${item.id}'),
                     icon: const Icon(Icons.login, size: 18),
                     label: const Text('Unirse'),
@@ -431,13 +540,71 @@ class _UserRow extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: FriendAvatar(user: user),
-    title: Text(user.username, maxLines: 1, overflow: TextOverflow.ellipsis),
-    subtitle: subtitle == null ? null : Text(subtitle!),
-    trailing: trailing,
-  );
+  Widget build(BuildContext context) {
+    if (isSlush(context)) {
+      final p = context.slush;
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: p.divider, width: SlushStroke.divider),
+          ),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 60),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: SlushSpacing.s8),
+            child: Row(
+              children: [
+                FriendAvatar(user: user, size: 44),
+                const SizedBox(width: SlushSpacing.s12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.username,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.25,
+                          fontWeight: FontWeight.w800,
+                          color: p.ink,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.3,
+                            fontWeight: FontWeight.w600,
+                            color: p.ink2,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: SlushSpacing.s8),
+                  trailing!,
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: FriendAvatar(user: user),
+      title: Text(user.username, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: trailing,
+    );
+  }
 }
 
 class _InboxRow extends StatelessWidget {
@@ -458,8 +625,10 @@ class _InboxRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final t = item.track;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    final body = Padding(
+      padding: isSlush(context)
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -481,7 +650,9 @@ class _InboxRow extends StatelessWidget {
                   child: Icon(
                     Icons.circle,
                     size: 10,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: isSlush(context)
+                        ? context.slush.violetAccent
+                        : Theme.of(context).colorScheme.primary,
                   ),
                 ),
             ],
@@ -533,10 +704,11 @@ class _InboxRow extends StatelessWidget {
                 style: text.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
               ),
             ),
-          const Divider(height: 16),
+          if (!isSlush(context)) const Divider(height: 16),
         ],
       ),
     );
+    return isSlush(context) ? _slushRaised(context, body) : body;
   }
 }
 
@@ -549,10 +721,12 @@ class _InboxCard extends StatelessWidget {
     required this.icon,
     required this.actions,
     this.artworkUrl,
+    this.status,
   });
   final SharedItem item;
   final String title;
   final String subtitle;
+  final Widget? status;
   final String? artworkUrl;
   final IconData icon;
   final List<Widget> actions;
@@ -561,6 +735,9 @@ class _InboxCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
+    final slush = isSlush(context);
+    final artFill = slush ? Slush.lilac : colors.primary.withValues(alpha: .16);
+    final artInk = slush ? Slush.ink : colors.primary;
     final art = ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
@@ -568,22 +745,22 @@ class _InboxCard extends StatelessWidget {
         height: 56,
         child: artworkUrl == null
             ? ColoredBox(
-                color: colors.primary.withValues(alpha: .16),
-                child: Icon(icon, color: colors.primary),
+                color: artFill,
+                child: Icon(icon, color: artInk),
               )
             : Image.network(
                 artworkUrl!,
                 fit: BoxFit.cover,
                 cacheWidth: 168,
                 errorBuilder: (_, _, _) => ColoredBox(
-                  color: colors.primary.withValues(alpha: .16),
-                  child: Icon(icon, color: colors.primary),
+                  color: artFill,
+                  child: Icon(icon, color: artInk),
                 ),
               ),
       ),
     );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    final body = Padding(
+      padding: slush ? EdgeInsets.zero : const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -602,7 +779,11 @@ class _InboxCard extends StatelessWidget {
               if (!item.seen)
                 Semantics(
                   label: 'Nueva',
-                  child: Icon(Icons.circle, size: 10, color: colors.primary),
+                  child: Icon(
+                    Icons.circle,
+                    size: 10,
+                    color: slush ? context.slush.violetAccent : colors.primary,
+                  ),
                 ),
             ],
           ),
@@ -621,7 +802,16 @@ class _InboxCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: text.titleSmall,
                     ),
-                    Text(subtitle, style: text.bodySmall),
+                    if (status != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: status,
+                        ),
+                      )
+                    else
+                      Text(subtitle, style: text.bodySmall),
                   ],
                 ),
               ),
@@ -645,10 +835,11 @@ class _InboxCard extends StatelessWidget {
                 style: text.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
               ),
             ),
-          const Divider(height: 16),
+          if (!slush) const Divider(height: 16),
         ],
       ),
     );
+    return slush ? _slushRaised(context, body) : body;
   }
 }
 
@@ -657,33 +848,49 @@ class _SignedOut extends StatelessWidget {
   final VoidCallback? onSettings;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
+  Widget build(BuildContext context) {
+    if (isSlush(context)) {
+      return KeyedSubtree(
         key: const ValueKey('friends-signin-hint'),
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.people_outline, size: 48),
-          const SizedBox(height: 12),
-          Text(
-            'Crea una cuenta para añadir amigos y enviarles canciones.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text('Ve a Ajustes → Cuenta.', textAlign: TextAlign.center),
-          if (onSettings != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onSettings,
-              child: const Text('Abrir Ajustes'),
+        child: SlushEmpty(
+          icon: Icons.people_outline,
+          title: 'Crea una cuenta para añadir amigos',
+          message:
+              'Crea una cuenta para añadir amigos y enviarles canciones. Ve a Ajustes → Cuenta.',
+          sticker: 'AÚN NO',
+          actionLabel: onSettings == null ? null : 'Abrir Ajustes',
+          onAction: onSettings,
+        ),
+      );
+    }
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          key: const ValueKey('friends-signin-hint'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.people_outline, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Crea una cuenta para añadir amigos y enviarles canciones.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: 8),
+            const Text('Ve a Ajustes → Cuenta.', textAlign: TextAlign.center),
+            if (onSettings != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: onSettings,
+                child: const Text('Abrir Ajustes'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Amigos solo si hay sesión; se reconstruye al iniciar/cerrar sesión. Sin

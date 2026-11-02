@@ -9,6 +9,9 @@ import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
 import '../../theme/slush_theme.dart';
+import '../../theme/slush_widgets.dart';
+import '../slush/slush_decor.dart';
+import '../slush/slush_pages.dart';
 import '../artwork.dart';
 import 'studio_symbols.dart';
 
@@ -128,6 +131,14 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
           final slush = isSlush(context);
           final modern = isModern(context) && !slush;
           final selected = _tab == tab;
+          if (slush) {
+            return SlushChip(
+              label,
+              color: context.slush.paper,
+              selected: selected,
+              onTap: () => setState(() => _tab = tab),
+            );
+          }
           return ChoiceChip(
             showCheckmark: !isModern(context) && !brasa,
             selectedColor: brasa
@@ -161,7 +172,13 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
             constraints.maxWidth >= 960 &&
             MediaQuery.textScalerOf(context).scale(1) < 1.5;
         return ListView(
-          padding: EdgeInsets.all(constraints.maxWidth < 600 ? 16 : 24),
+          padding: EdgeInsets.all(
+            isSlush(context)
+                ? SlushSpacing.margin(constraints.maxWidth)
+                : constraints.maxWidth < 600
+                ? 16
+                : 24,
+          ),
           children: [
             _panel(
               child: Column(
@@ -179,11 +196,18 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                     children: [
                       Text(
                         'Depósito Local & Archivo Físico',
-                        style: const TextStyle(
-                          fontFamily: 'Newsreader',
-                          fontSize: 36,
-                          height: 1.2,
-                        ),
+                        style: isSlush(context)
+                            ? TextStyle(
+                                fontFamily: 'Bagel Fat One',
+                                fontSize: 26,
+                                height: 1.15,
+                                color: context.slush.ink,
+                              )
+                            : const TextStyle(
+                                fontFamily: 'Newsreader',
+                                fontSize: 36,
+                                height: 1.2,
+                              ),
                       ),
                       Wrap(
                         spacing: 8,
@@ -206,6 +230,17 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                             ),
                           ),
                           FilledButton.icon(
+                            style: isSlush(context)
+                                ? FilledButton.styleFrom(
+                                    backgroundColor: Slush.mint,
+                                    foregroundColor: Slush.ink,
+                                    minimumSize: const Size(
+                                      SlushControl.touch,
+                                      SlushControl.touch,
+                                    ),
+                                    side: context.slush.border,
+                                  )
+                                : null,
                             onPressed: c.openDownloadDirectory,
                             icon: const Icon(StudioSymbols.folder, size: 18),
                             label: Text(
@@ -264,7 +299,9 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                         const SizedBox(height: 12),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(
-                            isBrasa(context)
+                            isSlush(context)
+                                ? SlushRadius.pill
+                                : isBrasa(context)
                                 ? 9999
                                 : isModern(context)
                                 ? 8
@@ -274,17 +311,25 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                             value: c.downloads.isEmpty
                                 ? 0
                                 : complete.length / c.downloads.length,
-                            minHeight: isBrasa(context) ? 4 : 10,
-                            color: isBrasa(context)
+                            minHeight: isSlush(context)
+                                ? 6
+                                : isBrasa(context)
+                                ? 4
+                                : 10,
+                            color: isSlush(context)
+                                ? Slush.mint
+                                : isBrasa(context)
                                 ? Brasa.cream
                                 : isModern(context)
                                 ? Tracky.mint
                                 : Theme.of(
                                     context,
                                   ).colorScheme.primaryContainer,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHigh,
+                            backgroundColor: isSlush(context)
+                                ? context.slush.paper
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainerHigh,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -341,7 +386,9 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                 Icon(
                   Icons.circle,
                   size: 10,
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: isSlush(context)
+                      ? Slush.orange
+                      : Theme.of(context).colorScheme.primaryContainer,
                 ),
                 const SizedBox(width: 8),
                 const Expanded(
@@ -354,9 +401,18 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
             ),
             const SizedBox(height: 16),
             if (active.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text('No hay descargas pendientes.'),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'No hay descargas pendientes.',
+                  style: isSlush(context)
+                      ? TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: context.slush.ink2,
+                        )
+                      : null,
+                ),
               )
             else if (desktop)
               Wrap(
@@ -393,23 +449,42 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                   ),
                   const SizedBox(height: 16),
                   TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar por pista o formato',
-                      suffixIcon: Icon(StudioSymbols.search),
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: isSlush(context)
+                        ? const InputDecoration(
+                            labelText: 'Filtrar por pista o formato',
+                            suffixIcon: Icon(StudioSymbols.search),
+                          )
+                        : const InputDecoration(
+                            labelText: 'Filtrar por pista o formato',
+                            suffixIcon: Icon(StudioSymbols.search),
+                            border: OutlineInputBorder(),
+                          ),
                     onChanged: (value) => setState(() => _filter = value),
                   ),
                   const SizedBox(height: 16),
                   if (rows.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        c.downloads.isEmpty
-                            ? 'Aún no hay descargas. Elige Descargar audio en el menú de una canción.'
-                            : 'Sin archivos para esta selección.',
-                      ),
-                    )
+                    isSlush(context)
+                        ? SizedBox(
+                            height: 340,
+                            child: SlushEmpty(
+                              icon: Icons.download_outlined,
+                              title: c.downloads.isEmpty
+                                  ? 'Aún no hay descargas'
+                                  : 'Sin resultados',
+                              message: c.downloads.isEmpty
+                                  ? 'Aún no hay descargas. Elige Descargar audio en el menú de una canción.'
+                                  : 'Sin archivos para esta selección.',
+                              sticker: 'VACÍO',
+                            ),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              c.downloads.isEmpty
+                                  ? 'Aún no hay descargas. Elige Descargar audio en el menú de una canción.'
+                                  : 'Sin archivos para esta selección.',
+                            ),
+                          )
                   else if (desktop)
                     _table(rows)
                   else
@@ -473,7 +548,127 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
     ),
   );
 
-  Widget _downloadCard(DownloadJob job) => Padding(
+  Color _statusColor(DownloadStatus s) => switch (s) {
+    DownloadStatus.queued => Slush.lilac,
+    DownloadStatus.downloading => Slush.blue,
+    DownloadStatus.completed => Slush.mint,
+    DownloadStatus.failed => Slush.orange,
+    DownloadStatus.cancelled => Slush.yellow,
+  };
+
+  /// Slush: fila sin sombra; estado en píldora y progreso de 6 px menta sobre
+  /// `inset`.
+  Widget _slushRow(DownloadJob job) {
+    final p = context.slush;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SlushSpacing.s12),
+      child: _panel(
+        nested: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Artwork(
+                  track: job.track,
+                  artworkContext: ArtworkContext.thumbnailDetail,
+                  radius: SlushRadius.r12,
+                ),
+                const SizedBox(width: SlushSpacing.s12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        job.track.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.25,
+                          fontWeight: FontWeight.w800,
+                          color: p.ink,
+                        ),
+                      ),
+                      Text(
+                        '${job.track.artist}${job.track.album == null ? '' : ' · ${job.track.album}'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                          color: p.ink2,
+                        ),
+                      ),
+                      Text(
+                        _format(job),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.3,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .5,
+                          color: p.ink3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: SlushSpacing.s8),
+            SlushPill(_status(job), color: _statusColor(job.status)),
+            if (job.status == DownloadStatus.downloading) ...[
+              const SizedBox(height: SlushSpacing.s8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(SlushRadius.pill),
+                child: LinearProgressIndicator(
+                  value: job.progress.clamp(0, 1),
+                  minHeight: 6,
+                  color: Slush.mint,
+                  backgroundColor: p.inset,
+                ),
+              ),
+            ],
+            if (job.localPath != null) ...[
+              const SizedBox(height: SlushSpacing.s8),
+              SelectableText(
+                'Destino: ${job.localPath}',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: p.ink3,
+                ),
+              ),
+            ],
+            if (job.error != null) ...[
+              const SizedBox(height: SlushSpacing.s8),
+              Text(
+                job.error!,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: p.error,
+                ),
+              ),
+            ],
+            const SizedBox(height: SlushSpacing.s4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(spacing: SlushSpacing.s4, children: _actions(job)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _downloadCard(DownloadJob job) => isSlush(context)
+      ? _slushRow(job)
+      : Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: _panel(
       child: Column(
@@ -591,7 +786,13 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
             ),
             Text(
               job.track.title,
-              style: const TextStyle(fontFamily: 'Newsreader', fontSize: 18),
+              style: isSlush(context)
+                  ? TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: context.slush.ink,
+                    )
+                  : const TextStyle(fontFamily: 'Newsreader', fontSize: 18),
             ),
             Text(job.track.artist),
             Text(job.track.album ?? 'No disponible'),
@@ -601,7 +802,7 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
               job.localPath == null
                   ? 'No disponible'
                   : p.dirname(job.localPath!),
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
@@ -612,7 +813,21 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
   );
 
   Widget _tableRow(List<Widget> values, {bool header = false}) => Container(
-    color: header ? Theme.of(context).colorScheme.surfaceContainer : null,
+    decoration: BoxDecoration(
+      color: header
+          ? (isSlush(context)
+                ? context.slush.inset
+                : Theme.of(context).colorScheme.surfaceContainer)
+          : null,
+      border: isSlush(context) && !header
+          ? Border(
+              bottom: BorderSide(
+                color: context.slush.divider,
+                width: SlushStroke.divider,
+              ),
+            )
+          : null,
+    ),
     padding: const EdgeInsets.symmetric(vertical: 14),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -624,9 +839,11 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: DefaultTextStyle.merge(
                 style: TextStyle(
-                  fontSize: header ? 10 : 13,
+                  fontSize: header ? (isSlush(context) ? 12 : 10) : 13,
                   color: header
-                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      ? (isSlush(context)
+                            ? context.slush.ink2
+                            : Theme.of(context).colorScheme.onSurfaceVariant)
                       : null,
                 ),
                 child: values[i],
@@ -636,10 +853,17 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
       ],
     ),
   );
+  ButtonStyle? get _iconStyle => isSlush(context)
+      ? IconButton.styleFrom(
+          minimumSize: const Size.square(SlushControl.touch),
+          foregroundColor: context.slush.ink,
+        )
+      : null;
 
   List<Widget> _actions(DownloadJob job) => [
     if (job.status == DownloadStatus.completed)
       IconButton(
+        style: _iconStyle,
         tooltip: 'Reproducir ${job.track.title}',
         onPressed: () => widget.controller.playTrack(
           job.track.copyWith(localPath: job.localPath),
@@ -649,6 +873,7 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
     if (job.status == DownloadStatus.downloading ||
         job.status == DownloadStatus.queued)
       IconButton(
+        style: _iconStyle,
         tooltip: 'Cancelar descarga',
         onPressed: () => widget.controller.cancelDownload(job),
         icon: const Icon(Icons.close),
@@ -656,12 +881,14 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
     if (job.status == DownloadStatus.failed ||
         job.status == DownloadStatus.cancelled)
       IconButton(
+        style: _iconStyle,
         tooltip: 'Reintentar descarga',
         onPressed: () => widget.controller.retryDownload(job),
         icon: const Icon(StudioSymbols.restartAlt),
       ),
     if (job.status == DownloadStatus.completed)
       IconButton(
+        style: _iconStyle,
         tooltip: 'Eliminar archivo descargado',
         onPressed: () => _delete(job),
         icon: const Icon(StudioSymbols.deleteOutline),
@@ -713,20 +940,41 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
     letterSpacing: .7,
     color: color,
   );
-  Widget _panel({required Widget child}) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(8),
-      boxShadow: const [BoxShadow(color: Colors.black, offset: Offset(2, 3))],
-    ),
-    child: child,
-  );
+  Widget _panel({required Widget child, bool nested = false}) {
+    if (isSlush(context)) {
+      final p = context.slush;
+      final narrow = MediaQuery.sizeOf(context).width < Breakpoints.compact;
+      return Container(
+        padding: EdgeInsets.all(nested || narrow ? 16 : 24),
+        decoration: BoxDecoration(
+          color: nested ? p.raised : p.paper,
+          borderRadius: BorderRadius.circular(
+            nested ? SlushRadius.r16 : SlushRadius.r24,
+          ),
+          border: Border.fromBorderSide(p.borderSoft),
+          boxShadow: nested ? null : p.shadows,
+        ),
+        child: child,
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: const [BoxShadow(color: Colors.black, offset: Offset(2, 3))],
+      ),
+      child: child,
+    );
+  }
+
   Widget _well({required Widget child}) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(4),
+      color: isSlush(context)
+          ? context.slush.inset
+          : Theme.of(context).colorScheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(isSlush(context) ? SlushRadius.r16 : 4),
     ),
     child: child,
   );
