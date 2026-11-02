@@ -34,8 +34,9 @@ class SettingsLayout extends StatelessWidget {
     builder: (context, constraints) {
       final compact = constraints.maxWidth < breakpoint;
       final theme = Theme.of(context);
+      final slush = isSlush(context);
       final header = Padding(
-        padding: const EdgeInsets.only(bottom: 20),
+        padding: EdgeInsets.only(bottom: slush ? 24 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -44,8 +45,10 @@ class SettingsLayout extends StatelessWidget {
             Text(
               descriptions[selected],
               style: TextStyle(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: isSlush(context) ? FontWeight.w600 : null,
+                color: slush
+                    ? context.slush.ink2
+                    : theme.colorScheme.onSurfaceVariant,
+                fontWeight: slush ? FontWeight.w600 : null,
               ),
             ),
           ],
@@ -53,7 +56,9 @@ class SettingsLayout extends StatelessWidget {
       );
       if (compact) {
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(
+            isSlush(context) ? SlushSpacing.margin(constraints.maxWidth) : 16,
+          ),
           children: [
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -85,7 +90,7 @@ class SettingsLayout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 248,
+            width: isSlush(context) ? 280 : 248,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 24, 8, 24),
               children: [
@@ -115,7 +120,7 @@ class SettingsLayout extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           column(0),
-                          const SizedBox(width: 20),
+                          SizedBox(width: isSlush(context) ? 24 : 20),
                           column(1),
                         ],
                       ),
@@ -179,22 +184,30 @@ class _RailItem extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(icon, size: 20, color: fg),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: fg,
-                        fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: slush ? 48 : 0),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 20, color: fg),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: fg,
+                          fontWeight: active
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
