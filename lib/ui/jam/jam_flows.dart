@@ -89,26 +89,31 @@ class _InviteSheet extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final brasa = isBrasa(context);
     final modern = isModern(context);
+    final slush = isSlush(context);
     // En la tarjeta oscura de Modern el texto va en blanco y los botones invertidos.
-    // En Slush la tarjeta es violeta: white70 allí no llega a 4,5:1.
-    final soft = modern
-        ? (isSlush(context) ? Colors.white : Colors.white70)
+    // En Slush la tarjeta es violeta (blanco 6,5:1; white70 no llega a 4,5:1).
+    final soft = slush
+        ? Slush.onViolet
+        : modern
+        ? Colors.white70
         : colors.onSurfaceVariant;
     final onCard = modern
-        ? const TextStyle(color: Colors.white)
+        ? TextStyle(color: slush ? Slush.onViolet : Colors.white)
         : const TextStyle();
     final inverse = FilledButton.styleFrom(
       backgroundColor: Colors.white,
       foregroundColor: Tracky.navy,
     );
-    // Slush rellena el OutlinedButton de papel; sin fondo propio el texto
-    // blanco quedaba blanco sobre blanco en claro.
-    final ghost = OutlinedButton.styleFrom(
-      foregroundColor: Colors.white,
-      backgroundColor: Colors.transparent,
-      overlayColor: Colors.white,
-      side: const BorderSide(color: Colors.white54),
-    );
+    // Slush rellena el OutlinedButton de papel: sus botones llevan el
+    // anillo de foco blanco propio de la tarjeta violeta.
+    final ghost = slush
+        ? jamOnVioletButton(context)
+        : OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            backgroundColor: Colors.transparent,
+            overlayColor: Colors.white,
+            side: const BorderSide(color: Colors.white54),
+          );
     Future<void> copy(String text, String done) async {
       await Clipboard.setData(ClipboardData(text: text));
       if (context.mounted) _say(context, done);
@@ -135,28 +140,37 @@ class _InviteSheet extends StatelessWidget {
               const Text('Aún no hay una Jam activa.')
             else
               _card(modern, brasa, [
-                JamQrCode(data: invite.encode(), size: 200),
+                slush
+                    ? slushQrFrame(
+                        context,
+                        JamQrCode(data: invite.encode(), size: 200),
+                      )
+                    : JamQrCode(data: invite.encode(), size: 200),
                 const SizedBox(height: 16),
                 if (remote) ...[
                   modern || brasa
                       ? Text(
                           'CÓDIGO',
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                            fontSize: slush ? 12 : 11,
+                            fontWeight: slush
+                                ? FontWeight.w800
+                                : FontWeight.w500,
                             color: soft,
                           ),
                         )
                       : const StudioStamp('CÓDIGO'),
                   SelectableText(
                     invite.code,
-                    style: TextStyle(
-                      fontFamily: modern || brasa ? null : 'monospace',
-                      fontSize: brasa ? 24 : 32,
-                      letterSpacing: brasa ? 2 : 6,
-                      fontWeight: FontWeight.w700,
-                      color: modern ? Colors.white : null,
-                    ),
+                    style: slush
+                        ? jamCodeStyle(32, color: Slush.onViolet, spacing: 4)
+                        : TextStyle(
+                            fontFamily: modern || brasa ? null : 'monospace',
+                            fontSize: brasa ? 24 : 32,
+                            letterSpacing: brasa ? 2 : 6,
+                            fontWeight: FontWeight.w700,
+                            color: modern ? Colors.white : null,
+                          ),
                   ),
                   const SizedBox(height: 4),
                   SelectableText(
@@ -186,7 +200,11 @@ class _InviteSheet extends StatelessWidget {
                       style: modern ? ghost : null,
                     ),
                     FilledButton.icon(
-                      style: modern ? inverse : null,
+                      style: slush
+                          ? jamOnVioletButton(context)
+                          : modern
+                          ? inverse
+                          : null,
                       onPressed: () => copy(
                         remote
                             ? 'Únete a mi Jam en Aurora: ${invite.encode()} (código ${invite.code})'
@@ -237,7 +255,8 @@ class _InviteSheet extends StatelessWidget {
 
 /// Panel de la Jam: lateral en escritorio, hoja inferior en móvil.
 Future<void> showJamPanel(BuildContext context, JamController jam) {
-  final wide = MediaQuery.sizeOf(context).width >= 900;
+  final wide = Breakpoints.isWide(MediaQuery.sizeOf(context).width);
+  final slush = isSlush(context);
   if (!wide) {
     return showModalBottomSheet<void>(
       context: context,
@@ -258,24 +277,36 @@ Future<void> showJamPanel(BuildContext context, JamController jam) {
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Cerrar panel de la Jam',
-    transitionDuration: const Duration(milliseconds: 180),
+    transitionDuration: slush
+        ? SlushMotion.sheetIn
+        : const Duration(milliseconds: 180),
     pageBuilder: (context, _, _) => Align(
       alignment: Alignment.centerRight,
       child: SizedBox(
         width: 440,
         height: double.infinity,
         child: Material(
-          color: Theme.of(context).colorScheme.surface,
+          color: slush
+              ? context.slush.raised
+              : Theme.of(context).colorScheme.surface,
+          shape: slush ? Border(left: context.slush.borderSoft) : null,
           child: SafeArea(child: JamSessionPanel(controller: jam)),
         ),
       ),
     ),
-    transitionBuilder: (_, animation, _, child) => SlideTransition(
-      position: Tween(
-        begin: const Offset(1, 0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-      child: child,
-    ),
+    transitionBuilder: (context, animation, _, child) {
+      if (slush && SlushMotion.reduce(context)) {
+        return FadeTransition(opacity: animation, child: child);
+      }
+      return SlideTransition(
+        position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: animation,
+            curve: slush ? SlushMotion.drawer : Curves.easeOutCubic,
+          ),
+        ),
+        child: child,
+      );
+    },
   );
 }

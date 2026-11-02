@@ -5,10 +5,14 @@ import '../../jam/jam_models.dart';
 import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
+import '../../theme/slush_theme.dart';
 import '../studio/studio_components.dart';
 
-/// Forma de las hojas inferiores en Modern (radio 24 arriba); null en Atelier.
-ShapeBorder? jamSheetShape(BuildContext context) => isBrasa(context)
+/// Forma de las hojas inferiores en Modern (radio 24 arriba); null en Atelier
+/// y en Slush (usa la del tema: radio 32 y borde).
+ShapeBorder? jamSheetShape(BuildContext context) => isSlush(context)
+    ? null
+    : isBrasa(context)
     ? const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       )
@@ -37,6 +41,41 @@ String jamRoleLabel(JamRole role) => switch (role) {
   JamRole.coHost => 'Co-host',
   JamRole.guest => 'Invitado',
 };
+
+/// Código de invitación y tiempos: cifras tabulares (`num`).
+TextStyle jamCodeStyle(double size, {Color? color, double? spacing}) =>
+    TextStyle(
+      fontWeight: FontWeight.w800,
+      fontSize: size,
+      height: 1.2,
+      letterSpacing: spacing,
+      color: color,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+
+/// Botón sobre la tarjeta violeta de Slush: el anillo de foco del tema es
+/// violeta y no se vería sobre el relleno; aquí es blanco (6,5:1).
+ButtonStyle jamOnVioletButton(BuildContext context) => ButtonStyle(
+  side: WidgetStateProperty.resolveWith(
+    (s) => s.contains(WidgetState.focused)
+        ? const BorderSide(color: Slush.onViolet, width: SlushStroke.strong)
+        : context.slush.border,
+  ),
+);
+
+/// QR sobre #ffffff fijo (hace falta para escanearlo, también en oscuro) con
+/// borde de control.
+Widget slushQrFrame(BuildContext context, Widget qr) => DecoratedBox(
+  decoration: BoxDecoration(
+    color: const Color(0xffffffff),
+    borderRadius: BorderRadius.circular(SlushRadius.r12),
+    border: Border.fromBorderSide(context.slush.border),
+  ),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(SlushRadius.r8),
+    child: qr,
+  ),
+);
 
 /// Avatar con la inicial; el color sale del nombre para ser estable entre pantallas.
 class JamAvatar extends StatelessWidget {
@@ -77,11 +116,21 @@ class JamAvatar extends StatelessWidget {
     Color(0xffc9e8a8),
     Color(0xffe8e7e5),
   ];
+  static const _slushTones = [
+    Slush.yellow,
+    Slush.lilac,
+    Slush.mint,
+    Slush.orange,
+    Color(0xff9db4f2),
+  ];
   @override
   Widget build(BuildContext context) {
+    final slush = isSlush(context);
     final modern = isModern(context);
     final brasa = isBrasa(context);
-    final tones = brasa
+    final tones = slush
+        ? _slushTones
+        : brasa
         ? _brasaTones
         : modern
         ? _modernTones
@@ -91,13 +140,15 @@ class JamAvatar extends StatelessWidget {
     final letter = Text(
       initial,
       style: TextStyle(
-        color: brasa
+        color: slush
+            ? Slush.ink
+            : brasa
             ? Colors.black
             : modern
             ? Tracky.navy
             : StudioPalette.canvas,
         fontSize: size * .45,
-        fontWeight: FontWeight.w700,
+        fontWeight: slush ? FontWeight.w800 : FontWeight.w700,
       ),
     );
     // Misma instancia de bytes => la caché de imágenes decodifica una vez.
@@ -121,10 +172,12 @@ class JamAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           color: tone,
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Theme.of(context).colorScheme.surfaceContainerLowest,
-            width: brasa ? 1 : 2,
-          ),
+          border: slush
+              ? Border.fromBorderSide(context.slush.border)
+              : Border.all(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  width: brasa ? 1 : 2,
+                ),
         ),
         child: image == null ? letter : ClipOval(child: photo(letter)),
       ),
@@ -149,6 +202,7 @@ class JamAvatarStack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final slush = isSlush(context);
     final modern = isModern(context) || isBrasa(context);
     final shown = names.take(max).toList();
     final extra = names.length - shown.length;
@@ -175,22 +229,31 @@ class JamAvatarStack extends StatelessWidget {
                 height: size,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: modern
+                  color: slush
+                      ? context.slush.raised
+                      : modern
                       ? colors.surfaceContainerHighest
                       : StudioPalette.high,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: modern
-                        ? colors.surfaceContainerLowest
-                        : StudioPalette.well,
-                    width: 2,
-                  ),
+                  border: slush
+                      ? Border.fromBorderSide(context.slush.border)
+                      : Border.all(
+                          color: modern
+                              ? colors.surfaceContainerLowest
+                              : StudioPalette.well,
+                          width: 2,
+                        ),
                 ),
                 child: Text(
                   '+$extra',
                   style: TextStyle(
-                    fontSize: size * .38,
-                    color: modern ? colors.onSurface : StudioPalette.ink,
+                    fontSize: slush ? 11 : size * .38,
+                    fontWeight: slush ? FontWeight.w800 : null,
+                    color: slush
+                        ? context.slush.ink
+                        : modern
+                        ? colors.onSurface
+                        : StudioPalette.ink,
                   ),
                 ),
               ),
@@ -238,7 +301,9 @@ class JamPill extends StatelessWidget {
           elevation: 0,
           shadowColor: Colors.transparent,
           shape: StadiumBorder(
-            side: isBrasa(context)
+            side: isSlush(context)
+                ? context.slush.border
+                : isBrasa(context)
                 ? BorderSide.none
                 : isModern(context)
                 ? BorderSide(color: colors.outlineVariant)
@@ -283,7 +348,7 @@ class JamPill extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: isSlush(context) ? 12 : 10,
                                 color: colors.onSurfaceVariant,
                               ),
                             ),

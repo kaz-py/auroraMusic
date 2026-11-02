@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../jam/jam_controller.dart';
 import '../../jam/jam_models.dart';
+import '../../theme/slush_theme.dart';
 import '../artwork.dart';
 import '../undo_snackbar.dart';
 import 'jam_session_panel.dart';
@@ -191,7 +192,7 @@ class _JamAddSheetState extends State<JamAddSheet> {
             leading: Artwork(
               track: jamTrackAsTrack(s.track),
               artworkContext: ArtworkContext.thumbnail,
-              radius: 4,
+              radius: isSlush(context) ? SlushRadius.r8 : 4,
             ),
             title: Text(
               s.track.title,
@@ -229,7 +230,7 @@ class _JamAddSheetState extends State<JamAddSheet> {
     leading: Artwork(
       track: t,
       artworkContext: ArtworkContext.thumbnail,
-      radius: 4,
+      radius: isSlush(context) ? SlushRadius.r8 : 4,
     ),
     title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis),
     subtitle: Text(t.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -328,7 +329,7 @@ class _JamAddSheetState extends State<JamAddSheet> {
                 ? 'Se añadirán por lotes y se respetan los topes de la Jam.'
                 : 'Se respetan los topes de la Jam.',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: isSlush(context) ? 12 : 11,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
