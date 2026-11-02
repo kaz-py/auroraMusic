@@ -423,7 +423,7 @@ class _BandColumn extends StatelessWidget {
     final modern = isModern(context) || brasa;
     final style = TextStyle(
       fontFamily: modern ? 'Inter' : 'monospace',
-      fontSize: modern ? 10 : 9,
+      fontSize: slush ? 12 : (modern ? 10 : 9),
       color: brasa
           ? (selected ? Brasa.cream : Brasa.steel)
           : slush
@@ -480,7 +480,7 @@ class _BandColumn extends StatelessWidget {
           onTap: onSelect,
           borderRadius: modern ? BorderRadius.circular(8) : null,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 28),
+            constraints: BoxConstraints(minHeight: slush ? 44 : 28),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: brasa && selected

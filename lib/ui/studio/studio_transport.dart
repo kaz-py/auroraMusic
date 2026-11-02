@@ -257,7 +257,9 @@ class _StudioTransportState extends State<StudioTransport> {
                 : isSlush(context)
                 ? BoxDecoration(
                     color: context.slush.paper,
-                    borderRadius: BorderRadius.circular(wide ? 999 : 28),
+                    borderRadius: BorderRadius.circular(
+                      wide ? SlushRadius.pill : SlushRadius.r32,
+                    ),
                     border: Border.fromBorderSide(context.slush.border),
                   )
                 : modern
@@ -498,7 +500,7 @@ class _StudioTransportState extends State<StudioTransport> {
         thumbColor: brasa
             ? Brasa.cream
             : isSlush(context)
-            ? Slush.yellow
+            ? context.slush.violetAccent
             : modern
             ? Tracky.coral
             : null,
@@ -623,7 +625,7 @@ class TransportPlayButton extends StatelessWidget {
       return Tooltip(
         message: tip,
         child: SizedBox.square(
-          dimension: brasa ? 36 : 40,
+          dimension: brasa ? 36 : (isSlush(context) ? SlushControl.touch : 40),
           child: Material(
             color: enabled
                 ? (brasa

@@ -876,7 +876,7 @@ class StudioSidebar extends StatelessWidget {
             child: InkWell(
               onTap: () => onNavigate(index),
               child: Container(
-                constraints: const BoxConstraints(minHeight: 42),
+                constraints: BoxConstraints(minHeight: slush ? 44 : 42),
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: [
@@ -900,7 +900,7 @@ class StudioSidebar extends StatelessWidget {
                       Text(
                         shortcut,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: slush ? 12 : 11,
                           color: fg.withValues(alpha: slush ? 1 : .6),
                         ),
                       ),

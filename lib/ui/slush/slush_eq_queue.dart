@@ -13,14 +13,56 @@ import '../artwork.dart';
 import '../studio/equalizer_panel.dart';
 import '../track_actions.dart';
 
-const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Color(0xffc9a8f5)];
+const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Slush.lilac];
 
-BoxDecoration _card(BuildContext context, [Color? color, double r = 28]) =>
-    BoxDecoration(
-      color: color ?? context.slush.paper,
-      borderRadius: BorderRadius.circular(r),
-      border: Border.fromBorderSide(context.slush.border),
-    );
+/// Contenedor: `lineSoft` (tarjeta); [control] = borde de control (`line`).
+BoxDecoration _card(
+  BuildContext context, [
+  Color? color,
+  double r = SlushRadius.r32,
+  bool control = false,
+]) => BoxDecoration(
+  color: color ?? context.slush.paper,
+  borderRadius: BorderRadius.circular(r),
+  border: Border.fromBorderSide(
+    control ? context.slush.border : context.slush.borderSoft,
+  ),
+);
+
+/// 44 con puntero grueso, 32 desde escritorio.
+double _minHeight(BuildContext context) =>
+    Breakpoints.isWide(MediaQuery.sizeOf(context).width)
+    ? SlushControl.dense
+    : SlushControl.touch;
+
+/// Píldora tocable: hundido al pulsar, foco, objetivo mínimo por ancho.
+Widget _pillButton(
+  BuildContext context, {
+  required Widget child,
+  required VoidCallback? onTap,
+  required Color fill,
+  bool outline = true,
+  EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+}) => SlushPressable(
+  elevation: SlushElevation.none,
+  onTap: onTap,
+  minSize: _minHeight(context),
+  child: ConstrainedBox(
+    constraints: BoxConstraints(minHeight: _minHeight(context)),
+    child: DecoratedBox(
+      decoration: ShapeDecoration(
+        color: fill,
+        shape: StadiumBorder(
+          side: outline ? context.slush.border : BorderSide.none,
+        ),
+      ),
+      child: Padding(
+        padding: padding,
+        child: Center(widthFactor: 1, child: child),
+      ),
+    ),
+  ),
+);
 
 String _gain(double db) {
   final a = db.abs();
@@ -57,7 +99,9 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
       color: context.slush.screen,
       child: LayoutBuilder(
         builder: (context, box) {
-          final wide = box.maxWidth >= 900;
+          final wide = Breakpoints.isWide(box.maxWidth);
+          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          final big = scale > 1.3;
           final eq = EqualizerPanel(controller: c, slushBoard: true);
           final queue = _QueueCard(
             controller: c,
@@ -65,8 +109,27 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             fill: wide || widget.queueFirst,
           );
           if (widget.queueFirst && !wide) {
+            final pad = SlushSpacing.margin(box.maxWidth);
+            // Con texto grande el chrome del shell deja a la lista un hueco
+            // ridículo: el panel entero se desplaza y la cola conserva alto.
+            if (big) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(pad),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _top(c),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: math.max(520.0, box.maxHeight),
+                      child: queue,
+                    ),
+                  ],
+                ),
+              );
+            }
             return Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(pad),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -85,7 +148,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             ],
           );
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(SlushSpacing.margin(box.maxWidth)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -93,7 +156,10 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
                 const SizedBox(height: 20),
                 if (wide)
                   SizedBox(
-                    height: math.max(560.0, box.maxHeight - 140),
+                    height: math.max(
+                      560.0 * (big ? scale : 1),
+                      box.maxHeight - 140,
+                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -128,32 +194,31 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
     );
   }
 
-  Widget _pill(String t, VoidCallback f, {IconData? icon}) => Material(
-    color: context.slush.paper,
-    shape: StadiumBorder(side: context.slush.border),
-    child: InkWell(
-      customBorder: const StadiumBorder(),
-      onTap: f,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: context.slush.ink),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              t,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: context.slush.ink,
-              ),
+  Widget _pill(String t, VoidCallback f, {IconData? icon}) => _pillButton(
+    context,
+    onTap: f,
+    fill: context.slush.paper,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: context.slush.ink),
+          const SizedBox(width: 6),
+        ],
+        Flexible(
+          child: Text(
+            t,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: context.slush.ink,
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     ),
   );
 
@@ -162,64 +227,76 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
     builder: (context, _) {
       final left = c.sleepRemaining;
       final current = widget.queueFirst ? 5 : 13;
+      final items = <Widget>[
+        _pill('VOLVER', () => widget.onNavigate(0), icon: Icons.arrow_back),
+        DecoratedBox(
+          decoration: _card(context, null, SlushRadius.pill, true),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            // En el teléfono las cuatro pestañas no caben: se desplazan.
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (label, idx) in [
+                    ('VINILO', 4),
+                    ('LETRAS', 6),
+                    ('ECUALIZADOR', 13),
+                    ('COLA', 5),
+                  ])
+                    _tab(label, idx == current, () => widget.onNavigate(idx)),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _pill(
+          left == null ? 'ZZ · OFF' : 'ZZ · ${left.inMinutes + 1} MIN',
+          () => setState(() {
+            c.setSleepTimer(null);
+            _sleepChoice = null;
+          }),
+          icon: Icons.bedtime_outlined,
+        ),
+      ];
+      // Con texto grande tres filas de píldoras se comen la altura: una sola
+      // fila que se desplaza en horizontal.
+      if (MediaQuery.textScalerOf(context).scale(14) / 14 > 1.3) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                items[i],
+              ],
+            ],
+          ),
+        );
+      }
       return Wrap(
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         runSpacing: 10,
         spacing: 12,
-        children: [
-          _pill('VOLVER', () => widget.onNavigate(0), icon: Icons.arrow_back),
-          DecoratedBox(
-            decoration: _card(context, null, 40),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              // En el teléfono las cuatro pestañas no caben: se desplazan.
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final (label, idx) in [
-                      ('VINILO', 4),
-                      ('LETRAS', 6),
-                      ('ECUALIZADOR', 13),
-                      ('COLA', 5),
-                    ])
-                      _tab(label, idx == current, () => widget.onNavigate(idx)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          _pill(
-            left == null ? 'ZZ · OFF' : 'ZZ · ${left.inMinutes + 1} MIN',
-            () => setState(() {
-              c.setSleepTimer(null);
-              _sleepChoice = null;
-            }),
-            icon: Icons.bedtime_outlined,
-          ),
-        ],
+        children: items,
       );
     },
   );
 
-  Widget _tab(String t, bool on, VoidCallback f) => InkWell(
-    customBorder: const StadiumBorder(),
+  Widget _tab(String t, bool on, VoidCallback f) => _pillButton(
+    context,
     onTap: f,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: ShapeDecoration(
-        color: on ? context.slush.ink : Colors.transparent,
-        shape: const StadiumBorder(),
-      ),
-      child: Text(
-        t,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: on ? context.slush.paper : context.slush.ink,
-        ),
+    fill: on ? context.slush.ink : Colors.transparent,
+    outline: false,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+    child: Text(
+      t,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: on ? context.slush.paper : context.slush.ink,
       ),
     ),
   );
@@ -230,8 +307,8 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
       final active = c.sleepRemaining != null ? _sleepChoice : null;
       Widget chip(String t, int v) {
         final on = active == v;
-        return InkWell(
-          customBorder: const StadiumBorder(),
+        return _pillButton(
+          context,
           onTap: () {
             if (on) {
               c.setSleepTimer(null);
@@ -245,19 +322,13 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             }
             setState(() => _sleepChoice = v);
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: ShapeDecoration(
-              color: on ? context.slush.ink : context.slush.paper,
-              shape: StadiumBorder(side: context.slush.border),
-            ),
-            child: Text(
-              t,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: on ? context.slush.paper : context.slush.ink,
-              ),
+          fill: on ? context.slush.ink : context.slush.paper,
+          child: Text(
+            t,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: on ? context.slush.paper : context.slush.ink,
             ),
           ),
         );
@@ -441,11 +512,11 @@ class _QueueCardState extends State<_QueueCard> {
                       p.viewportDimension * .3)
             .clamp(p.minScrollExtent, p.maxScrollExtent);
     _setAway(0);
-    if (animate && built && !_c.reducedMotion) {
+    if (animate && built && !_c.reducedMotion && !SlushMotion.reduce(context)) {
       _scroll.animateTo(
         target,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
+        duration: SlushMotion.sheetIn,
+        curve: SlushMotion.easeOut,
       );
     } else {
       _scroll.jumpTo(target);
@@ -535,6 +606,24 @@ class _QueueCardState extends State<_QueueCard> {
       final list = NotificationListener<ScrollNotification>(
         onNotification: _onScroll,
         child: ReorderableListView.builder(
+          proxyDecorator: (child, _, _) => Material(
+            type: MaterialType.transparency,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  bottom: 8,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(SlushRadius.r16),
+                      boxShadow: context.slush.shadowsFor(SlushElevation.card),
+                    ),
+                  ),
+                ),
+                child,
+              ],
+            ),
+          ),
           scrollController: _scroll,
           shrinkWrap: !widget.fill,
           buildDefaultDragHandles: false,
@@ -583,8 +672,8 @@ class _QueueCardState extends State<_QueueCard> {
                   message: c.shuffle
                       ? 'Desactivar aleatorio'
                       : 'Activar aleatorio',
-                  child: InkWell(
-                    customBorder: const StadiumBorder(),
+                  child: SlushPressable(
+                    elevation: SlushElevation.none,
                     onTap: () => c.setShuffle(!c.shuffle),
                     child: SlushPill(
                       c.shuffle ? 'Aleatorio activo' : 'Aleatorio',
@@ -600,7 +689,7 @@ class _QueueCardState extends State<_QueueCard> {
                 child: Text(
                   summary,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     letterSpacing: .6,
                     color: context.slush.ink,
@@ -636,33 +725,43 @@ class _QueueCardState extends State<_QueueCard> {
     },
   );
 
-  Widget _goPill(BuildContext context) => Material(
-    color: Slush.yellow,
-    elevation: 2,
-    shape: StadiumBorder(side: context.slush.border),
-    child: InkWell(
-      customBorder: const StadiumBorder(),
-      onTap: _goCurrent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _away < 0 ? Icons.arrow_upward : Icons.arrow_downward,
-              size: 14,
-              color: Slush.ink,
+  Widget _goPill(BuildContext context) => SlushPressable(
+    onTap: _goCurrent,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(minHeight: _minHeight(context)),
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: Slush.yellow,
+          shape: StadiumBorder(side: context.slush.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Center(
+            widthFactor: 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _away < 0 ? Icons.arrow_upward : Icons.arrow_downward,
+                  size: 16,
+                  color: Slush.ink,
+                ),
+                const SizedBox(width: 6),
+                const Flexible(
+                  child: Text(
+                    'IR A LA ACTUAL',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Slush.ink,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            const Text(
-              'IR A LA ACTUAL',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: Slush.ink,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     ),
@@ -671,28 +770,37 @@ class _QueueCardState extends State<_QueueCard> {
   Widget _caption(BuildContext context, String text, {VoidCallback? onTap}) =>
       InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
-          child: Row(
-            children: [
-              Text(
-                text,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: .8,
-                  color: context.slush.ink,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: onTap == null ? 0 : SlushControl.touch,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .8,
+                      color: context.slush.ink,
+                    ),
+                  ),
                 ),
-              ),
-              if (onTap != null) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  _showPlayed ? Icons.expand_less : Icons.expand_more,
-                  size: 16,
-                  color: context.slush.ink,
-                ),
+                if (onTap != null) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    _showPlayed ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: context.slush.ink,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       );
@@ -730,16 +838,16 @@ class _QueueCardState extends State<_QueueCard> {
         key: active ? _currentKey : null,
         padding: const EdgeInsets.only(bottom: 8),
         child: Opacity(
-          opacity: dim ? .5 : 1,
+          opacity: dim ? .7 : 1,
           child: Material(
-            color: active ? Slush.lilac : context.slush.paper,
+            color: active ? Slush.mint : context.slush.paper,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: context.slush.border,
+              borderRadius: BorderRadius.circular(SlushRadius.r16),
+              side: active ? context.slush.border : context.slush.borderSoft,
             ),
             child: InkWell(
               customBorder: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(SlushRadius.r16),
               ),
               onTap: () {
                 _follow = true;
@@ -754,13 +862,29 @@ class _QueueCardState extends State<_QueueCard> {
                       children: [
                         SizedBox(
                           width: 20,
-                          child: Text(
-                            '${i + 1}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          ),
+                          child: active
+                              ? const Center(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Slush.orange,
+                                      shape: BoxShape.circle,
+                                      border: Border.fromBorderSide(
+                                        BorderSide(
+                                          color: Slush.ink,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                    child: SizedBox.square(dimension: 10),
+                                  ),
+                                )
+                              : Text(
+                                  '${i + 1}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
                         ),
                         Artwork(track: t, size: 36, radius: 8),
                         const SizedBox(width: 10),
@@ -781,14 +905,15 @@ class _QueueCardState extends State<_QueueCard> {
                                 t.artist,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11),
+                                style: const TextStyle(fontSize: 12),
                               ),
                             ],
                           ),
                         ),
                         // Con texto grande la fila no cabe en el teléfono: la
                         // activa se distingue por el color.
-                        if (MediaQuery.textScalerOf(context).scale(1) <= 1.3) ...[
+                        if (MediaQuery.textScalerOf(context).scale(1) <=
+                            1.3) ...[
                           if (active)
                             const SlushPill('Sonando', color: Slush.yellow)
                           else
@@ -798,7 +923,8 @@ class _QueueCardState extends State<_QueueCard> {
                         Text(
                           _time(t.duration),
                           style: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
+                            fontFeatures: [FontFeature.tabularFigures()],
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -882,7 +1008,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
         value: v,
         onChanged: f,
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Slush.yellow : Slush.lilac,
+          (s) => s.contains(WidgetState.selected) ? Slush.mint : Slush.lilac,
         ),
       ),
       Flexible(
@@ -932,7 +1058,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
                 if (note != null) ...[
                   const SizedBox(height: 6),
                   DecoratedBox(
-                    decoration: _card(context, null, 20),
+                    decoration: _card(context, null, SlushRadius.r16),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -946,7 +1072,12 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
                             backgroundColor: Slush.orange,
                           ),
                           const SizedBox(width: 6),
-                          Text(note, style: const TextStyle(fontSize: 11)),
+                          Flexible(
+                            child: Text(
+                              note,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1062,7 +1193,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 widget.message!,
-                style: const TextStyle(fontSize: 11),
+                style: const TextStyle(fontSize: 12),
               ),
             ),
           ),
@@ -1112,8 +1243,12 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
 
   Widget _fineSlider(String l, double v, ValueChanged<double>? f) => Row(
     children: [
-      SizedBox(width: 92, child: Text(l, style: const TextStyle(fontSize: 11))),
+      Flexible(
+        flex: 2,
+        child: Text(l, maxLines: 2, style: const TextStyle(fontSize: 12)),
+      ),
       Expanded(
+        flex: 5,
         child: Slider(
           value: v.clamp(0.0, 1.0),
           onChanged: f,
@@ -1123,22 +1258,17 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
     ],
   );
 
-  Widget _chip(String t, bool on, VoidCallback? f) => Material(
-    color: on ? context.slush.ink : context.slush.paper,
-    shape: StadiumBorder(side: context.slush.border),
-    child: InkWell(
-      customBorder: const StadiumBorder(),
-      onTap: f,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        child: Text(
-          t,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: on ? context.slush.paper : context.slush.ink,
-          ),
-        ),
+  Widget _chip(String t, bool on, VoidCallback? f) => _pillButton(
+    context,
+    onTap: f,
+    fill: on ? context.slush.ink : context.slush.paper,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+    child: Text(
+      t,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: on ? context.slush.paper : context.slush.ink,
       ),
     ),
   );
@@ -1151,13 +1281,13 @@ class _Disc extends StatelessWidget {
     child: Container(
       width: 84,
       height: 84,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Slush.ink,
         border: Border.fromBorderSide(
-          BorderSide(color: Colors.white, width: 3), // sobre color vivo
+          BorderSide(color: context.slush.line, width: SlushStroke.strong),
         ),
-        boxShadow: [BoxShadow(color: Slush.ink, spreadRadius: 2)],
+        boxShadow: const [BoxShadow(color: Slush.ink, spreadRadius: 2)],
       ),
       child: Center(
         child: Container(
@@ -1213,7 +1343,7 @@ class _Band extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(
             _gain(band.gainDb),
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
           ),
         ),
         const SizedBox(height: 6),
@@ -1252,15 +1382,13 @@ class _Band extends StatelessWidget {
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          color: Color.lerp(
-                            context.slush.paper,
-                            context.slush.ink,
-                            .08,
-                          ),
+                          color: context.slush.inset,
                           borderRadius: BorderRadius.circular(_w / 2),
                           border: Border.all(
                             color: context.slush.line,
-                            width: selected ? 3 : 2,
+                            width: selected
+                                ? SlushStroke.strong
+                                : SlushStroke.base,
                           ),
                         ),
                       ),
@@ -1289,14 +1417,19 @@ class _Band extends StatelessWidget {
                           height: _k,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: context.slush.paper,
+                            color: context.slush.violetAccent,
                             border: Border.fromBorderSide(context.slush.border),
                           ),
                           child: Center(
                             child: SizedBox(
                               width: 9,
                               height: 2,
-                              child: ColoredBox(color: context.slush.ink),
+                              child: ColoredBox(
+                                color: slushOnColor(
+                                  context,
+                                  context.slush.violetAccent,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -1312,14 +1445,14 @@ class _Band extends StatelessWidget {
         InkWell(
           onTap: onSelect,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 28),
+            constraints: const BoxConstraints(minHeight: SlushControl.touch),
             child: Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   eqFrequencyLabel(band.frequency, short: true).toUpperCase(),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
                   ),
                 ),

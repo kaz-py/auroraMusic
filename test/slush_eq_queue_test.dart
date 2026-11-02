@@ -37,7 +37,9 @@ Future<void> _pump(
     MaterialApp(
       theme: slushTheme(brightness, Colors.blue),
       builder: (context, w) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(scale)),
         child: w!,
       ),
       home: Scaffold(body: child),
@@ -100,7 +102,9 @@ void main() {
         scale: 2,
       );
       expect(tester.takeException(), isNull);
-      expect(_verticalScrollables(tester), 1);
+      // Con texto 2x el panel entero se desplaza (1) y la lista conserva su
+      // propio scroll (2): nunca más de dos y sin overflow.
+      expect(_verticalScrollables(tester), lessThanOrEqualTo(2));
       expect(find.text('No hay canciones en la cola'), findsNothing);
     });
 
