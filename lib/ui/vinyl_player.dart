@@ -208,7 +208,10 @@ class _VinylPlayerState extends State<VinylPlayer>
     final color = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
+        // Slush: el reproductor de escritorio (rejilla de 3 zonas) necesita >= 900.
+        final compact =
+            constraints.maxWidth <
+            (isSlush(context) ? Breakpoints.medium : 760);
         final artSize = compact
             ? ArtworkContext.vinylCompact.constrain(
                 BoxConstraints(
@@ -757,26 +760,31 @@ extension on _VinylPlayerState {
     onToggleCassette: () => _setCassette(!_cassette),
     onSection: widget.onSection,
     onBack: widget.onBack,
-    recordBuilder: (size) => _record(
-      context,
-      c,
-      track,
-      math.max(0.0, size),
-      _VinylStyle(
-        disc: const Color(0xff111111),
-        label: slushScreenColor(AccentScope.of(context, c.accentColor)),
-        ring: Slush.ink,
-        ringWidth: 2.5,
-        shadow: const [],
-        groove: Colors.white,
-        grooveHi: .07,
-        grooveLo: .03,
-        pivot: Slush.ink,
-        arm: Slush.ink,
-        needle: Slush.ink,
-        slush: true,
-      ),
-    ),
+    recordBuilder: (size) {
+      final p = context.slush;
+      final dark = Theme.of(context).brightness == Brightness.dark;
+      return _record(
+        context,
+        c,
+        track,
+        math.max(0.0, size),
+        _VinylStyle(
+          // Oscuro: el disco es el pozo `inset`; claro: vinilo negro.
+          disc: dark ? p.inset : const Color(0xff111111),
+          label: slushScreenColor(AccentScope.of(context, c.accentColor)),
+          ring: p.line,
+          ringWidth: SlushStroke.base,
+          shadow: const [],
+          groove: SlushPalette.dark.ink,
+          grooveHi: .07,
+          grooveLo: .03,
+          pivot: p.line,
+          arm: p.line,
+          needle: p.line,
+          slush: true,
+        ),
+      );
+    },
   );
 
   /// Modo Vinilo de Modern y Brasa: mismo disco que Atelier dentro de una

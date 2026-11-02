@@ -286,7 +286,7 @@ class _LyricsPanelState extends State<LyricsPanel> {
     final lines = _result?.lines ?? const <LyricLine>[];
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 900;
+        final desktop = constraints.maxWidth >= Breakpoints.medium;
         final colors = Theme.of(context).colorScheme;
         final header = Wrap(
           children: [
@@ -421,136 +421,153 @@ class _LyricsPanelState extends State<LyricsPanel> {
         );
         if (desktop) {
           final leftWidth = (constraints.maxWidth * .40).clamp(310.0, 470.0);
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-            child: Column(
-              children: [
-                header,
-                const SizedBox(height: 28),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: leftWidth,
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (track != null) ...[
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: isBrasa(context)
-                                      ? const BoxDecoration(
-                                          color: Brasa.obsidian,
-                                          borderRadius: BorderRadius.all(
-                                            Radius.circular(6),
-                                          ),
-                                          boxShadow: Brasa.cardShadow,
-                                        )
-                                      : isModern(context)
-                                      ? BoxDecoration(
-                                          color: colors.surfaceContainerLow,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          boxShadow: Tracky.warmShadow,
-                                        )
-                                      : BoxDecoration(
-                                          color: colors.surfaceContainerLow,
-                                          border: Border.all(
-                                            color: colors.outlineVariant,
-                                          ),
-                                          boxShadow: const [
-                                            BoxShadow(
-                                              color: Colors.black,
-                                              offset: Offset(3, 4),
+          // Slush: el escritorio (puntero fino) no escala más de 1,3 para que
+          // cabezal, opciones y transporte quepan sin desborde.
+          return MediaQuery.withClampedTextScaling(
+            maxScaleFactor: isSlush(context) ? 1.3 : double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(
+                children: [
+                  header,
+                  const SizedBox(height: 28),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: leftWidth,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (track != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: isBrasa(context)
+                                        ? const BoxDecoration(
+                                            color: Brasa.obsidian,
+                                            borderRadius: BorderRadius.all(
+                                              Radius.circular(6),
                                             ),
-                                          ],
-                                        ),
-                                  child: Artwork(
-                                    track: track,
-                                    artworkContext: ArtworkContext.playerDetail,
-                                    radius: isBrasa(context)
-                                        ? 6
-                                        : (isModern(context) ? 8 : 4),
+                                            boxShadow: Brasa.cardShadow,
+                                          )
+                                        : isSlush(context)
+                                        ? BoxDecoration(
+                                            color: context.slush.paper,
+                                            borderRadius: BorderRadius.circular(
+                                              SlushRadius.r24,
+                                            ),
+                                            border: Border.fromBorderSide(
+                                              context.slush.borderSoft,
+                                            ),
+                                          )
+                                        : isModern(context)
+                                        ? BoxDecoration(
+                                            color: colors.surfaceContainerLow,
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            boxShadow: Tracky.warmShadow,
+                                          )
+                                        : BoxDecoration(
+                                            color: colors.surfaceContainerLow,
+                                            border: Border.all(
+                                              color: colors.outlineVariant,
+                                            ),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Colors.black,
+                                                offset: Offset(3, 4),
+                                              ),
+                                            ],
+                                          ),
+                                    child: Artwork(
+                                      track: track,
+                                      artworkContext:
+                                          ArtworkContext.playerDetail,
+                                      radius: isBrasa(context)
+                                          ? 6
+                                          : (isModern(context) ? 8 : 4),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 20),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    track.title,
+                                    style: isBrasa(context)
+                                        ? const TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.2,
+                                            color: Brasa.cream,
+                                          )
+                                        : isModern(context)
+                                        ? const TextStyle(
+                                            fontFamily: 'Bagel Fat One',
+                                            fontSize: 32,
+                                            letterSpacing: 32 * .03,
+                                            height: 1.15,
+                                          )
+                                        : const TextStyle(
+                                            fontFamily: 'Newsreader',
+                                            fontSize: 36,
+                                            height: 1.12,
+                                          ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    '${track.artist}${track.album == null ? '' : ' · ${track.album}'}',
+                                    style: TextStyle(
+                                      fontSize: isBrasa(context) ? 14 : 18,
+                                      color: isBrasa(context)
+                                          ? Brasa.cloud
+                                          : colors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                ],
                                 Text(
-                                  track.title,
-                                  style: isBrasa(context)
-                                      ? const TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.2,
-                                          color: Brasa.cream,
-                                        )
-                                      : isModern(context)
-                                      ? const TextStyle(
-                                          fontFamily: 'Bagel Fat One',
-                                          fontSize: 32,
-                                          letterSpacing: 32 * .03,
-                                          height: 1.15,
-                                        )
-                                      : const TextStyle(
-                                          fontFamily: 'Newsreader',
-                                          fontSize: 36,
-                                          height: 1.12,
-                                        ),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  '${track.artist}${track.album == null ? '' : ' · ${track.album}'}',
+                                  'MODALIDAD DE VISUALIZACIÓN',
                                   style: TextStyle(
-                                    fontSize: isBrasa(context) ? 14 : 18,
-                                    color: isBrasa(context)
-                                        ? Brasa.cloud
-                                        : colors.primary,
+                                    fontSize: 12,
+                                    color: colors.onSurfaceVariant,
                                   ),
                                 ),
+                                const SizedBox(height: 8),
+                                _modes(),
                                 const SizedBox(height: 24),
-                              ],
-                              Text(
-                                'MODALIDAD DE VISUALIZACIÓN',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: colors.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _modes(),
-                              const SizedBox(height: 24),
-                              _noteBox(
-                                context,
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'NOTA DE PRODUCCIÓN & POÉTICA',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: colors.primary,
+                                _noteBox(
+                                  context,
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'NOTA DE PRODUCCIÓN & POÉTICA',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: colors.primary,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'No hay notas de producción disponibles en los metadatos de esta pista.',
-                                    ),
-                                  ],
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'No hay notas de producción disponibles en los metadatos de esta pista.',
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 30),
-                      lyrics,
-                    ],
+                        const SizedBox(width: 30),
+                        lyrics,
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }
@@ -567,7 +584,7 @@ class _LyricsPanelState extends State<LyricsPanel> {
                       Artwork(
                         track: track,
                         artworkContext: ArtworkContext.thumbnailDetail,
-                        radius: 4,
+                        radius: isSlush(context) ? SlushRadius.r8 : 4,
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -621,7 +638,9 @@ class _LyricsPanelState extends State<LyricsPanel> {
     children: [
       for (var i = 0; i < 3; i++)
         ChoiceChip(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+          shape: isSlush(context)
+              ? null
+              : RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           label: Text(['Sincronizada', 'Tradicional', 'Traducción'][i]),
           selected: _mode == i,
           onSelected: (_) {
@@ -685,9 +704,11 @@ class _LyricsPanelState extends State<LyricsPanel> {
           const Text('TIPOGRAFÍA:'),
           for (var i = 0; i < 3; i++)
             ChoiceChip(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
+              shape: isSlush(context)
+                  ? null
+                  : RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
               label: Text(['Serif Editorial', 'Grotesca', 'Máquina'][i]),
               selected: _typeface == i,
               onSelected: (_) {
@@ -941,30 +962,37 @@ class _LyricsPanelState extends State<LyricsPanel> {
       _lastActive = active;
       final instant = _firstReveal;
       _firstReveal = false;
-      void reveal({bool retry = true}) {
-        final context = _lineKeys[active]?.currentContext;
+      final slush = isSlush(context);
+      void reveal({int tries = 1}) {
+        final target = _lineKeys[active]?.currentContext;
         if (!mounted) return;
-        if (context != null) {
+        if (target != null) {
           Scrollable.ensureVisible(
-            context,
+            target,
             duration: instant || media.disableAnimations
                 ? Duration.zero
-                : const Duration(milliseconds: 220),
+                : Duration(milliseconds: slush ? 280 : 220),
+            curve: slush ? SlushMotion.drawer : Curves.easeOut,
             alignment: .5,
           );
-        } else if (retry && _scroll.hasClients) {
-          // La lista de Atelier es perezosa: la línea aún no existe, así que
-          // saltamos a su zona aproximada y reintentamos al construirse.
-          _scroll.jumpTo(
-            (active * 56.0).clamp(0.0, _scroll.position.maxScrollExtent),
-          );
+        } else if (tries > 0 && _scroll.hasClients) {
+          // La lista es perezosa: la línea aún no existe, así que saltamos a
+          // su zona aproximada (Slush: proporcional a la extensión medida,
+          // con alturas variables) y reintentamos al construirse.
+          final max = _scroll.position.maxScrollExtent;
+          final guess = slush
+              ? max * active / (lines.length > 1 ? lines.length - 1 : 1)
+              : active * 56.0;
+          _scroll.jumpTo(guess.clamp(0.0, max));
           WidgetsBinding.instance.addPostFrameCallback(
-            (_) => reveal(retry: false),
+            (_) => reveal(tries: tries - 1),
           );
         }
       }
 
-      WidgetsBinding.instance.addPostFrameCallback((_) => reveal());
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => reveal(tries: slush ? 4 : 1),
+      );
     }
     if (isModern(context)) {
       return ModernLyricsList(
@@ -975,6 +1003,7 @@ class _LyricsPanelState extends State<LyricsPanel> {
         onSeek: seekTo,
         fontFamily: _typeface == 2 ? 'monospace' : 'Inter',
         animate: !media.disableAnimations,
+        controller: isSlush(context) ? _scroll : null,
       );
     }
     return ListView.builder(
