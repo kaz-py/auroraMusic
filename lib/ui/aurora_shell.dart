@@ -36,6 +36,7 @@ import 'studio/equalizer_panel.dart';
 import 'studio/studio_navigation.dart';
 import 'slush/slush_bars.dart';
 import 'slush/slush_pages.dart';
+import 'slush/slush_decor.dart';
 import 'studio/studio_transport.dart';
 import 'studio/session_aside.dart';
 import 'studio/downloads_studio_page.dart';
@@ -1654,12 +1655,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         onSelected: (_) => onSelected(),
       );
     }
-    // Slush y el tema base usan el chip del tema (contorno, color vivo).
-    if (!isModern(context) || isSlush(context)) {
+    // Slush: chip propio de 44; el tema base usa el chip del tema.
+    if (isSlush(context)) {
+      return SlushChip(
+        label,
+        selected: selected,
+        color: Slush.yellow,
+        onTap: onSelected,
+      );
+    }
+    if (!isModern(context)) {
       return ChoiceChip(
         label: Text(label),
         selected: selected,
-        showCheckmark: isSlush(context) ? false : null,
         onSelected: (_) => onSelected(),
       );
     }
@@ -1680,51 +1688,70 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     );
   }
 
-  Widget _searchPage(AppController c) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Wrap(
-            spacing: 8,
-            children: [
-              _chip(
-                c.usesOfficialYouTubeMusic
-                    ? 'Biblioteca local'
-                    : 'Audio · YouTube',
-                !_spotifySearch,
-                () => setState(() => _spotifySearch = false),
-              ),
-              _chip(
-                'Metadatos · Spotify',
-                _spotifySearch,
-                () => setState(() => _spotifySearch = true),
-              ),
-              if (c.usesOfficialYouTubeMusic)
-                ActionChip(
-                  label: const Text('YouTube Music'),
-                  avatar: const Icon(Icons.music_video_outlined),
-                  onPressed: () => _navigate(10),
-                ),
-            ],
+  /// Margen lateral de las páginas: el de Slush por ancho, 24 en el resto.
+  double get _pagePad => isSlush(context)
+      ? SlushSpacing.margin(MediaQuery.sizeOf(context).width)
+      : 24;
+
+  Widget _searchPage(AppController c) {
+    final chips = [
+      _chip(
+        c.usesOfficialYouTubeMusic ? 'Biblioteca local' : 'Audio · YouTube',
+        !_spotifySearch,
+        () => setState(() => _spotifySearch = false),
+      ),
+      _chip(
+        'Metadatos · Spotify',
+        _spotifySearch,
+        () => setState(() => _spotifySearch = true),
+      ),
+      if (c.usesOfficialYouTubeMusic)
+        ActionChip(
+          label: const Text('YouTube Music'),
+          avatar: const Icon(Icons.music_video_outlined),
+          onPressed: () => _navigate(10),
+        ),
+    ];
+    final column = Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: _pagePad, vertical: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            // Slush: una sola línea con scroll horizontal (no 3 líneas).
+            child: isSlush(context)
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(spacing: 8, children: chips),
+                  )
+                : Wrap(spacing: 8, children: chips),
           ),
         ),
-      ),
-      Expanded(
-        child: _spotifySearch
-            ? SpotifyBrowserPanel(adder: _spotifyAdder)
-            : _audioSearchPage(c),
-      ),
-    ],
-  );
+        Expanded(
+          child: _spotifySearch
+              ? SpotifyBrowserPanel(adder: _spotifyAdder)
+              : _audioSearchPage(c),
+        ),
+      ],
+    );
+    if (!isSlush(context) || MediaQuery.textScalerOf(context).scale(14) <= 18) {
+      return column;
+    }
+    // Con texto muy grande el cuerpo queda casi sin alto: la pantalla se
+    // desplaza en vez de desbordar.
+    return LayoutBuilder(
+      builder: (_, box) => box.maxHeight >= 480
+          ? column
+          : SingleChildScrollView(child: SizedBox(height: 480, child: column)),
+    );
+  }
 
   Widget _audioSearchPage(AppController c) => Column(
     children: [
       // Brasa en pantalla ancha: la búsqueda vive en la barra superior.
       if (!(isBrasa(context) && MediaQuery.sizeOf(context).width >= 600))
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          padding: EdgeInsets.fromLTRB(_pagePad, 8, _pagePad, 8),
           child: TextField(
             controller: _search,
             focusNode: _searchFocus,
@@ -1756,7 +1783,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: _pagePad),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -1788,7 +1815,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: _pagePad),
           child: Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
@@ -2238,7 +2265,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(
+              horizontal: isSlush(context)
+                  ? SlushSpacing.margin(MediaQuery.sizeOf(context).width)
+                  : 24,
+            ),
             children: [
               Align(
                 alignment: Alignment.centerLeft,
@@ -2365,8 +2396,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         final tile = ListTile(
           shape: isSlush(context)
               ? RoundedRectangleBorder(
-                  side: context.slush.border,
-                  borderRadius: BorderRadius.circular(16),
+                  side: active
+                      ? context.slush.border
+                      : context.slush.borderSoft,
+                  borderRadius: BorderRadius.circular(SlushRadius.r16),
                 )
               : active
               ? auroraSelectedShape(context)
