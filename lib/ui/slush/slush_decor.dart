@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../theme/slush_theme.dart';
+import '../../theme/slush_widgets.dart';
 
 /// Banda de color plano a todo el ancho: borde negro 2 px y esquinas grandes.
 /// [tone] se mezcla con el fondo (teñido por la portada) y el texto es negro.
@@ -29,26 +30,32 @@ class SlushBand extends StatelessWidget {
       Color.lerp(tone, Theme.of(context).scaffoldBackgroundColor, .25)!;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: padding,
-    decoration: BoxDecoration(
-      color: tint(context, tone),
-      borderRadius: BorderRadius.circular(32),
-      border: Border.fromBorderSide(context.slush.border),
-      boxShadow: context.slush.shadows,
-    ),
-    child: slushOnVivid(
-      context,
-      DefaultTextStyle.merge(
-        style: const TextStyle(color: Slush.ink),
-        child: child,
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: tint(context, tone),
+        borderRadius: BorderRadius.circular(SlushRadius.r32),
+        border: Border.fromBorderSide(p.borderSoft),
+        boxShadow: p.shadowsFor(SlushElevation.card),
       ),
-    ),
-  );
+      child: slushOnVivid(
+        context,
+        DefaultTextStyle.merge(
+          style: const TextStyle(color: Slush.ink),
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
-/// Chip de filtro: borde negro 2 px, color vivo; seleccionado = negro.
+/// Chip de filtro tocable: contorno de control, color vivo; seleccionado =
+/// tinta. Objetivo táctil de 44 (32 con puntero fino, >= 900), hundido al
+/// pulsar, anillo de foco, 1 línea con elipsis. Sin sombra por defecto: vive
+/// dentro de tarjetas y bandas.
 class SlushChip extends StatelessWidget {
   const SlushChip(
     this.label, {
@@ -56,47 +63,72 @@ class SlushChip extends StatelessWidget {
     this.icon,
     this.color = Slush.yellow,
     this.selected = false,
+    this.elevation = SlushElevation.none,
     required this.onTap,
   });
   final String label;
   final IconData? icon;
   final Color color;
   final bool selected;
+  final SlushElevation elevation;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? context.slush.paper : Slush.ink;
+    final p = context.slush;
+    final fill = selected ? p.ink : color;
+    final fg = selected ? p.paper : slushOnColor(context, color);
+    final dense = MediaQuery.sizeOf(context).width >= Breakpoints.medium;
     return Semantics(
       button: true,
       selected: selected,
       label: label,
-      child: Material(
-        color: selected ? context.slush.ink : color,
-        shape: StadiumBorder(side: context.slush.border),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
+      excludeSemantics: true,
+      onTap: onTap,
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.5,
+        child: SlushPressable(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 16, color: fg),
-                  const SizedBox(width: 6),
-                ],
-                ExcludeSemantics(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: fg,
+          elevation: elevation,
+          minSize: dense ? SlushControl.dense : SlushControl.touch,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
+            child: AnimatedContainer(
+              duration: SlushMotion.reduce(context)
+                  ? Duration.zero
+                  : SlushMotion.select,
+              curve: SlushMotion.easeOut,
+              padding: EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: dense ? 6 : 10,
+              ),
+              decoration: ShapeDecoration(
+                color: fill,
+                shape: StadiumBorder(side: p.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 18, color: fg),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.2,
+                        letterSpacing: .2,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
