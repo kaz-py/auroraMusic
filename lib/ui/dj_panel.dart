@@ -7,6 +7,7 @@ import '../theme/slush_theme.dart';
 import '../theme/modern_widgets.dart';
 import 'artwork.dart';
 import 'track_actions.dart';
+import 'slush/slush_decor.dart';
 import 'dj_filters_panel.dart';
 
 class DjPanel extends StatelessWidget {
@@ -309,17 +310,22 @@ class _DjSessionCardState extends State<DjSessionCard> {
           : _failed && !active
           ? 'No hay con qué empezar: añade música a tu biblioteca, busca una canción o revisa tu conexión.'
           : null;
-      return Card(
+      final slush = isSlush(context);
+      final card = Card(
         key: const ValueKey('dj-session-card'),
-        margin: EdgeInsets.symmetric(
-          vertical: brasa
-              ? 0
-              : isModern(context)
-              ? 24
-              : 12,
-        ),
+        margin: slush
+            ? EdgeInsets.zero
+            : EdgeInsets.symmetric(
+                vertical: brasa
+                    ? 0
+                    : isModern(context)
+                    ? 24
+                    : 12,
+              ),
         color: brasa
             ? Colors.transparent
+            : slush
+            ? context.slush.paper
             : theme.colorScheme.surfaceContainerLow,
         clipBehavior: brasa ? Clip.antiAlias : Clip.none,
         child: Container(
@@ -376,35 +382,40 @@ class _DjSessionCardState extends State<DjSessionCard> {
                 runSpacing: 8,
                 children: [
                   for (final mode in DjMode.values)
-                    ChoiceChip(
-                      label: Text(mode.label),
-                      selected: c.djMode == mode,
-                      onSelected: (_) => c.setDjMode(mode),
-                      // Slush usa el chip del tema (contorno y vivo/tinta).
-                      showCheckmark: !isModern(context) && !brasa,
-                      side: !isSlush(context) && (isModern(context) || brasa)
-                          ? BorderSide.none
-                          : null,
-                      shape: brasa ? const StadiumBorder() : null,
-                      backgroundColor: brasa ? Brasa.graphite : null,
-                      selectedColor: brasa
-                          ? Brasa.cream
-                          : isModern(context) && !isSlush(context)
-                          ? Tracky.navy
-                          : null,
-                      labelStyle: brasa
-                          ? TextStyle(
-                              color: c.djMode == mode
-                                  ? Colors.black
-                                  : Brasa.cream,
-                              fontWeight: FontWeight.w600,
-                            )
-                          : isModern(context) &&
-                                !isSlush(context) &&
-                                c.djMode == mode
-                          ? const TextStyle(color: Colors.white)
-                          : null,
-                    ),
+                    if (slush)
+                      SlushChip(
+                        mode.label,
+                        selected: c.djMode == mode,
+                        color: Slush.mint,
+                        onTap: () => c.setDjMode(mode),
+                      )
+                    else
+                      ChoiceChip(
+                        label: Text(mode.label),
+                        selected: c.djMode == mode,
+                        onSelected: (_) => c.setDjMode(mode),
+                        showCheckmark: !isModern(context) && !brasa,
+                        side: isModern(context) || brasa
+                            ? BorderSide.none
+                            : null,
+                        shape: brasa ? const StadiumBorder() : null,
+                        backgroundColor: brasa ? Brasa.graphite : null,
+                        selectedColor: brasa
+                            ? Brasa.cream
+                            : isModern(context)
+                            ? Tracky.navy
+                            : null,
+                        labelStyle: brasa
+                            ? TextStyle(
+                                color: c.djMode == mode
+                                    ? Colors.black
+                                    : Brasa.cream,
+                                fontWeight: FontWeight.w600,
+                              )
+                            : isModern(context) && c.djMode == mode
+                            ? const TextStyle(color: Colors.white)
+                            : null,
+                      ),
                 ],
               ),
               SwitchListTile.adaptive(
@@ -418,6 +429,11 @@ class _DjSessionCardState extends State<DjSessionCard> {
               ),
               FilledButton.icon(
                 key: const ValueKey('dj-toggle'),
+                style: slush
+                    ? FilledButton.styleFrom(
+                        minimumSize: const Size(0, SlushControl.bar),
+                      )
+                    : null,
                 onPressed: _starting || jam
                     ? null
                     : active
@@ -458,6 +474,26 @@ class _DjSessionCardState extends State<DjSessionCard> {
                 ),
             ],
           ),
+        ),
+      );
+      if (!slush) return card;
+      final p = context.slush;
+      final hot = active && theme.brightness == Brightness.dark;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: SlushSpacing.s12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(SlushRadius.r24),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: hot ? Slush.mint : p.shadow,
+                      offset: SlushElevation.card.offset,
+                    ),
+                  ]
+                : const [],
+          ),
+          child: card,
         ),
       );
     },

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
@@ -139,7 +141,7 @@ class DjFiltersPanel extends StatelessWidget {
           title: Text(title),
           content: SizedBox(
             width: 420,
-            height: 320,
+            height: math.min(320, MediaQuery.sizeOf(context).height * .5),
             child: options.isEmpty
                 ? const Center(
                     child: Text('Añade canciones para elegir tus filtros.'),

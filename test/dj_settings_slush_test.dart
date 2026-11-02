@@ -125,44 +125,68 @@ void main() {
     const Size(1280, 800),
     const Size(1920, 1080),
     const Size(390, 844),
+    const Size(360, 740),
+    const Size(600, 900),
+    const Size(900, 800),
+    const Size(1440, 900),
   ]) {
-    testWidgets('DJ Slush se pinta a ${size.width.toInt()} px', (tester) async {
-      late AppController app;
-      // setUp fuera del reloj falso: el controlador abre SQLite real.
-      await tester.runAsync(() async {
-        app = await createTestController(
-          tracks: [
-            song('a', title: 'Marea alta'),
-            song('b', artist: 'Otro'),
-          ],
-        );
-      });
-      addTearDown(() => tester.runAsync(() => closeTestController(app)));
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: slushTheme(Brightness.light, const Color(0xff5fe0a0)),
-          home: Scaffold(
-            body: DjDiscoveryPage(controller: app, onSearch: () {}),
-          ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.takeException(), isNull);
-      expect(find.text('AUROR'), findsOneWidget);
-      expect(find.text('Filtros'), findsOneWidget);
-      expect(find.text('Diversidad'), findsOneWidget);
-      expect(find.text('Enfriar artistas'), findsOneWidget);
-      if (size.width >= 1920) {
-        // Maqueta 04: los filtros van pegados al borde derecho.
-        expect(
-          tester.getTopRight(find.byKey(const ValueKey('dj-filters'))).dx,
-          greaterThanOrEqualTo(size.width - 140),
+    for (final brightness in Brightness.values) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets(
+          'DJ Slush se pinta a ${size.width.toInt()} px ${brightness.name} x$scale',
+          (tester) async {
+            late AppController app;
+            // setUp fuera del reloj falso: el controlador abre SQLite real.
+            await tester.runAsync(() async {
+              app = await createTestController(
+                tracks: [
+                  song('a', title: 'Marea alta'),
+                  song('b', artist: 'Otro'),
+                ],
+              );
+            });
+            addTearDown(() => tester.runAsync(() => closeTestController(app)));
+            tester.view.physicalSize = size;
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: slushTheme(brightness, const Color(0xff5fe0a0)),
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!,
+                ),
+                home: Scaffold(
+                  body: DjDiscoveryPage(controller: app, onSearch: () {}),
+                ),
+              ),
+            );
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(tester.takeException(), isNull);
+            expect(find.text('AUROR'), findsOneWidget);
+            for (final label in ['Filtros', 'Diversidad', 'Enfriar artistas']) {
+              await tester.scrollUntilVisible(
+                find.text(label),
+                200,
+                scrollable: find.byType(Scrollable).first,
+              );
+              expect(find.text(label), findsOneWidget);
+            }
+            expect(tester.takeException(), isNull);
+            if (size.width >= 1920) {
+              // Maqueta 04: los filtros van pegados al borde derecho del contenido
+              // (máx. 1280 centrado).
+              expect(
+                tester.getTopRight(find.byKey(const ValueKey('dj-filters'))).dx,
+                greaterThanOrEqualTo(size.width - 340),
+              );
+            }
+          },
         );
       }
-    });
+    }
   }
 }
