@@ -1510,7 +1510,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           return SlushEqQueue(
             controller: c,
             onNavigate: _navigate,
-            showQueueTab: true,
+            queueFirst: true,
           );
         }
         return _slushTabs(c, 5, QueuePanel(controller: c));

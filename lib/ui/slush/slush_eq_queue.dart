@@ -29,18 +29,20 @@ String _gain(double db) {
   return '$sign$s dB';
 }
 
-/// Pantalla Slush «Ecualizador + Cola»: pestañas, EQ gigante, cola y
-/// temporizador de apagado.
+/// Pantallas Slush de Cola y Ecualizador. Con [queueFirst] la cola es el
+/// contenido principal (lista a alto completo, único scroll vertical) y el EQ
+/// queda a un lado en ancho; sin él, el EQ lidera. En estrecho cada vista
+/// ocupa su propia pestaña: Cola o Ecualizador.
 class SlushEqQueue extends StatefulWidget {
   const SlushEqQueue({
     super.key,
     required this.controller,
     required this.onNavigate,
-    this.showQueueTab = false,
+    this.queueFirst = false,
   });
   final AppController controller;
   final ValueChanged<int> onNavigate;
-  final bool showQueueTab;
+  final bool queueFirst;
   @override
   State<SlushEqQueue> createState() => _SlushEqQueueState();
 }
@@ -60,13 +62,25 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
           final queue = _QueueCard(
             controller: c,
             onSearch: () => widget.onNavigate(1),
-            fill: wide,
+            fill: wide || widget.queueFirst,
           );
+          if (widget.queueFirst && !wide) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _top(c),
+                  const SizedBox(height: 20),
+                  Expanded(child: queue),
+                ],
+              ),
+            );
+          }
           final side = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (wide) Expanded(child: queue) else queue,
-              const SizedBox(height: 16),
+              if (wide) ...[Expanded(child: queue), const SizedBox(height: 16)],
               _timer(c),
             ],
           );
@@ -83,27 +97,28 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          flex: 11,
-                          child: SingleChildScrollView(child: eq),
-                        ),
-                        const SizedBox(width: 24),
-                        Expanded(flex: 8, child: side),
+                        if (widget.queueFirst) ...[
+                          Expanded(flex: 11, child: side),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 9,
+                            child: SingleChildScrollView(child: eq),
+                          ),
+                        ] else ...[
+                          Expanded(
+                            flex: 11,
+                            child: SingleChildScrollView(child: eq),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(flex: 8, child: side),
+                        ],
                       ],
                     ),
                   )
                 else ...[
-                  // En la pestaña COLA lo primero es la cola; en la del
-                  // ecualizador, el ecualizador.
-                  if (widget.showQueueTab) ...[
-                    side,
-                    const SizedBox(height: 20),
-                    eq,
-                  ] else ...[
-                    eq,
-                    const SizedBox(height: 20),
-                    side,
-                  ],
+                  eq,
+                  const SizedBox(height: 20),
+                  side,
                 ],
               ],
             ),
@@ -146,7 +161,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
     listenable: c,
     builder: (context, _) {
       final left = c.sleepRemaining;
-      final current = widget.showQueueTab ? 5 : 13;
+      final current = widget.queueFirst ? 5 : 13;
       return Wrap(
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
@@ -774,11 +789,15 @@ class _QueueCardState extends State<_QueueCard> {
                             ],
                           ),
                         ),
-                        if (active)
-                          const SlushPill('Sonando', color: Slush.yellow)
-                        else
-                          SlushPill(_kind(t), color: context.slush.paper),
-                        const SizedBox(width: 6),
+                        // Con texto grande la fila no cabe en el teléfono: la
+                        // activa se distingue por el color.
+                        if (MediaQuery.textScalerOf(context).scale(1) <= 1.3) ...[
+                          if (active)
+                            const SlushPill('Sonando', color: Slush.yellow)
+                          else
+                            SlushPill(_kind(t), color: context.slush.paper),
+                          const SizedBox(width: 6),
+                        ],
                         Text(
                           _time(t.duration),
                           style: const TextStyle(

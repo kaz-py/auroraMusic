@@ -37,7 +37,7 @@ Future<AppController> _boot(
         body: SlushEqQueue(
           controller: app,
           onNavigate: (_) {},
-          showQueueTab: true,
+          queueFirst: true,
         ),
       ),
     ),
@@ -177,14 +177,12 @@ void main() {
     expect(find.text('SONANDO'), findsOneWidget);
   });
 
-  testWidgets('en móvil la pestaña COLA va antes que el ecualizador', (
+  testWidgets('en móvil la cola es su propia vista y no lleva el ecualizador', (
     tester,
   ) async {
     await _boot(tester, size: const Size(400, 800));
-    expect(
-      tester.getTopLeft(find.text('Tema 0')).dy,
-      lessThan(tester.getTopLeft(find.text('EQ')).dy),
-    );
+    expect(find.text('Tema 0'), findsOneWidget);
+    expect(find.text('EQ'), findsNothing);
   });
 
   testWidgets('modo oscuro: SONANDO y pastilla se pintan', (tester) async {

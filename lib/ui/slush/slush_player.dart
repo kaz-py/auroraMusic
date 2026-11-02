@@ -994,7 +994,7 @@ class SlushPlayerScreen extends StatelessWidget {
       shape: StadiumBorder(side: context.slush.border),
       child: InkWell(
         customBorder: const StadiumBorder(),
-        onTap: () => c.playQueueAt(i),
+        onTap: onSection == null ? null : () => onSection!(5),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(5, 5, 14, 5),
           child: Row(
@@ -1033,6 +1033,12 @@ class SlushPlayerScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '+${c.queue.length - i}',
+                key: const ValueKey('next-up-remaining'),
+                style: _label.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),
