@@ -328,8 +328,14 @@ void main() {
     required bool signedIn,
     Size? size,
     Future<void> Function(String)? onJoinJam,
+    ValueNotifier<String?>? openChat,
+    Track? playing,
   }) async {
     final controller = await createTestController();
+    if (playing != null) {
+      controller.queue = [playing];
+      await controller.playQueueAt(0);
+    }
     auth.uid = signedIn ? 'me' : null;
     final f = make();
     addTearDown(() {
@@ -345,7 +351,11 @@ void main() {
         overrides: [friendsServiceProvider.overrideWith((ref) => f)],
         child: MaterialApp(
           home: Scaffold(
-            body: FriendsPage(controller: controller, onJoinJam: onJoinJam),
+            body: FriendsPage(
+              controller: controller,
+              onJoinJam: onJoinJam,
+              openChat: openChat ?? ValueNotifier<String?>(null),
+            ),
           ),
         ),
       ),
@@ -360,16 +370,28 @@ void main() {
   });
 
   for (final size in [const Size(1000, 800), const Size(320, 640)]) {
-    testWidgets('bandeja con listas e invitaciones ${size.width.toInt()}px', (
+    testWidgets('chat: lista, hilo, unirse y volver ${size.width.toInt()}px', (
       tester,
     ) async {
-      final now = DateTime.now().toUtc().toIso8601String();
+      final now = DateTime.now();
+      String ago(int m) =>
+          now.subtract(Duration(minutes: m)).toUtc().toIso8601String();
       data.requests.add(req('a', 'u1', 'me', 'accepted'));
       data.shares
         ..add({
+          'id': 'out0',
+          'from_id': 'me',
+          'to_id': 'u1',
+          'kind': 'track',
+          'track': {'id': 'o0', 'title': 'Enviada por mí', 'artist': 'Yo'},
+          'note': null,
+          'created_at': ago(5),
+          'seen': false,
+        })
+        ..add({
           ...share(2),
           'kind': 'playlist',
-          'created_at': now,
+          'created_at': ago(3),
           'track': {
             'name': 'Mix de ana',
             'tracks': [
@@ -380,15 +402,17 @@ void main() {
         ..add({
           ...share(3),
           'kind': 'jam',
-          'created_at': now,
+          'created_at': ago(1),
           'track': {'code': 'ABCD2345'},
         });
       String? joined;
+      final openChat = ValueNotifier<String?>(null);
       await tester.runAsync(
         () => pump(
           tester,
           signedIn: true,
           size: size,
+          openChat: openChat,
           onJoinJam: (c) async => joined = c,
         ),
       );
@@ -396,15 +420,89 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
       await tester.pump();
+      expect(find.byKey(const ValueKey('friends-chat-u1')), findsOneWidget);
+      expect(find.text('Te invita a su Jam'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
+      await tester.pump();
+      expect(openChat.value, 'u1');
+      expect(find.text('ana te invita a su Jam'), findsOneWidget);
       expect(find.text('Mix de ana'), findsOneWidget);
       expect(find.text('1 canciones'), findsOneWidget);
-      expect(find.text('Guardar en mi biblioteca'), findsOneWidget);
-      expect(find.text('ana te invita a su Jam'), findsOneWidget);
-      await tester.tap(find.text('Unirse'));
+      expect(find.byTooltip('Guardar en mi biblioteca'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('chat-join-s3')));
       expect(joined, 'ABCD2345');
+      // Lo enviado por mí está en lo alto del hilo; puede quedar fuera.
+      await tester.drag(find.byType(ListView).first, const Offset(0, 400));
+      await tester.pump();
+      expect(find.text('Enviada por mí'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('chat-back')));
+      await tester.pump();
+      expect(openChat.value, isNull);
+      expect(find.byKey(const ValueKey('friends-chat-u1')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('chat: enviar lo que suena añade el mensaje al hilo', (
+    tester,
+  ) async {
+    data.requests.add(req('a', 'u1', 'me', 'accepted'));
+    final openChat = ValueNotifier<String?>('u1');
+    await tester.runAsync(
+      () => pump(
+        tester,
+        signedIn: true,
+        openChat: openChat,
+        playing: const Track(id: 'v9', title: 'Nueva', artist: 'X'),
+      ),
+    );
+    await tester.runAsync(settle);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('chat-empty')), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('chat-note')), 'hola');
+    await tester.tap(find.byKey(const ValueKey('chat-send-now')));
+    await tester.runAsync(settle);
+    await tester.pump();
+    expect(data.lastKind, 'track');
+    expect(find.text('Nueva'), findsOneWidget);
+    // La nota viaja en el mensaje y el campo se vacía.
+    expect(find.text('«hola»'), findsOneWidget);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('chat-note')),
+    );
+    expect(field.controller!.text, isEmpty);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('chat: invitación a Jam caducada no aparece', (tester) async {
+    data.requests.add(req('a', 'u1', 'me', 'accepted'));
+    data.shares
+      ..add({
+        ...share(1),
+        'kind': 'jam',
+        'created_at': DateTime.now()
+            .subtract(const Duration(hours: 3))
+            .toUtc()
+            .toIso8601String(),
+        'track': {'code': 'ABCD2345'},
+      })
+      ..add({
+        ...share(2),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    final openChat = ValueNotifier<String?>('u1');
+    await tester.runAsync(
+      () => pump(tester, signedIn: true, openChat: openChat),
+    );
+    await tester.runAsync(settle);
+    await tester.pump();
+    expect(find.text('ana te invita a su Jam'), findsNothing);
+    expect(find.text('Canción 2'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+  });
 
   testWidgets('menú de canción: «Enviar a un amigo» sigue a la sesión', (
     tester,
@@ -468,6 +566,8 @@ void main() {
       await tester.pump();
       expect(find.text('beto'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
       await tester.pump();
       expect(find.text('Canción 0'), findsOneWidget);
       expect(find.textContaining('Escúchala'), findsOneWidget);

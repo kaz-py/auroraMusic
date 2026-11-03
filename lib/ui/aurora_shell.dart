@@ -140,6 +140,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   final _musicKey = GlobalKey<YouTubeMusicPageState>();
   JamController? _jam;
 
+  /// Amigo con el chat abierto en Amigos (`null`: la lista). Lo comparten
+  /// los avisos y «atrás».
+  final _friendsChat = ValueNotifier<String?>(null);
+
   /// Un único controlador de Jam para chip, barra inferior, panel y página.
   JamController _ensureJam() {
     _jam ??= JamController(app: ref.read(controllerProvider))
@@ -272,7 +276,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         FriendsNoticeKind.request => '${n.username} quiere ser tu amigo',
       }),
       label: 'Ver',
-      onAction: () => _navigate(14),
+      onAction: () {
+        _friendsChat.value = n.peerId;
+        _navigate(14);
+      },
     );
   }
 
@@ -384,6 +391,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     WindowControls.guardClose(false);
     _jam?.removeListener(_jamChanged);
     _jam?.dispose();
+    _friendsChat.dispose();
     _spotifyAdderCache?.dispose();
     equalizerSheetsOpen.removeListener(_eqSheetChanged);
     if (_analysisEnabled) _audio.setVisualizationEnabled(false);
@@ -453,6 +461,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   }
 
   bool _handleBack(AppController c) {
+    // «Atrás» en un chat abierto vuelve a la lista sin salir de Amigos.
+    if (_section == 14 && _friendsChat.value != null) {
+      _friendsChat.value = null;
+      return true;
+    }
     if (_section == 1 && c.searchDetail != null) {
       c.openSearchEntry(null);
       return true;
@@ -1561,6 +1574,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           c,
           FriendsPage(
             controller: c,
+            openChat: _friendsChat,
+            jam: _jam,
             onSettings: () => _navigate(7),
             onJoinJam: (code) => _joinJamLink('aurora://jam/$code'),
           ),

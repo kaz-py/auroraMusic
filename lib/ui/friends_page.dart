@@ -12,6 +12,8 @@ import '../theme/slush_widgets.dart';
 import 'slush/slush_decor.dart';
 import 'slush/slush_pages.dart';
 import 'undo_snackbar.dart';
+import '../jam/jam_controller.dart';
+import 'friends_chat/friend_chat_views.dart';
 
 /// Avatar genérico (silueta tintada con el acento) cuando no hay foto.
 class FriendAvatar extends StatelessWidget {
@@ -79,33 +81,23 @@ ButtonStyle? _mint(BuildContext context) => isSlush(context)
       )
     : null;
 
-/// Fila de bandeja Slush: tarjeta `raised` con borde suave, sin sombra.
-Widget _slushRaised(BuildContext context, Widget child) {
-  final p = context.slush;
-  return Padding(
-    padding: const EdgeInsets.only(bottom: SlushSpacing.s12),
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: p.raised,
-        borderRadius: BorderRadius.circular(SlushRadius.r16),
-        border: Border.fromBorderSide(p.borderSoft),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(SlushSpacing.s12),
-        child: child,
-      ),
-    ),
-  );
-}
-
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({
     super.key,
     required this.controller,
+    required this.openChat,
     this.onSettings,
     this.onJoinJam,
+    this.jam,
   });
   final AppController controller;
+
+  /// Id del amigo con el chat abierto; `null`, la lista. Lo comparte el shell
+  /// (avisos y «atrás»).
+  final ValueNotifier<String?> openChat;
+
+  /// Jam en curso, para invitar desde el chat.
+  final JamController? jam;
 
   /// Une a la Jam con ese código (la resuelve el shell).
   final Future<void> Function(String code)? onJoinJam;
@@ -121,15 +113,26 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
   int _tab = 0;
   final _query = TextEditingController();
   Timer? _debounce;
-  Timer? _seenTimer;
   List<FriendUser> _results = const [];
   bool _searching = false;
   int _searchToken = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Abrir un chat desde fuera (aviso, botón de un amigo) lleva a «Chats».
+    if (widget.openChat.value != null) _tab = 2;
+    widget.openChat.addListener(_onOpenChat);
+  }
+
+  void _onOpenChat() {
+    if (widget.openChat.value != null && _tab != 2) setState(() => _tab = 2);
+  }
+
+  @override
   void dispose() {
+    widget.openChat.removeListener(_onOpenChat);
     _debounce?.cancel();
-    _seenTimer?.cancel();
     _query.dispose();
     super.dispose();
   }
@@ -167,24 +170,39 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     if (error != null && mounted) _say(context, error);
   }
 
-  /// Marca como vistas las recibidas tras dos segundos en la pestaña.
-  void _scheduleSeen(FriendsService f) {
-    if (_tab != 2 || f.unseenCount == 0 || _seenTimer?.isActive == true) return;
-    _seenTimer = Timer(const Duration(seconds: 2), () {
-      if (_tab == 2) {
-        f.markSeen([
-          for (final i in f.messages)
-            if (!i.mine && !i.seen) i.id,
-        ]);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final f = ref.watch(friendsServiceProvider);
     if (!f.signedIn) return _SignedOut(onSettings: widget.onSettings);
-    _scheduleSeen(f);
+    return ValueListenableBuilder<String?>(
+      valueListenable: widget.openChat,
+      builder: (context, openId, _) {
+        final peer = openId == null
+            ? null
+            : f.friends.where((u) => u.id == openId).firstOrNull;
+        if (openId != null && peer == null && !f.loading) {
+          // Ya no es amigo (con la carga hecha): se vuelve a la lista.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.openChat.value == openId) {
+              widget.openChat.value = null;
+            }
+          });
+        }
+        if (peer == null) return _list(f);
+        return FriendChatThread(
+          key: ValueKey('chat-thread-${peer.id}'),
+          friends: f,
+          peer: peer,
+          controller: widget.controller,
+          jam: widget.jam,
+          onJoinJam: widget.onJoinJam,
+          onBack: () => widget.openChat.value = null,
+        );
+      },
+    );
+  }
+
+  Widget _list(FriendsService f) {
     final searching = _query.text.trim().length >= 3;
     return LayoutBuilder(
       builder: (context, box) => ListView(
@@ -202,7 +220,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             children: [
               _chip(0, 'Amigos'),
               _chip(1, 'Solicitudes', f.incoming.length),
-              _chip(2, 'Recibidas', f.unseenCount),
+              _chip(2, 'Chats', f.unseenCount),
             ],
           ),
           const SizedBox(height: 16),
@@ -232,8 +250,17 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             if (searching) ..._searchResults(f) else ..._friendRows(f),
           ] else if (_tab == 1)
             ..._requestRows(f)
+          else if (f.friends.isEmpty)
+            _empty(
+              'Añade amigos para empezar a chatear.',
+              title: 'Sin chats',
+              icon: Icons.forum_outlined,
+            )
           else
-            ..._inboxRows(f),
+            FriendChatList(
+              friends: f,
+              onOpen: (id) => widget.openChat.value = id,
+            ),
         ],
       ),
     );
@@ -241,10 +268,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
   Widget _chip(int i, String label, [int badge = 0]) {
     final text = badge > 0 ? '$label · $badge' : label;
-    void select() => setState(() {
-      _tab = i;
-      _seenTimer?.cancel();
-    });
+    void select() => setState(() => _tab = i);
     if (isSlush(context)) {
       return SlushChip(
         text,
@@ -353,11 +377,22 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       for (final u in f.friends)
         _UserRow(
           user: u,
-          trailing: PopupMenuButton<int>(
-            tooltip: 'Opciones de ${u.username}',
-            onSelected: (_) => _confirmRemove(f, u),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 0, child: Text('Eliminar de amigos')),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: ValueKey('friends-open-chat-${u.id}'),
+                tooltip: 'Abrir chat',
+                icon: const Icon(Icons.chat_bubble_outline),
+                onPressed: () => widget.openChat.value = u.id,
+              ),
+              PopupMenuButton<int>(
+                tooltip: 'Opciones de ${u.username}',
+                onSelected: (_) => _confirmRemove(f, u),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Eliminar de amigos')),
+                ],
+              ),
             ],
           ),
         ),
@@ -438,92 +473,6 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         ),
     ];
   }
-
-  List<Widget> _inboxRows(FriendsService f) {
-    if (f.messages.every((m) => m.mine)) {
-      return [
-        _empty(
-          'Aquí aparecerán las canciones, listas e invitaciones que te envíen tus amigos.',
-          title: 'Bandeja vacía',
-          icon: Icons.inbox_outlined,
-        ),
-      ];
-    }
-    final c = widget.controller;
-    final received = f.messages.where((m) => !m.mine);
-    return [
-      for (final item in received)
-        ListenableBuilder(
-          listenable: c,
-          builder: (context, _) => switch (item.kind) {
-            SharedKind.track => _InboxRow(
-              item: item,
-              liked: c.favoriteIds.contains(item.track.id),
-              onPlay: () => c.playTrack(item.track),
-              onQueue: () async {
-                await c.addToQueue(item.track);
-                if (context.mounted) _say(context, 'Añadida a la cola');
-              },
-              onLike: () => c.toggleFavorite(item.track),
-            ),
-            SharedKind.playlist => _InboxCard(
-              item: item,
-              title: item.playlist!.name,
-              subtitle: '${item.playlist!.tracks.length} canciones',
-              artworkUrl: item.playlist!.artworkUrl,
-              icon: Icons.queue_music,
-              actions: [
-                IconButton(
-                  key: ValueKey('inbox-play-${item.id}'),
-                  tooltip: 'Reproducir',
-                  icon: const Icon(Icons.play_arrow),
-                  onPressed: () => c.playTrack(
-                    item.playlist!.tracks.first,
-                    context: item.playlist!.tracks,
-                  ),
-                ),
-                FilledButton.tonalIcon(
-                  style: _mint(context),
-                  key: ValueKey('inbox-save-${item.id}'),
-                  icon: const Icon(Icons.library_add_outlined, size: 18),
-                  label: const Text('Guardar en mi biblioteca'),
-                  onPressed: () async {
-                    await c.savePlaylistCopy(
-                      item.playlist!.name,
-                      item.playlist!.tracks,
-                    );
-                    if (context.mounted) _say(context, 'Lista guardada');
-                  },
-                ),
-              ],
-            ),
-            SharedKind.jam => _InboxCard(
-              item: item,
-              title: '${item.peer.username} te invita a su Jam',
-              subtitle: item.jamExpired()
-                  ? 'Invitación caducada'
-                  : 'Jam en vivo',
-              status: isSlush(context)
-                  ? (item.jamExpired()
-                        ? const SlushPill('Caducada', color: Slush.lilac)
-                        : const SlushPill('En vivo', color: Slush.orange))
-                  : null,
-              icon: Icons.groups_outlined,
-              actions: [
-                if (!item.jamExpired() && widget.onJoinJam != null)
-                  FilledButton.icon(
-                    style: _mint(context),
-                    key: ValueKey('inbox-join-${item.id}'),
-                    icon: const Icon(Icons.login, size: 18),
-                    label: const Text('Unirse'),
-                    onPressed: () => widget.onJoinJam!(item.jamCode!),
-                  ),
-              ],
-            ),
-          },
-        ),
-    ];
-  }
 }
 
 class _UserRow extends StatelessWidget {
@@ -597,244 +546,6 @@ class _UserRow extends StatelessWidget {
       subtitle: subtitle == null ? null : Text(subtitle!),
       trailing: trailing,
     );
-  }
-}
-
-class _InboxRow extends StatelessWidget {
-  const _InboxRow({
-    required this.item,
-    required this.liked,
-    required this.onPlay,
-    required this.onQueue,
-    required this.onLike,
-  });
-  final SharedItem item;
-  final bool liked;
-  final VoidCallback onPlay;
-  final VoidCallback onQueue;
-  final VoidCallback onLike;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final t = item.track;
-    final body = Padding(
-      padding: isSlush(context)
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              FriendAvatar(user: item.peer, size: 28),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${item.peer.username} · ${friendsAgo(item.createdAt)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.labelMedium,
-                ),
-              ),
-              if (!item.seen)
-                Semantics(
-                  label: 'Nueva',
-                  child: Icon(
-                    Icons.circle,
-                    size: 10,
-                    color: isSlush(context)
-                        ? context.slush.violetAccent
-                        : Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.titleSmall,
-                    ),
-                    Text(
-                      t.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Reproducir',
-                icon: const Icon(Icons.play_arrow),
-                onPressed: onPlay,
-              ),
-              IconButton(
-                tooltip: 'Añadir a la cola',
-                icon: const Icon(Icons.queue_music),
-                onPressed: onQueue,
-              ),
-              IconButton(
-                tooltip: liked ? 'Quitar de favoritos' : 'Añadir a favoritos',
-                icon: Icon(liked ? Icons.favorite : Icons.favorite_border),
-                onPressed: onLike,
-              ),
-            ],
-          ),
-          if (item.note != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '«${item.note}»',
-                style: text.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
-              ),
-            ),
-          if (!isSlush(context)) const Divider(height: 16),
-        ],
-      ),
-    );
-    return isSlush(context) ? _slushRaised(context, body) : body;
-  }
-}
-
-/// Fila de la bandeja para listas e invitaciones a Jam.
-class _InboxCard extends StatelessWidget {
-  const _InboxCard({
-    required this.item,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.actions,
-    this.artworkUrl,
-    this.status,
-  });
-  final SharedItem item;
-  final String title;
-  final String subtitle;
-  final Widget? status;
-  final String? artworkUrl;
-  final IconData icon;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final colors = Theme.of(context).colorScheme;
-    final slush = isSlush(context);
-    final artFill = slush ? Slush.lilac : colors.primary.withValues(alpha: .16);
-    final artInk = slush ? Slush.ink : colors.primary;
-    final art = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 56,
-        height: 56,
-        child: artworkUrl == null
-            ? ColoredBox(
-                color: artFill,
-                child: Icon(icon, color: artInk),
-              )
-            : Image.network(
-                artworkUrl!,
-                fit: BoxFit.cover,
-                cacheWidth: 168,
-                errorBuilder: (_, _, _) => ColoredBox(
-                  color: artFill,
-                  child: Icon(icon, color: artInk),
-                ),
-              ),
-      ),
-    );
-    final body = Padding(
-      padding: slush
-          ? EdgeInsets.zero
-          : const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              FriendAvatar(user: item.peer, size: 28),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${item.peer.username} · ${friendsAgo(item.createdAt)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.labelMedium,
-                ),
-              ),
-              if (!item.seen)
-                Semantics(
-                  label: 'Nueva',
-                  child: Icon(
-                    Icons.circle,
-                    size: 10,
-                    color: slush ? context.slush.violetAccent : colors.primary,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              art,
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.titleSmall,
-                    ),
-                    if (status != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: status,
-                        ),
-                      )
-                    else
-                      Text(subtitle, style: text.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (actions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: actions,
-              ),
-            ),
-          if (item.note != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '«${item.note}»',
-                style: text.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
-              ),
-            ),
-          if (!slush) const Divider(height: 16),
-        ],
-      ),
-    );
-    return slush ? _slushRaised(context, body) : body;
   }
 }
 
