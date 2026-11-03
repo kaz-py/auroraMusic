@@ -1,0 +1,692 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' as ui;
+
+import 'package:aurora_music/app_controller.dart';
+import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/theme/accent_transition.dart';
+import 'package:aurora_music/theme/slush_theme.dart';
+import 'package:aurora_music/ui/mini_player/blurred_cover_backdrop.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
+import 'package:aurora_music/ui/mini_player/slush_mini_player_v2.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../support/fakes.dart';
+
+const _png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+const _track = Track(
+  id: 'a',
+  title: 'Una canción con un título larguísimo para comprobar el recorte',
+  artist: 'Un artista con un nombre igual de largo que el título anterior',
+  duration: Duration(minutes: 3),
+);
+
+const _short = Track(id: 'b', title: 'Luz de luna', artist: 'Mare Sol');
+
+MiniPlayerState _state({
+  Track? track = _short,
+  bool isPlaying = false,
+  double progress = .4,
+  bool buffering = false,
+  bool hasError = false,
+  bool liked = false,
+  bool hasNext = true,
+  bool hasPrevious = true,
+  bool canTogglePlay = true,
+  String? jamHostName,
+}) => MiniPlayerState(
+  track: track,
+  isPlaying: isPlaying,
+  progress: progress,
+  buffering: buffering,
+  hasError: hasError,
+  liked: liked,
+  hasNext: hasNext,
+  hasPrevious: hasPrevious,
+  jamActive: false,
+  canTogglePlay: canTogglePlay,
+  jamHostName: jamHostName,
+);
+
+class _Calls {
+  final log = <String>[];
+  int count(String name) => log.where((e) => e == name).length;
+  MiniPlayerActions get actions => MiniPlayerActions(
+    openPlayer: () => log.add('open'),
+    togglePlay: () => log.add('toggle'),
+    next: () => log.add('next'),
+    previous: () => log.add('previous'),
+    toggleLike: () => log.add('like'),
+  );
+}
+
+class _FakeCovers implements CoverBackdropSource {
+  _FakeCovers(this.image, this.color);
+  final ui.Image image;
+  final Color color;
+
+  late final _data = CoverBackdropData(
+    image: image,
+    samples: List.filled(64, color),
+  );
+
+  @override
+  String? keyOf(Track track) => track.id;
+  @override
+  CoverBackdropData? peek(Track track) => _data;
+  @override
+  Future<CoverBackdropData?> load(Track track) => Future.value(_data);
+}
+
+double _contrast(Color a, Color b) => coverContrast(a, b);
+
+void main() {
+  setUpAll(() async {
+    for (final font in {
+      'Inter': 'assets/fonts/inter/Inter-Variable.ttf',
+      'Bagel Fat One': 'assets/fonts/bagel_fat_one/BagelFatOne-Regular.ttf',
+      'Aurora Symbols':
+          'assets/fonts/material_symbols_outlined/MaterialSymbolsOutlined.ttf',
+      'MaterialIcons': 'fonts/MaterialIcons-Regular.otf',
+    }.entries) {
+      await (FontLoader(font.key)..addFont(rootBundle.load(font.value))).load();
+    }
+  });
+
+  late _Calls calls;
+  setUp(() => calls = _Calls());
+
+  /// Monta el mini como lo hace el host: con los gestos compartidos y la
+  /// altura mínima, en una columna con la barra inferior de Slush a los
+  /// márgenes de 12 px.
+  Future<void> mount(
+    WidgetTester tester, {
+    MiniPlayerState? state,
+    bool blurred = false,
+    bool wide = false,
+    Size size = const Size(390, 800),
+    double scale = 1,
+    Brightness brightness = Brightness.light,
+    Color accent = const Color(0xff00aa55),
+    CoverBackdropSource? source,
+    bool reduce = false,
+    bool settle = true,
+  }) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final s = state ?? _state();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: slushTheme(brightness, accent),
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: size,
+            textScaler: TextScaler.linear(scale),
+            disableAnimations: reduce,
+          ),
+          child: AccentScope(
+            accent: accent,
+            child: Scaffold(
+              body: Column(
+                children: [
+                  const Expanded(child: SizedBox(width: double.infinity)),
+                  Padding(
+                    padding: wide
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.symmetric(horizontal: 12),
+                    child: MiniPlayerGestures(
+                      actions: calls.actions,
+                      hasNext: s.hasNext,
+                      hasPrevious: s.hasPrevious,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: (wide ? 64.0 : 56.0) * scale.clamp(1, 1.5),
+                        ),
+                        child: SlushMiniPlayer(
+                          state: s,
+                          actions: calls.actions,
+                          blurred: blurred,
+                          wide: wide,
+                          coverSource: source,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (settle) await tester.pumpAndSettle();
+  }
+
+  Finder pill() => find.byType(SlushMiniPlayer);
+
+  group('registro', () {
+    test('Slush ya no es legacy', () {
+      expect(miniPlayerThemes['slush']!.legacy, isFalse);
+    });
+
+    test('el color vivo sale del tono del acento', () {
+      expect(slushVividFor(const Color(0xff00aa55)), Slush.mint);
+      expect(slushVividFor(const Color(0xffddbb00)), Slush.yellow);
+      expect(slushVividFor(const Color(0xff7755dd)), Slush.lilac);
+      expect(slushVividFor(const Color(0xffee3300)), Slush.orange);
+      expect(slushVividFor(const Color(0xffff0033)), Slush.orange);
+      expect(slushVividFor(const Color(0xff808080)), Slush.lilac);
+    });
+  });
+
+  group('host con el registro real', () {
+    late AppController controller;
+
+    Future<void> mountHost(
+      WidgetTester tester, {
+      required int section,
+      required bool rail,
+      required MiniPlayerPlacement placement,
+      bool track = true,
+    }) async {
+      tester.view.physicalSize = rail
+          ? const Size(1300, 800)
+          : const Size(390, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      controller.queue = track ? [_short] : [];
+      controller.queueIndex = track ? 0 : -1;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: slushTheme(Brightness.light, Colors.teal),
+          home: Scaffold(
+            body: Column(
+              children: [
+                const Expanded(child: SizedBox(width: double.infinity)),
+                MiniPlayerHost(
+                  controller: controller,
+                  section: section,
+                  rail: rail,
+                  placement: placement,
+                  onOpenPlayer: () => calls.log.add('open'),
+                  onTogglePlay: () => calls.log.add('toggle'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> setup(WidgetTester tester) async {
+      controller = (await tester.runAsync(
+        () => createTestController(tracks: [_short]),
+      ))!;
+      addTearDown(() => closeTestController(controller));
+    }
+
+    testWidgets('móvil: solo en la barra inferior; oculto sin pista y en 4', (
+      tester,
+    ) async {
+      await setup(tester);
+      await mountHost(
+        tester,
+        section: 0,
+        rail: false,
+        placement: MiniPlayerPlacement.bottomBar,
+      );
+      expect(pill(), findsOneWidget);
+      await mountHost(
+        tester,
+        section: 0,
+        rail: false,
+        placement: MiniPlayerPlacement.body,
+      );
+      expect(pill(), findsNothing);
+      await mountHost(
+        tester,
+        section: 4,
+        rail: false,
+        placement: MiniPlayerPlacement.bottomBar,
+      );
+      expect(pill(), findsNothing);
+      await mountHost(
+        tester,
+        section: 0,
+        rail: false,
+        placement: MiniPlayerPlacement.bottomBar,
+        track: false,
+      );
+      expect(pill(), findsNothing);
+    });
+
+    testWidgets(
+      'con carril: dock en el cuerpo, centrado y de 720 como máximo',
+      (tester) async {
+        await setup(tester);
+        await mountHost(
+          tester,
+          section: 0,
+          rail: true,
+          placement: MiniPlayerPlacement.body,
+        );
+        final rect = tester.getRect(pill());
+        expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 64));
+        expect(rect.center.dx, closeTo(650, 1));
+        // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
+        await tester.tapAt(const Offset(20, 790));
+        expect(calls.count('open'), 0);
+        await tester.tap(find.text('Luz de luna'));
+        expect(calls.count('open'), 1);
+      },
+    );
+  });
+
+  group('maquetación', () {
+    final sizes = <(Size, double, bool)>[
+      (const Size(360, 640), 1, false),
+      (const Size(412, 800), 1, false),
+      (const Size(600, 800), 1, true),
+      (const Size(900, 800), 1, true),
+      (const Size(1440, 900), 1, true),
+      (const Size(360, 640), 2, false),
+      (const Size(412, 800), 2, false),
+      (const Size(900, 800), 2, true),
+    ];
+    for (final (size, scale, wide) in sizes) {
+      for (final dark in [false, true]) {
+        testWidgets('${size.width.toInt()} px, texto ×$scale, '
+            '${dark ? 'oscuro' : 'claro'}: sin desborde y táctil ≥ 44', (
+          tester,
+        ) async {
+          final image = await tester.runAsync(_image);
+          for (final blurred in [false, true]) {
+            await mount(
+              tester,
+              state: _state(track: _track, isPlaying: true, liked: true),
+              size: size,
+              scale: scale,
+              wide: wide,
+              brightness: dark ? Brightness.dark : Brightness.light,
+              blurred: blurred,
+              source: blurred
+                  ? _FakeCovers(image!, const Color(0xff808080))
+                  : null,
+            );
+            expect(tester.takeException(), isNull, reason: 'blurred=$blurred');
+            final rect = tester.getRect(pill());
+            expect(rect.left, greaterThanOrEqualTo(0));
+            expect(rect.right, lessThanOrEqualTo(size.width));
+            expect(rect.bottom, lessThanOrEqualTo(size.height));
+            expect(rect.height, greaterThanOrEqualTo(56 * scale.clamp(1, 1.5)));
+            if (wide) {
+              expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 64));
+            }
+            for (final tip in [
+              'Pausar',
+              'Quitar de favoritos',
+              if (wide) 'Anterior',
+              if (wide || size.width >= 412) 'Siguiente',
+            ]) {
+              final box = tester.getSize(find.byTooltip(tip));
+              expect(
+                box.shortestSide,
+                greaterThanOrEqualTo(44),
+                reason: '$tip blurred=$blurred',
+              );
+            }
+            if (!wide && size.width < 412) {
+              expect(find.byTooltip('Siguiente'), findsNothing);
+            }
+          }
+        });
+      }
+    }
+
+    testWidgets('el dock ancho no pasa de 720 px de pastilla', (tester) async {
+      await mount(
+        tester,
+        size: const Size(1440, 900),
+        wide: true,
+        state: _state(track: _track),
+      );
+      final rect = tester.getRect(pill());
+      expect(rect.center.dx, closeTo(720, 1));
+      expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 2 * 32));
+      // Los gestos cubren el dock y nada más.
+      final gestures = tester.getRect(find.byType(MiniPlayerGestures));
+      expect(gestures.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 2 * 32));
+    });
+  });
+
+  group('estados', () {
+    testWidgets('reproduciendo / en pausa cambian icono y tooltip', (
+      tester,
+    ) async {
+      await mount(tester, state: _state(isPlaying: true));
+      expect(find.byTooltip('Pausar'), findsOneWidget);
+      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+      await mount(tester, state: _state());
+      expect(find.byTooltip('Reproducir'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
+    testWidgets('buffering: spinner en el play (y estático con movimiento '
+        'reducido)', (tester) async {
+      await mount(tester, state: _state(buffering: true), settle: false);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await mount(
+        tester,
+        state: _state(buffering: true),
+        reduce: true,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+    });
+
+    testWidgets('error: avisa en lugar del artista y el play sigue activo', (
+      tester,
+    ) async {
+      await mount(tester, state: _state(hasError: true));
+      expect(find.text('No se pudo reproducir'), findsOneWidget);
+      expect(find.text('Mare Sol'), findsNothing);
+      await tester.tap(find.byTooltip('Reproducir'));
+      expect(calls.count('toggle'), 1);
+    });
+
+    testWidgets('favorito: icono lleno y rosa cuando es favorito', (
+      tester,
+    ) async {
+      await mount(tester, state: _state());
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      await mount(tester, state: _state(liked: true));
+      expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+      final fill = tester
+          .widgetList<DecoratedBox>(
+            find.ancestor(
+              of: find.byIcon(Icons.favorite_rounded),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((d) => d.decoration)
+          .whereType<ShapeDecoration>()
+          .map((d) => d.color)
+          .whereType<Color>()
+          .first;
+      expect(fill, Slush.pink);
+    });
+
+    testWidgets('Jam sin permiso: play desactivado y avisa quién controla', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        state: _state(canTogglePlay: false, jamHostName: 'Marta'),
+      );
+      await tester.tap(find.byTooltip('Lo controla Marta'));
+      expect(calls.count('toggle'), 0);
+    });
+
+    testWidgets('sin siguiente / anterior sus botones no actúan', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(900, 800),
+        state: _state(hasNext: false, hasPrevious: false),
+      );
+      await tester.tap(find.byTooltip('Siguiente'));
+      await tester.tap(find.byTooltip('Anterior'));
+      expect(calls.count('next') + calls.count('previous'), 0);
+    });
+
+    testWidgets(
+      'la barra de progreso se anuncia y no desborda al 0 ni al 100',
+      (tester) async {
+        for (final p in [0.0, 1.0]) {
+          await mount(tester, state: _state(progress: p));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.bySemanticsLabel('Progreso'),
+            findsOneWidget,
+            reason: 'progreso $p',
+          );
+        }
+      },
+    );
+  });
+
+  group('acciones y gestos', () {
+    testWidgets('botones: play, favorito, siguiente y anterior', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(900, 800),
+        state: _state(),
+      );
+      await tester.tap(find.byTooltip('Reproducir'));
+      await tester.tap(find.byTooltip('Guardar en favoritos'));
+      await tester.tap(find.byTooltip('Siguiente'));
+      await tester.tap(find.byTooltip('Anterior'));
+      expect(calls.log, ['toggle', 'like', 'next', 'previous']);
+    });
+
+    testWidgets('tocar la barra abre; los botones no abren', (tester) async {
+      await mount(tester);
+      await tester.tap(find.text('Luz de luna'));
+      expect(calls.log, ['open']);
+      await tester.tap(find.byTooltip('Reproducir'));
+      expect(calls.log, ['open', 'toggle']);
+    });
+
+    testWidgets('deslizar a los lados salta de pista y arriba abre', (
+      tester,
+    ) async {
+      await mount(tester);
+      await tester.fling(pill(), const Offset(-200, 0), 1200);
+      await tester.pumpAndSettle();
+      await tester.fling(pill(), const Offset(200, 0), 1200);
+      await tester.pumpAndSettle();
+      await tester.fling(pill(), const Offset(0, -120), 1200);
+      await tester.pumpAndSettle();
+      expect(calls.log, ['next', 'previous', 'open']);
+    });
+
+    testWidgets('con movimiento reducido los umbrales son los mismos', (
+      tester,
+    ) async {
+      await mount(tester, reduce: true);
+      await tester.fling(pill(), const Offset(-200, 0), 1200);
+      await tester.pumpAndSettle();
+      expect(calls.log, ['next']);
+    });
+  });
+
+  group('movimiento', () {
+    testWidgets('entra con 8 px de recorrido y sin él con movimiento '
+        'reducido', (tester) async {
+      await mount(tester, settle: false);
+      Finder face() =>
+          find.descendant(of: pill(), matching: find.byType(Stack)).first;
+      final start = tester.getTopLeft(face());
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(face()).dy, lessThan(start.dy));
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      await mount(tester, reduce: true, settle: false);
+      final still = tester.getTopLeft(face());
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(face()), still);
+    });
+  });
+
+  group('contraste', () {
+    Color fillBehind(WidgetTester tester, Finder child) => tester
+        .widgetList<DecoratedBox>(
+          find.ancestor(of: child, matching: find.byType(DecoratedBox)),
+        )
+        .map((d) => d.decoration)
+        .whereType<ShapeDecoration>()
+        .map((d) => d.color)
+        .whereType<Color>()
+        .first;
+
+    Color textColor(WidgetTester tester, Finder f) =>
+        tester.widget<Text>(f).style!.color!;
+
+    for (final (name, accent) in [
+      ('menta', const Color(0xff00aa55)),
+      ('amarillo', const Color(0xffddbb00)),
+      ('lila', const Color(0xff7755dd)),
+      ('naranja', const Color(0xffee4400)),
+    ]) {
+      for (final dark in [false, true]) {
+        testWidgets('acento $name ${dark ? 'oscuro' : 'claro'}', (
+          tester,
+        ) async {
+          await mount(
+            tester,
+            accent: accent,
+            brightness: dark ? Brightness.dark : Brightness.light,
+            state: _state(liked: true),
+          );
+          final title = find.text('Luz de luna'),
+              artist = find.text('Mare Sol');
+          final pillFill = fillBehind(tester, title);
+          expect(
+            _contrast(textColor(tester, title), pillFill),
+            greaterThanOrEqualTo(4.5),
+            reason: 'título',
+          );
+          expect(
+            _contrast(textColor(tester, artist), pillFill),
+            greaterThanOrEqualTo(4.5),
+            reason: 'artista',
+          );
+          // Iconos de los botones (UI ≥ 3) sobre su propio relleno.
+          final play = find.byIcon(Icons.play_arrow_rounded);
+          final icon = tester.widget<Icon>(play).color!;
+          expect(
+            _contrast(icon, fillBehind(tester, play)),
+            greaterThanOrEqualTo(3),
+            reason: 'play',
+          );
+          final heart = find.byIcon(Icons.favorite_rounded);
+          expect(
+            _contrast(
+              tester.widget<Icon>(heart).color!,
+              fillBehind(tester, heart),
+            ),
+            greaterThanOrEqualTo(3),
+            reason: 'corazón',
+          );
+        });
+      }
+    }
+
+    for (final (name, cover) in [
+      ('blanca', const Color(0xffffffff)),
+      ('negra', const Color(0xff000000)),
+      ('gris', const Color(0xff808080)),
+      ('roja', const Color(0xffff0000)),
+    ]) {
+      for (final wide in [false, true]) {
+        testWidgets('fondo difuminado sobre portada $name, '
+            '${wide ? 'ancho' : 'móvil'}', (tester) async {
+          final image = await tester.runAsync(_image);
+          await mount(
+            tester,
+            blurred: true,
+            wide: wide,
+            size: wide ? const Size(1000, 800) : const Size(390, 800),
+            source: _FakeCovers(image!, cover),
+            state: _state(isPlaying: true),
+          );
+          final artist = find.text('MARE SOL'),
+              title = find.text('Luz de luna');
+          expect(artist, findsOneWidget);
+          final ctx = tester.element(artist);
+          expect(BlurredCoverTheme.isActive(ctx), isTrue);
+          final tone = BlurredCoverTheme.of(ctx);
+          final bg = Color.alphaBlend(tone.scrim, cover);
+          expect(
+            _contrast(textColor(tester, artist), bg),
+            greaterThanOrEqualTo(4.5),
+            reason: 'artista',
+          );
+          expect(
+            _contrast(textColor(tester, title), bg),
+            greaterThanOrEqualTo(4.5),
+            reason: 'título',
+          );
+          for (final icon in [Icons.favorite_border, Icons.skip_next_rounded]) {
+            expect(
+              _contrast(tester.widget<Icon>(find.byIcon(icon)).color!, bg),
+              greaterThanOrEqualTo(4.5),
+              reason: '$icon',
+            );
+          }
+        });
+      }
+    }
+
+    testWidgets('el artista manda en el modo difuminado y no en el normal', (
+      tester,
+    ) async {
+      final image = await tester.runAsync(_image);
+      await mount(
+        tester,
+        blurred: true,
+        source: _FakeCovers(image!, const Color(0xff808080)),
+      );
+      final artist = tester.widget<Text>(find.text('MARE SOL'));
+      final title = tester.widget<Text>(find.text('Luz de luna'));
+      expect(artist.style!.fontFamily, 'Bagel Fat One');
+      expect(artist.style!.fontSize!, greaterThan(title.style!.fontSize!));
+      await mount(tester);
+      expect(find.text('MARE SOL'), findsNothing);
+      expect(
+        tester.widget<Text>(find.text('Mare Sol')).style!.fontFamily,
+        isNull,
+      );
+    });
+
+    testWidgets('mientras la portada no carga se ve el aspecto normal', (
+      tester,
+    ) async {
+      final pending = _Pending();
+      await mount(tester, blurred: true, source: pending, settle: false);
+      await tester.pump();
+      expect(find.text('Mare Sol'), findsOneWidget);
+      expect(find.text('MARE SOL'), findsNothing);
+    });
+  });
+}
+
+class _Pending implements CoverBackdropSource {
+  final _c = Completer<CoverBackdropData?>();
+  @override
+  String? keyOf(Track track) => track.id;
+  @override
+  CoverBackdropData? peek(Track track) => null;
+  @override
+  Future<CoverBackdropData?> load(Track track) => _c.future;
+}
+
+Future<ui.Image> _image() async {
+  final codec = await ui.instantiateImageCodec(base64Decode(_png));
+  return (await codec.getNextFrame()).image;
+}

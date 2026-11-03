@@ -1,9 +1,6 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
-import 'package:aurora_music/theme/slush_theme.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
-import 'package:aurora_music/ui/slush/slush_bars.dart';
-import 'package:aurora_music/ui/slush/slush_mobile.dart';
 import 'package:aurora_music/ui/studio/studio_transport.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -114,90 +111,6 @@ void main() {
           expect(find.byType(StudioTransport), findsOneWidget);
         }
       }
-    },
-  );
-
-  testWidgets('Slush móvil: píldora en la barra inferior, nada en el cuerpo', (
-    tester,
-  ) async {
-    await setup(tester);
-    final slush = slushTheme(Brightness.light, Colors.teal);
-    await mount(
-      tester,
-      section: 0,
-      rail: false,
-      placement: MiniPlayerPlacement.bottomBar,
-      theme: slush,
-    );
-    expect(find.byType(SlushMiniPlayer), findsOneWidget);
-    await mount(
-      tester,
-      section: 0,
-      rail: false,
-      placement: MiniPlayerPlacement.body,
-      theme: slush,
-    );
-    expect(find.byType(SlushMiniPlayer), findsNothing);
-    expect(find.byType(StudioTransport), findsNothing);
-    await mount(
-      tester,
-      section: 4,
-      rail: false,
-      placement: MiniPlayerPlacement.bottomBar,
-      theme: slush,
-    );
-    expect(find.byType(SlushMiniPlayer), findsNothing);
-  });
-
-  testWidgets('Slush con carril: SlushPlayerBar salvo en la sección 4', (
-    tester,
-  ) async {
-    await setup(tester);
-    final slush = slushTheme(Brightness.light, Colors.teal);
-    await mount(
-      tester,
-      section: 0,
-      rail: true,
-      placement: MiniPlayerPlacement.body,
-      theme: slush,
-    );
-    expect(find.byType(SlushPlayerBar), findsOneWidget);
-    // SlushPlayerBar desborda 2 px en este banco sin app (también montada sola,
-    // sin host): el aspecto de la barra no es lo que se prueba aquí.
-    tester.takeException();
-    await mount(
-      tester,
-      section: 4,
-      rail: true,
-      placement: MiniPlayerPlacement.body,
-      theme: slush,
-    );
-    expect(find.byType(SlushPlayerBar), findsNothing);
-  });
-
-  testWidgets(
-    'Slush móvil con Jam: StudioTransport en el cuerpo, sin píldora',
-    (tester) async {
-      await setup(tester);
-      await tester.runAsync(controller.beginJamPlayback);
-      addTearDown(controller.endJamPlayback);
-      final slush = slushTheme(Brightness.light, Colors.teal);
-      await mount(
-        tester,
-        section: 4,
-        rail: false,
-        placement: MiniPlayerPlacement.body,
-        theme: slush,
-      );
-      expect(find.byType(StudioTransport), findsOneWidget);
-      await mount(
-        tester,
-        section: 0,
-        rail: false,
-        placement: MiniPlayerPlacement.bottomBar,
-        theme: slush,
-      );
-      expect(find.byType(SlushMiniPlayer), findsNothing);
     },
   );
 }

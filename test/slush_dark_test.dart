@@ -6,7 +6,7 @@ import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/slush/slush_dj.dart';
 import 'package:aurora_music/ui/slush/slush_eq_queue.dart';
 import 'package:aurora_music/ui/slush/slush_jam.dart';
-import 'package:aurora_music/ui/slush/slush_mobile.dart';
+import 'package:aurora_music/ui/mini_player/slush_mini_player_v2.dart';
 import 'package:aurora_music/ui/slush/slush_pages.dart';
 import 'package:aurora_music/ui/slush/slush_player.dart';
 import 'package:flutter/material.dart';
@@ -92,7 +92,15 @@ void main() {
         await go(find.text('BUSCAR'), SlushPage);
         await go(find.text('DJ'), SlushDj);
         await go(find.text('JAM'), SlushJamIdle);
-        await go(find.byTooltip('Ecualizador'), SlushEqQueue);
+        // Sin barra de transporte: el mini abre Vinilo y de ahí se llega al EQ.
+        await go(
+          find.descendant(
+            of: find.byType(SlushMiniPlayer),
+            matching: find.text('Luz de luna'),
+          ),
+          SlushPlayerScreen,
+        );
+        await go(find.text('ECUALIZADOR'), SlushEqQueue);
         double lum(Color a, Color b) {
           final l1 = a.computeLuminance(), l2 = b.computeLuminance();
           return (l1 > l2 ? l1 + .05 : l2 + .05) /

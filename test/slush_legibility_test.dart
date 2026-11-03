@@ -2,6 +2,7 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
+import 'package:aurora_music/ui/mini_player/slush_mini_player_v2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,8 +98,15 @@ void main() {
             await go(find.text('BIBLIOTECA'), 'Biblioteca');
             await go(find.text('DJ'), 'DJ');
             await go(find.text('JAM'), 'Jam');
-            await go(find.byTooltip('Ecualizador'), 'EQ+Cola');
-            await go(find.text('VINILO'), 'Vinilo');
+            // Sin barra de transporte: el mini abre Vinilo y de ahí se llega al EQ.
+            await go(
+              find.descendant(
+                of: find.byType(SlushMiniPlayer),
+                matching: find.text('Luz de luna'),
+              ),
+              'Vinilo',
+            );
+            await go(find.text('ECUALIZADOR'), 'EQ+Cola');
             await go(find.byTooltip('Ajustes'), 'Ajustes');
             await go(find.text('DESCARGAS'), 'Descargas');
             await go(find.text('ARTISTAS'), 'Artistas');

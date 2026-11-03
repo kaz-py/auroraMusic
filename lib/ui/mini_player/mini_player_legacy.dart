@@ -3,13 +3,10 @@ import 'package:flutter/widgets.dart';
 import '../../app_controller.dart';
 import '../../jam/jam_controller.dart';
 import '../../shortcuts/shortcut_service.dart';
-import '../../theme/slush_theme.dart';
-import '../slush/slush_bars.dart';
-import '../slush/slush_mobile.dart';
 import '../studio/studio_transport.dart';
 
 /// Lo que necesitan las barras de antes del mini reproductor 1.5.0
-/// (`StudioTransport`, `SlushPlayerBar`, `SlushMiniPlayer`). Las rellena el
+/// (`StudioTransport`). Las rellena el
 /// shell; los temas nuevos no lo usan y, al migrar, se borra este archivo.
 class MiniPlayerLegacyBars {
   const MiniPlayerLegacyBars({
@@ -78,32 +75,12 @@ class MiniPlayerLegacyScope extends InheritedWidget {
       old.onTogglePlay != onTogglePlay;
 }
 
-/// La barra que había antes, exactamente: en Slush con carril `SlushPlayerBar`,
-/// en Slush móvil el mini en píldora, y en el resto (y siempre con Jam)
-/// `StudioTransport`.
+/// La barra que había antes de los minis nuevos: `StudioTransport` (Slush ya
+/// no pasa por aquí).
 Widget legacyMiniPlayerBar(BuildContext context) {
   final s = MiniPlayerLegacyScope.of(context);
-  final c = s.controller;
   final bars = s.bars;
-  final slush = isSlush(context);
-  if (slush && !c.jamPlaybackActive) {
-    return s.rail
-        ? SlushPlayerBar(
-            controller: c,
-            onLyrics: bars.onLyrics,
-            onVinyl: bars.onVinyl,
-            onQueue: bars.onQueue,
-            onEqualizer: bars.onEqualizer,
-            onSettings: bars.onSettings,
-            onOpenPlayer: bars.onOpenPlayer,
-          )
-        : SlushMiniPlayer(
-            controller: c,
-            onOpen: s.onOpenVinyl,
-            onToggle: s.onTogglePlay,
-            onNext: c.next,
-          );
-  }
+  final c = s.controller;
   return StudioTransport(
     shortcuts: bars.shortcuts,
     jam: s.jam,
