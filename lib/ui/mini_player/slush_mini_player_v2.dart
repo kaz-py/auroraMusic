@@ -8,6 +8,7 @@ import '../../theme/slush_theme.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import 'blurred_cover_backdrop.dart';
+import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 
@@ -48,11 +49,30 @@ Color slushVividFor(Color accent) {
 /// Ancho máximo del dock en pantallas con carril.
 const double kSlushMiniMaxWidth = 720;
 
+/// Ancho máximo del dock con carril desde [kSlushMiniWideFrom] px: cabe el
+/// slider de volumen junto a los controles de transporte.
+const double kSlushMiniMaxWidthLarge = 920;
+const double kSlushMiniWideFrom = 1100;
+
+/// Ancho máximo del dock para una pantalla de [screen] px de ancho.
+double slushMiniMaxWidthFor(double screen) =>
+    screen >= kSlushMiniWideFrom ? kSlushMiniMaxWidthLarge : kSlushMiniMaxWidth;
+
 /// Ancho interior (sin contorno ni relleno) desde el que el móvil añade
 /// «siguiente»; por debajo basta con deslizar.
 const double _kNextMinInner = 330;
 
 const double _kBar = 5, _kKnob = 10;
+
+/// Franja arrastrable del progreso (la barra de 10 px va centrada).
+const double _kSeekHit = 24;
+
+// Ancho fijo de la fila ancha (portada 52 + 14 + 6 + anterior 44 + play 52 +
+// siguiente 44 + corazón 44) y mínimo de título antes de plegar los controles.
+const double _kWideFixed = 256, _kTitleMin = 140;
+const double _kControlsFull =
+    kMiniControlTarget * 4 + kMiniVolumeSlider; // slider + 4 botones
+const double _kControlsNoSlider = kMiniControlTarget * 4;
 
 /// Colores ya resueltos de una de las dos caras (normal / sobre portada).
 class _Look {
@@ -236,7 +256,9 @@ class _SlushMiniPlayerState extends State<SlushMiniPlayer>
 
     if (wide) {
       pill = ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: kSlushMiniMaxWidth),
+        constraints: BoxConstraints(
+          maxWidth: slushMiniMaxWidthFor(MediaQuery.sizeOf(context).width),
+        ),
         child: pill,
       );
     }
@@ -311,6 +333,14 @@ class _Body extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final next = wide || box.maxWidth >= _kNextMinInner;
+          // Ancho que sobra para los controles de escritorio tras portada,
+          // transporte y un mínimo de título; ellos se pliegan solos.
+          final room = box.maxWidth - _kWideFixed - _kTitleMin;
+          final controls = room >= _kControlsFull
+              ? _kControlsFull
+              : room >= _kControlsNoSlider
+              ? _kControlsNoSlider
+              : kMiniControlTarget;
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -330,13 +360,22 @@ class _Body extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  if (wide)
+                  if (wide) ...[
+                    SizedBox(
+                      width: controls,
+                      child: MiniPlayerDesktopControls(
+                        state: state,
+                        actions: actions,
+                        color: look.fg,
+                      ),
+                    ),
                     _IconAction(
                       tooltip: 'Anterior',
                       icon: Icons.skip_previous_rounded,
                       color: look.fg,
                       onTap: state.hasPrevious ? actions.previous : null,
                     ),
+                  ],
                   _PlayButton(
                     state: state,
                     look: look,
@@ -357,27 +396,100 @@ class _Body extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: wide ? 8 : 6),
-              Semantics(
-                label: 'Progreso',
-                value: '${(state.progress * 100).round()} %',
-                child: ExcludeSemantics(
-                  child: CustomPaint(
-                    size: const Size.fromHeight(_kKnob),
-                    painter: _SegmentBarPainter(
-                      progress: state.progress,
-                      filled: look.barFilled,
-                      empty: look.barEmpty,
-                      knobFill: look.knobFill,
-                      knobStroke: look.knobStroke,
-                    ),
-                  ),
-                ),
+              SizedBox(height: state.canSeek ? 0 : (wide ? 8 : 6)),
+              _SeekBar(
+                progress: state.progress,
+                canSeek: state.canSeek,
+                look: look,
+                onSeek: actions.seek,
               ),
             ],
           );
         },
       ),
+    );
+  }
+}
+
+/// Progreso segmentado. Con [canSeek] es arrastrable (tocar o arrastrar mueve
+/// el mando; `seek` se llama al soltar) y gana al deslizar de pista dentro de
+/// la franja. Sin permiso solo se ve.
+class _SeekBar extends StatefulWidget {
+  const _SeekBar({
+    required this.progress,
+    required this.canSeek,
+    required this.look,
+    required this.onSeek,
+  });
+
+  final double progress;
+  final bool canSeek;
+  final _Look look;
+  final ValueChanged<double> onSeek;
+
+  @override
+  State<_SeekBar> createState() => _SeekBarState();
+}
+
+class _SeekBarState extends State<_SeekBar> {
+  double? _drag;
+
+  double _at(Offset local) {
+    final w = context.size?.width ?? 0;
+    return w <= 0 ? 0 : (local.dx / w).clamp(0.0, 1.0);
+  }
+
+  void _commit(double fraction) {
+    setState(() => _drag = null);
+    widget.onSeek(fraction);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final look = widget.look;
+    final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
+    final percent = '${(value * 100).round()} %';
+    final bar = ExcludeSemantics(
+      child: CustomPaint(
+        size: const Size.fromHeight(_kKnob),
+        painter: _SegmentBarPainter(
+          progress: value,
+          filled: look.barFilled,
+          empty: look.barEmpty,
+          knobFill: look.knobFill,
+          knobStroke: look.knobStroke,
+        ),
+      ),
+    );
+    return Semantics(
+      container: true,
+      label: 'Progreso',
+      value: percent,
+      increasedValue: percent,
+      decreasedValue: percent,
+      onIncrease: widget.canSeek
+          ? () => widget.onSeek((widget.progress + .05).clamp(0.0, 1.0))
+          : null,
+      onDecrease: widget.canSeek
+          ? () => widget.onSeek((widget.progress - .05).clamp(0.0, 1.0))
+          : null,
+      child: widget.canSeek
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onTapUp: (d) => _commit(_at(d.localPosition)),
+              onHorizontalDragStart: (d) =>
+                  setState(() => _drag = _at(d.localPosition)),
+              onHorizontalDragUpdate: (d) =>
+                  setState(() => _drag = _at(d.localPosition)),
+              onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
+              onHorizontalDragCancel: () => setState(() => _drag = null),
+              child: SizedBox(
+                height: _kSeekHit,
+                child: Center(child: bar),
+              ),
+            )
+          : bar,
     );
   }
 }

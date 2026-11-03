@@ -38,6 +38,12 @@ MiniPlayerState _state({
   bool hasPrevious = true,
   bool canTogglePlay = true,
   String? jamHostName,
+  bool canSeek = false,
+  double volume = .75,
+  int queueLength = 3,
+  bool equalizerAvailable = true,
+  bool equalizerActive = false,
+  bool lyricsAvailable = true,
 }) => MiniPlayerState(
   track: track,
   isPlaying: isPlaying,
@@ -50,6 +56,12 @@ MiniPlayerState _state({
   jamActive: false,
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
+  canSeek: canSeek,
+  volume: volume,
+  queueLength: queueLength,
+  equalizerAvailable: equalizerAvailable,
+  equalizerActive: equalizerActive,
+  lyricsAvailable: lyricsAvailable,
 );
 
 class _Calls {
@@ -61,6 +73,12 @@ class _Calls {
     next: () => log.add('next'),
     previous: () => log.add('previous'),
     toggleLike: () => log.add('like'),
+    seek: (v) => log.add('seek:${v.toStringAsFixed(2)}'),
+    setVolume: (v) => log.add('volume:${v.toStringAsFixed(2)}'),
+    toggleMute: () => log.add('mute'),
+    openQueue: () => log.add('queue'),
+    openEqualizer: () => log.add('eq'),
+    openLyrics: () => log.add('lyrics'),
   );
 }
 
@@ -83,6 +101,16 @@ class _FakeCovers implements CoverBackdropSource {
 }
 
 double _contrast(Color a, Color b) => coverContrast(a, b);
+
+Color fillBehind(WidgetTester tester, Finder child) => tester
+    .widgetList<DecoratedBox>(
+      find.ancestor(of: child, matching: find.byType(DecoratedBox)),
+    )
+    .map((d) => d.decoration)
+    .whereType<ShapeDecoration>()
+    .map((d) => d.color)
+    .whereType<Color>()
+    .first;
 
 void main() {
   setUpAll(() async {
@@ -170,8 +198,8 @@ void main() {
   Finder pill() => find.byType(SlushMiniPlayer);
 
   group('registro', () {
-    test('Slush ya no es legacy', () {
-      expect(miniPlayerThemes['slush']!.legacy, isFalse);
+    test('Slush está registrado', () {
+      expect(miniPlayerThemes['slush'], same(slushMiniPlayerV2));
     });
 
     test('el color vivo sale del tono del acento', () {
@@ -267,7 +295,7 @@ void main() {
     });
 
     testWidgets(
-      'con carril: dock en el cuerpo, centrado y de 720 como máximo',
+      'con carril: dock en el cuerpo, centrado y de 920 como máximo (1300 px)',
       (tester) async {
         await setup(tester);
         await mountHost(
@@ -277,7 +305,7 @@ void main() {
           placement: MiniPlayerPlacement.body,
         );
         final rect = tester.getRect(pill());
-        expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 64));
+        expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 64));
         expect(rect.center.dx, closeTo(650, 1));
         // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
         await tester.tapAt(const Offset(20, 790));
@@ -298,6 +326,9 @@ void main() {
       (const Size(360, 640), 2, false),
       (const Size(412, 800), 2, false),
       (const Size(900, 800), 2, true),
+      (const Size(600, 800), 2, true),
+      (const Size(1920, 1080), 1, true),
+      (const Size(1920, 1080), 2, true),
     ];
     for (final (size, scale, wide) in sizes) {
       for (final dark in [false, true]) {
@@ -326,7 +357,10 @@ void main() {
             expect(rect.bottom, lessThanOrEqualTo(size.height));
             expect(rect.height, greaterThanOrEqualTo(56 * scale.clamp(1, 1.5)));
             if (wide) {
-              expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 64));
+              expect(
+                rect.width,
+                lessThanOrEqualTo(slushMiniMaxWidthFor(size.width) + 64),
+              );
             }
             for (final tip in [
               'Pausar',
@@ -349,7 +383,9 @@ void main() {
       }
     }
 
-    testWidgets('el dock ancho no pasa de 720 px de pastilla', (tester) async {
+    testWidgets('el dock ancho no pasa de 920 px de pastilla (720 bajo 1100)', (
+      tester,
+    ) async {
       await mount(
         tester,
         size: const Size(1440, 900),
@@ -358,10 +394,13 @@ void main() {
       );
       final rect = tester.getRect(pill());
       expect(rect.center.dx, closeTo(720, 1));
-      expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 2 * 32));
+      expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 2 * 32));
       // Los gestos cubren el dock y nada más.
       final gestures = tester.getRect(find.byType(MiniPlayerGestures));
-      expect(gestures.width, lessThanOrEqualTo(kSlushMiniMaxWidth + 2 * 32));
+      expect(
+        gestures.width,
+        lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 2 * 32),
+      );
     });
   });
 
@@ -515,6 +554,166 @@ void main() {
     });
   });
 
+  group('escritorio', () {
+    testWidgets('móvil: sin controles de escritorio', (tester) async {
+      await mount(tester, state: _state());
+      expect(find.byType(MiniPlayerDesktopControls), findsNothing);
+      expect(find.byTooltip('Abrir cola (3)'), findsNothing);
+    });
+
+    testWidgets('ancho 1440: volumen, cola, EQ y letras actúan', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(1440, 900),
+        state: _state(equalizerActive: true),
+      );
+      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(Slider), findsOneWidget);
+      await tester.tap(find.byTooltip('Silenciar'));
+      await tester.tap(find.byTooltip('Abrir cola (3)'));
+      await tester.tap(find.byTooltip('Ecualizador (activo)'));
+      await tester.tap(find.byTooltip('Letras'));
+      await tester.tap(find.byType(Slider));
+      expect(calls.count('mute'), 1);
+      expect(calls.count('queue'), 1);
+      expect(calls.count('eq'), 1);
+      expect(calls.count('lyrics'), 1);
+      expect(calls.log.where((e) => e.startsWith('volume:')), hasLength(1));
+      // Ningún botón de escritorio abre el reproductor.
+      expect(calls.count('open'), 0);
+    });
+
+    testWidgets('600 px: los controles se pliegan en el menú «⋯»', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(600, 800),
+        state: _state(),
+      );
+      expect(find.byType(Slider), findsNothing);
+      await tester.tap(find.byTooltip('Más acciones'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Abrir cola (3)'));
+      await tester.pumpAndSettle();
+      expect(calls.count('queue'), 1);
+    });
+
+    for (final (size, scale) in [
+      (const Size(600, 800), 2.0),
+      (const Size(900, 800), 2.0),
+      (const Size(1440, 900), 2.0),
+      (const Size(1920, 1080), 2.0),
+    ]) {
+      for (final dark in [false, true]) {
+        testWidgets('${size.width.toInt()} px ×$scale '
+            '${dark ? 'oscuro' : 'claro'}: sin desborde, controles ≥ 44 y '
+            'contraste ≥ 3', (tester) async {
+          final image = await tester.runAsync(_image);
+          for (final blurred in [false, true]) {
+            await mount(
+              tester,
+              wide: true,
+              size: size,
+              scale: scale,
+              brightness: dark ? Brightness.dark : Brightness.light,
+              blurred: blurred,
+              source: blurred
+                  ? _FakeCovers(image!, const Color(0xff808080))
+                  : null,
+              state: _state(
+                track: _track,
+                canSeek: true,
+                equalizerActive: true,
+              ),
+            );
+            expect(tester.takeException(), isNull, reason: 'blurred=$blurred');
+            final rect = tester.getRect(pill());
+            expect(rect.right, lessThanOrEqualTo(size.width));
+            final controls = tester.getRect(
+              find.byType(MiniPlayerDesktopControls),
+            );
+            expect(controls.right, lessThanOrEqualTo(rect.right));
+            final play = tester.getRect(find.byTooltip('Reproducir'));
+            expect(controls.right, lessThanOrEqualTo(play.left + 1));
+            final glyph = find.descendant(
+              of: find.byType(MiniPlayerDesktopControls),
+              matching: find.byType(Icon),
+            );
+            final color = tester.widget<Icon>(glyph.first).color!;
+            final bg = blurred
+                ? Color.alphaBlend(
+                    BlurredCoverTheme.of(tester.element(glyph.first)).scrim,
+                    const Color(0xff808080),
+                  )
+                : fillBehind(tester, glyph.first);
+            expect(
+              _contrast(color, bg),
+              greaterThanOrEqualTo(3),
+              reason: 'iconos blurred=$blurred',
+            );
+          }
+        });
+      }
+    }
+  });
+
+  group('progreso arrastrable', () {
+    Finder bar() => find.bySemanticsLabel('Progreso');
+
+    testWidgets('con canSeek: tocar y arrastrar llaman a seek al soltar', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(1440, 900),
+        state: _state(canSeek: true),
+      );
+      final strip = find.descendant(
+        of: pill(),
+        matching: find.byType(CustomPaint),
+      );
+      final rect = tester.getRect(strip.last);
+      await tester.tapAt(Offset(rect.left + rect.width * .25, rect.center.dy));
+      expect(calls.log.where((e) => e.startsWith('seek:0.2')), hasLength(1));
+      expect(calls.count('open'), 0);
+      final g = await tester.startGesture(rect.center);
+      await g.moveTo(Offset(rect.left + rect.width * .9, rect.center.dy));
+      expect(calls.log.where((e) => e.startsWith('seek:')), hasLength(1));
+      await g.up();
+      await tester.pump();
+      expect(calls.log.last, 'seek:0.90');
+      // Arrastrar la franja no salta de pista.
+      expect(calls.count('next'), 0);
+      expect(calls.count('previous'), 0);
+    });
+
+    testWidgets('sin canSeek: solo se ve y no llama a seek', (tester) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(1440, 900),
+        state: _state(),
+      );
+      final strip = find.descendant(
+        of: pill(),
+        matching: find.byType(CustomPaint),
+      );
+      final rect = tester.getRect(strip.last);
+      await tester.dragFrom(
+        Offset(rect.left + 20, rect.center.dy),
+        const Offset(200, 0),
+      );
+      expect(calls.log.where((e) => e.startsWith('seek:')), isEmpty);
+      expect(bar(), findsOneWidget);
+    });
+  });
+
   group('movimiento', () {
     testWidgets('entra con 8 px de recorrido y sin él con movimiento '
         'reducido', (tester) async {
@@ -534,16 +733,6 @@ void main() {
   });
 
   group('contraste', () {
-    Color fillBehind(WidgetTester tester, Finder child) => tester
-        .widgetList<DecoratedBox>(
-          find.ancestor(of: child, matching: find.byType(DecoratedBox)),
-        )
-        .map((d) => d.decoration)
-        .whereType<ShapeDecoration>()
-        .map((d) => d.color)
-        .whereType<Color>()
-        .first;
-
     Color textColor(WidgetTester tester, Finder f) =>
         tester.widget<Text>(f).style!.color!;
 
