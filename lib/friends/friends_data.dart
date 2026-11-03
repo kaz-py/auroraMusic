@@ -21,9 +21,13 @@ abstract class FriendsData {
     Map<String, Object?> payload,
     String? note,
   );
-  Future<List<Map<String, dynamic>>> listInbox({
+
+  /// Envíos en los dos sentidos, del más nuevo al más viejo. Con [peer], solo
+  /// los de esa conversación.
+  Future<List<Map<String, dynamic>>> listShares({
     required int limit,
     DateTime? before,
+    String? peer,
   });
   Future<void> markSeen(List<String> ids);
   Future<int> countUnseen();
@@ -36,6 +40,8 @@ abstract class FriendsData {
     required void Function(Map<String, dynamic> row) onShare,
   });
 }
+
+final _uuid = RegExp(r'^[0-9a-fA-F-]{36}$');
 
 class SupabaseFriendsData implements FriendsData {
   SupabaseFriendsData(this._client, this._uid);
@@ -108,11 +114,24 @@ class SupabaseFriendsData implements FriendsData {
   });
 
   @override
-  Future<List<Map<String, dynamic>>> listInbox({
+  Future<List<Map<String, dynamic>>> listShares({
     required int limit,
     DateTime? before,
+    String? peer,
   }) async {
-    var q = _client.from('shared_tracks').select().eq('to_id', _uid);
+    // `peer` entra en un filtro `or` en texto: solo un uuid, sin inyección.
+    if (peer != null && !_uuid.hasMatch(peer)) {
+      throw ArgumentError.value(peer, 'peer');
+    }
+    var q = _client
+        .from('shared_tracks')
+        .select()
+        .or(
+          peer == null
+              ? 'from_id.eq.$_uid,to_id.eq.$_uid'
+              : 'and(from_id.eq.$_uid,to_id.eq.$peer),'
+                    'and(from_id.eq.$peer,to_id.eq.$_uid)',
+        );
     if (before != null) {
       q = q.lt('created_at', before.toUtc().toIso8601String());
     }

@@ -173,8 +173,8 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     _seenTimer = Timer(const Duration(seconds: 2), () {
       if (_tab == 2) {
         f.markSeen([
-          for (final i in f.inbox)
-            if (!i.seen) i.id,
+          for (final i in f.messages)
+            if (!i.mine && !i.seen) i.id,
         ]);
       }
     });
@@ -440,7 +440,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
   }
 
   List<Widget> _inboxRows(FriendsService f) {
-    if (f.inbox.isEmpty) {
+    if (f.messages.every((m) => m.mine)) {
       return [
         _empty(
           'Aquí aparecerán las canciones, listas e invitaciones que te envíen tus amigos.',
@@ -450,8 +450,9 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       ];
     }
     final c = widget.controller;
+    final received = f.messages.where((m) => !m.mine);
     return [
-      for (final item in f.inbox)
+      for (final item in received)
         ListenableBuilder(
           listenable: c,
           builder: (context, _) => switch (item.kind) {
@@ -498,7 +499,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             ),
             SharedKind.jam => _InboxCard(
               item: item,
-              title: '${item.from.username} te invita a su Jam',
+              title: '${item.peer.username} te invita a su Jam',
               subtitle: item.jamExpired()
                   ? 'Invitación caducada'
                   : 'Jam en vivo',
@@ -520,14 +521,6 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
               ],
             ),
           },
-        ),
-      if (f.hasMoreInbox)
-        Center(
-          child: TextButton(
-            key: const ValueKey('friends-more'),
-            onPressed: f.loadMoreInbox,
-            child: const Text('Cargar más'),
-          ),
         ),
     ];
   }
@@ -634,11 +627,11 @@ class _InboxRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              FriendAvatar(user: item.from, size: 28),
+              FriendAvatar(user: item.peer, size: 28),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${item.from.username} · ${friendsAgo(item.createdAt)}',
+                  '${item.peer.username} · ${friendsAgo(item.createdAt)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: text.labelMedium,
@@ -768,11 +761,11 @@ class _InboxCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              FriendAvatar(user: item.from, size: 28),
+              FriendAvatar(user: item.peer, size: 28),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${item.from.username} · ${friendsAgo(item.createdAt)}',
+                  '${item.peer.username} · ${friendsAgo(item.createdAt)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: text.labelMedium,

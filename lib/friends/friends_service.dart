@@ -53,7 +53,8 @@ const _maxPlaylistBytes = 240000;
 class SharedItem {
   const SharedItem({
     required this.id,
-    required this.from,
+    required this.peer,
+    required this.mine,
     required this.track,
     required this.createdAt,
     required this.seen,
@@ -63,7 +64,12 @@ class SharedItem {
     this.jamCode,
   });
   final String id;
-  final FriendUser from;
+
+  /// La otra persona de la conversación, sea quien sea el que envió.
+  final FriendUser peer;
+
+  /// Lo envié yo.
+  final bool mine;
 
   /// Solo para [SharedKind.track]; en los demás es un marcador vacío.
   final Track track;
@@ -79,7 +85,8 @@ class SharedItem {
 
   SharedItem withSeen() => SharedItem(
     id: id,
-    from: from,
+    peer: peer,
+    mine: mine,
     track: track,
     createdAt: createdAt,
     seen: true,
@@ -93,11 +100,24 @@ class SharedItem {
 enum FriendsNoticeKind { request, share, playlist, jam }
 
 class FriendsNotice {
-  const FriendsNotice(this.kind, this.username);
+  const FriendsNotice(this.kind, this.username, [this.peerId]);
   final FriendsNoticeKind kind;
   final String username;
+
+  /// Amigo que envió (para abrir su chat); las solicitudes no lo llevan.
+  final String? peerId;
 }
 
+/// Conversación con un amigo: último envío (cualquier sentido) y recibidos sin ver.
+class FriendChat {
+  const FriendChat({required this.peer, this.last, this.unseen = 0});
+  final FriendUser peer;
+  final SharedItem? last;
+  final int unseen;
+}
+
+/// Ventana global de [FriendsService.refresh] y página de «anteriores».
+const _recentSize = 100;
 const _pageSize = 20;
 const _maxNote = 200;
 
@@ -132,8 +152,12 @@ class FriendsService extends ChangeNotifier {
   List<FriendUser> friends = const [];
   List<FriendRequestView> incoming = const [];
   List<FriendRequestView> outgoing = const [];
-  List<SharedItem> inbox = const [];
-  bool hasMoreInbox = false;
+
+  /// Envíos en los dos sentidos, del más nuevo al más viejo.
+  List<SharedItem> messages = const [];
+  bool _allLoaded = false;
+  final _threadDone = <String>{};
+  final _loadingOlder = <String>{};
   bool loading = false;
   int unseenCount = 0;
 
@@ -163,8 +187,10 @@ class FriendsService extends ChangeNotifier {
     _profiles.clear();
     friends = const [];
     incoming = outgoing = const [];
-    inbox = const [];
-    hasMoreInbox = false;
+    messages = const [];
+    _allLoaded = false;
+    _threadDone.clear();
+    _loadingOlder.clear();
     unseenCount = 0;
     loading = false;
   }
@@ -198,7 +224,7 @@ class FriendsService extends ChangeNotifier {
     _notify();
     try {
       await _loadRequests(data, uid, epoch);
-      await _loadInbox(data, epoch, reset: true);
+      await _loadRecent(data, epoch);
       final unseen = await data.countUnseen();
       if (epoch == _epoch) unseenCount = unseen;
     } catch (_) {
@@ -265,34 +291,109 @@ class FriendsService extends ChangeNotifier {
     outgoing = out;
   }
 
-  Future<void> _loadInbox(
-    FriendsData data,
-    int epoch, {
-    required bool reset,
-  }) async {
-    final rows = await data.listInbox(
-      limit: _pageSize,
-      before: reset || inbox.isEmpty ? null : inbox.last.createdAt,
-    );
-    await _ensureProfiles(
-      data,
-      rows.map((r) => r['from_id']).whereType<String>(),
-    );
-    if (epoch != _epoch) return;
-    final items = [for (final r in rows) ?_itemFrom(r)];
-    inbox = reset ? items : [...inbox, ...items];
-    hasMoreInbox = rows.length >= _pageSize;
+  /// Id de la otra persona de una fila, sea quien sea el que envió.
+  String? _otherId(Map<String, dynamic> r) {
+    final other = r['from_id'] == _boundUid ? r['to_id'] : r['from_id'];
+    return other is String ? other : null;
   }
 
-  Future<void> loadMoreInbox() async {
+  List<SharedItem> _sorted(Iterable<SharedItem> items) =>
+      [...items]..sort((a, b) {
+        final byDate = b.createdAt.compareTo(a.createdAt);
+        return byDate != 0 ? byDate : b.id.compareTo(a.id);
+      });
+
+  /// Ventana global de los últimos [_recentSize] envíos. Lo cargado antes de
+  /// ella (páginas «anteriores» de un hilo) se conserva.
+  Future<void> _loadRecent(FriendsData data, int epoch) async {
+    final rows = await data.listShares(limit: _recentSize);
+    await _ensureProfiles(data, rows.map(_otherId).whereType<String>());
+    if (epoch != _epoch) return;
+    final items = [for (final r in rows) ?_itemFrom(r)];
+    if (rows.length < _recentSize) {
+      messages = items;
+      _allLoaded = true;
+      return;
+    }
+    _allLoaded = false;
+    final cutoff = _date(rows.last['created_at']);
+    messages = _sorted(
+      {
+        for (final i in messages)
+          if (i.createdAt.isBefore(cutoff)) i.id: i,
+        for (final i in items) i.id: i,
+      }.values,
+    );
+  }
+
+  /// Hilo con un amigo, del más nuevo al más viejo, sin Jams caducadas.
+  List<SharedItem> threadWith(String peerId) => [
+    for (final i in messages)
+      if (i.peer.id == peerId && !(i.kind == SharedKind.jam && i.jamExpired()))
+        i,
+  ];
+
+  bool hasOlderWith(String peerId) =>
+      !_allLoaded && !_threadDone.contains(peerId);
+
+  /// Carga una página más antigua del hilo con [peerId].
+  Future<void> loadOlderWith(String peerId) async {
     final data = _data, epoch = _epoch;
-    if (data == null || !hasMoreInbox || loading) return;
-    loading = true;
+    if (data == null || !hasOlderWith(peerId) || !_loadingOlder.add(peerId)) {
+      return;
+    }
     try {
-      await _loadInbox(data, epoch, reset: false);
-    } catch (_) {}
-    if (epoch == _epoch) loading = false;
-    _notify();
+      // `messages` va del más nuevo al más viejo: el último del amigo es el
+      // más viejo (cuenta también las Jams caducadas).
+      DateTime? before;
+      for (final i in messages) {
+        if (i.peer.id == peerId) before = i.createdAt;
+      }
+      final rows = await data.listShares(
+        limit: _pageSize,
+        peer: peerId,
+        before: before,
+      );
+      await _ensureProfiles(data, rows.map(_otherId).whereType<String>());
+      if (epoch != _epoch) return;
+      final older = [for (final r in rows) ?_itemFrom(r)];
+      messages = _sorted(
+        {
+          for (final i in messages) i.id: i,
+          for (final i in older) i.id: i,
+        }.values,
+      );
+      if (rows.length < _pageSize) _threadDone.add(peerId);
+    } catch (_) {
+      // El botón «Cargar anteriores» sigue disponible para reintentar.
+    } finally {
+      if (epoch == _epoch) {
+        _loadingOlder.remove(peerId);
+        _notify();
+      }
+    }
+  }
+
+  /// Una conversación por amigo: primero las que tienen envíos (la más
+  /// reciente arriba), luego las vacías por nombre.
+  List<FriendChat> get chats {
+    final used = <FriendChat>[], empty = <FriendChat>[];
+    for (final f in friends) {
+      final thread = threadWith(f.id);
+      final chat = FriendChat(
+        peer: f,
+        last: thread.firstOrNull,
+        unseen: thread.where((i) => !i.mine && !i.seen).length,
+      );
+      (chat.last == null ? empty : used).add(chat);
+    }
+    used.sort((a, b) => b.last!.createdAt.compareTo(a.last!.createdAt));
+    empty.sort(
+      (a, b) => a.peer.username.toLowerCase().compareTo(
+        b.peer.username.toLowerCase(),
+      ),
+    );
+    return [...used, ...empty];
   }
 
   DateTime _date(Object? v) =>
@@ -300,9 +401,10 @@ class FriendsService extends ChangeNotifier {
       DateTime.fromMillisecondsSinceEpoch(0);
 
   SharedItem? _itemFrom(Map<String, dynamic> r) {
-    final from = _profiles[r['from_id']];
+    final mine = r['from_id'] == _boundUid;
+    final peer = _profiles[_otherId(r)];
     final id = r['id'];
-    if (from == null || id is! String) return null;
+    if (peer == null || id is! String) return null;
     final kind = switch (r['kind']) {
       null || 'track' => SharedKind.track,
       'playlist' => SharedKind.playlist,
@@ -329,7 +431,8 @@ class FriendsService extends ChangeNotifier {
     final note = r['note'];
     return SharedItem(
       id: id,
-      from: from,
+      peer: peer,
+      mine: mine,
       track: track,
       kind: kind,
       playlist: playlist,
@@ -363,18 +466,23 @@ class FriendsService extends ChangeNotifier {
     final data = _data;
     if (epoch != _epoch || data == null) return;
     try {
+      // Tiempo real solo trae lo dirigido a mí: el otro es `from_id`.
       await _ensureProfiles(data, [row['from_id']].whereType<String>());
       if (epoch != _epoch) return;
       final item = _itemFrom(row);
-      if (item == null || inbox.any((i) => i.id == item.id)) return;
-      inbox = [item, ...inbox];
+      if (item == null || messages.any((i) => i.id == item.id)) return;
+      messages = _sorted([item, ...messages]);
       if (!item.seen) unseenCount++;
       _emit(
-        FriendsNotice(switch (item.kind) {
-          SharedKind.track => FriendsNoticeKind.share,
-          SharedKind.playlist => FriendsNoticeKind.playlist,
-          SharedKind.jam => FriendsNoticeKind.jam,
-        }, item.from.username),
+        FriendsNotice(
+          switch (item.kind) {
+            SharedKind.track => FriendsNoticeKind.share,
+            SharedKind.playlist => FriendsNoticeKind.playlist,
+            SharedKind.jam => FriendsNoticeKind.jam,
+          },
+          item.peer.username,
+          item.peer.id,
+        ),
       );
     } catch (_) {}
     _notify();
@@ -519,12 +627,15 @@ class FriendsService extends ChangeNotifier {
 
   Future<void> markSeen(Iterable<String> ids) async {
     final data = _data;
+    // Solo cuentan los recibidos: lo enviado nace «visto» para mí.
     final unseen = {
-      for (final i in inbox)
-        if (!i.seen && ids.contains(i.id)) i.id,
+      for (final i in messages)
+        if (!i.mine && !i.seen && ids.contains(i.id)) i.id,
     };
     if (data == null || unseen.isEmpty) return;
-    inbox = [for (final i in inbox) unseen.contains(i.id) ? i.withSeen() : i];
+    messages = [
+      for (final i in messages) unseen.contains(i.id) ? i.withSeen() : i,
+    ];
     unseenCount = (unseenCount - unseen.length).clamp(0, 1 << 30);
     _notify();
     try {
