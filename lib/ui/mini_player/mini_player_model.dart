@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show BuildContext;
 
 import '../../app_controller.dart';
 import '../../core/models.dart';
 import '../../jam/jam_controller.dart';
+import '../studio/equalizer_panel.dart' show showEqualizerSheet;
 import '../studio/studio_transport.dart' show transportJamAudio;
 
 /// Lo que un mini reproductor necesita pintar, derivado de [AppController]
@@ -28,6 +30,12 @@ class MiniPlayerState {
     required this.canTogglePlay,
     this.jamHostName,
     this.canSeek = false,
+    this.volume = 0.75,
+    this.canSetVolume = true,
+    this.queueLength = 0,
+    this.equalizerAvailable = false,
+    this.equalizerActive = false,
+    this.lyricsAvailable = false,
   });
 
   /// Pista que suena (en Jam, la de la sesión). `null`: nada cargado.
@@ -55,6 +63,27 @@ class MiniPlayerState {
   /// Se puede mover la posición: hay pista con duración conocida y, con Jam,
   /// solo el anfitrión.
   final bool canSeek;
+
+  /// Volumen del motor, 0..1 (local: cada oyente el suyo, también en Jam).
+  final double volume;
+
+  /// El volumen siempre se puede cambiar (lo hace el motor local).
+  final bool canSetVolume;
+
+  /// Elementos de la cola personal.
+  final int queueLength;
+
+  /// Lo que decide `TransportEqualizerButton`: el motor actual admite EQ.
+  final bool equalizerAvailable;
+
+  /// El EQ está activo (el botón se tiñe).
+  final bool equalizerActive;
+
+  /// Hay pista de la que mostrar letra (el transporte siempre ofrece Letras).
+  final bool lyricsAvailable;
+
+  bool get muted => volume <= 0;
+  bool get hasQueue => queueLength > 0;
 
   bool get hasTrack => track != null;
 
@@ -101,6 +130,11 @@ class MiniPlayerState {
           track != null &&
           duration > Duration.zero &&
           (jamOwns ? jamAudio && jam!.isHost : true),
+      volume: c.audio.volume.clamp(0.0, 1.0),
+      queueLength: c.queue.length,
+      equalizerAvailable: c.eq.supported,
+      equalizerActive: c.eq.active,
+      lyricsAvailable: track != null,
     );
   }
 }
@@ -119,6 +153,11 @@ class MiniPlayerActions {
     required this.previous,
     required this.toggleLike,
     this.seek = _ignoreSeek,
+    this.setVolume = _ignoreSeek,
+    this.toggleMute = _ignoreVoid,
+    this.openQueue = _ignoreVoid,
+    this.openEqualizer = _ignoreVoid,
+    this.openLyrics = _ignoreVoid,
   });
 
   final VoidCallback openPlayer, togglePlay, next, previous, toggleLike;
@@ -126,7 +165,24 @@ class MiniPlayerActions {
   /// Fracción 0..1 de la pista; solo tiene efecto si `MiniPlayerState.canSeek`.
   final ValueChanged<double> seek;
 
+  /// Volumen 0..1 (ver `MiniPlayerState.canSetVolume`).
+  final ValueChanged<double> setVolume;
+
+  /// Silencia o restaura el volumen anterior ([MuteMemory]).
+  final VoidCallback toggleMute;
+
+  /// Sección de cola (5), como el transporte.
+  final VoidCallback openQueue;
+
+  /// Hoja del ecualizador (`showEqualizerSheet`); solo si
+  /// `MiniPlayerState.equalizerAvailable`.
+  final VoidCallback openEqualizer;
+
+  /// Letras (el diálogo que abre el transporte).
+  final VoidCallback openLyrics;
+
   static void _ignoreSeek(double _) {}
+  static void _ignoreVoid() {}
 
   /// Acciones sobre los métodos existentes del controlador y la Jam.
   /// [togglePlay] permite al shell conservar su manejo de errores de Jam.
@@ -135,6 +191,10 @@ class MiniPlayerActions {
     JamController? jam,
     required VoidCallback openPlayer,
     VoidCallback? togglePlay,
+    MuteMemory? mute,
+    VoidCallback? openQueue,
+    VoidCallback? openLyrics,
+    VoidCallback? openEqualizer,
   }) {
     final jamAudio = transportJamAudio(c, jam);
     return MiniPlayerActions(
@@ -155,6 +215,11 @@ class MiniPlayerActions {
         final track = c.nowTrack;
         if (track != null) unawaited(c.toggleFavorite(track));
       },
+      setVolume: c.setVolume,
+      toggleMute: () => (mute ?? MuteMemory()).toggle(c),
+      openQueue: openQueue ?? _ignoreVoid,
+      openLyrics: openLyrics ?? _ignoreVoid,
+      openEqualizer: openEqualizer ?? _ignoreVoid,
       seek: (fraction) {
         final duration = c.audio.duration > Duration.zero
             ? c.audio.duration
@@ -169,3 +234,23 @@ class MiniPlayerActions {
     );
   }
 }
+
+/// Recuerda el volumen previo al silenciar. Una sola instancia por shell, para
+/// que el atajo de silencio y el botón del mini reproductor se restauren igual.
+class MuteMemory {
+  double _before = 0.7;
+
+  /// Silencia (guardando el volumen) o restaura el último volumen no nulo.
+  void toggle(AppController c) {
+    if (c.audio.volume > 0) {
+      _before = c.audio.volume;
+      c.setVolume(0);
+    } else {
+      c.setVolume(_before);
+    }
+  }
+}
+
+/// Abre la hoja del ecualizador desde [context] (cada oyente tiene el suyo).
+VoidCallback equalizerOpener(BuildContext context, AppController c) =>
+    () => showEqualizerSheet(context, c);

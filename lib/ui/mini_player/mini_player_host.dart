@@ -14,9 +14,11 @@ import 'mini_player_theme.dart';
 import 'modern_mini_player.dart';
 import 'slush_mini_player_v2.dart';
 
+export 'mini_player_desktop_controls.dart' show MiniPlayerDesktopControls;
 export 'mini_player_gestures.dart' show MiniPlayerGestures;
 export 'mini_player_legacy.dart' show MiniPlayerLegacyBars;
-export 'mini_player_model.dart' show MiniPlayerActions, MiniPlayerState;
+export 'mini_player_model.dart'
+    show MiniPlayerActions, MiniPlayerState, MuteMemory;
 export 'mini_player_theme.dart' show MiniPlayerBuilder, MiniPlayerTheme;
 
 /// Registro por `AppController.themeKind`. Cada tema vive en su archivo.
@@ -58,6 +60,9 @@ class MiniPlayerHost extends StatelessWidget {
     required this.onTogglePlay,
     this.jam,
     this.legacy,
+    this.onOpenQueue,
+    this.onOpenLyrics,
+    this.mute,
     this.themes = miniPlayerThemes,
   });
 
@@ -76,6 +81,13 @@ class MiniPlayerHost extends StatelessWidget {
   /// Alternar reproducción (con el manejo de errores de Jam del shell).
   final VoidCallback onTogglePlay;
   final JamController? jam;
+
+  /// Sección de cola (5) y letras (el diálogo del transporte); el shell los
+  /// pasa. Sin ellos las acciones no hacen nada.
+  final VoidCallback? onOpenQueue, onOpenLyrics;
+
+  /// Memoria de silencio compartida con el atajo del shell.
+  final MuteMemory? mute;
 
   /// Imprescindible mientras algún tema sea `legacy`.
   final MiniPlayerLegacyBars? legacy;
@@ -121,7 +133,7 @@ class MiniPlayerHost extends StatelessWidget {
     final kind = kindOf(context);
     final theme = themes[kind] ?? themes['atelier']!;
     return ListenableBuilder(
-      listenable: Listenable.merge([controller, ?jam]),
+      listenable: Listenable.merge([controller, controller.eq, ?jam]),
       builder: (context, _) {
         final c = controller;
         if (section == 10 && c.usesOfficialYouTubeMusic) {
@@ -154,12 +166,7 @@ class MiniPlayerHost extends StatelessWidget {
               builder: (context) => theme.build(
                 context,
                 MiniPlayerState.fromController(c, jam: jam),
-                MiniPlayerActions.forController(
-                  c,
-                  jam: jam,
-                  openPlayer: openVinyl,
-                  togglePlay: onTogglePlay,
-                ),
+                _actions(context, c, openVinyl),
                 blurred: false,
                 wide: rail,
               ),
@@ -176,12 +183,7 @@ class MiniPlayerHost extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final track = state.track!;
-        final actions = MiniPlayerActions.forController(
-          c,
-          jam: jam,
-          openPlayer: openVinyl,
-          togglePlay: onTogglePlay,
-        );
+        final actions = _actions(context, c, openVinyl);
         final blurred =
             c.blurredCoverMode &&
             (track.artworkUrl?.trim().isNotEmpty ?? false);
@@ -206,4 +208,19 @@ class MiniPlayerHost extends StatelessWidget {
       },
     );
   }
+
+  MiniPlayerActions _actions(
+    BuildContext context,
+    AppController c,
+    VoidCallback openPlayer,
+  ) => MiniPlayerActions.forController(
+    c,
+    jam: jam,
+    openPlayer: openPlayer,
+    togglePlay: onTogglePlay,
+    mute: mute,
+    openQueue: onOpenQueue,
+    openLyrics: onOpenLyrics,
+    openEqualizer: equalizerOpener(context, c),
+  );
 }

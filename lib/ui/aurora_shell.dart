@@ -467,7 +467,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     return false;
   }
 
-  double _volumeBeforeMute = 0.7;
+  final _mute = MuteMemory();
 
   // Con Jam activa el controlador decide (host alterna, invitado con permiso
   // enruta al host); sin permiso muestra su mensaje en vez de silencio.
@@ -500,12 +500,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       case ShortcutId.repeat:
         c.cycleRepeat();
       case ShortcutId.mute:
-        if (c.audio.volume > 0) {
-          _volumeBeforeMute = c.audio.volume;
-          c.setVolume(0);
-        } else {
-          c.setVolume(_volumeBeforeMute);
-        }
+        _mute.toggle(c);
       case ShortcutId.volumeUp:
         c.setVolume(c.audio.volume + 0.05);
       case ShortcutId.volumeDown:
@@ -3137,6 +3132,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     jam: _jam,
     onOpenPlayer: () => _navigate(4),
     onTogglePlay: () => _togglePlay(c),
+    onOpenQueue: () => _navigate(5),
+    onOpenLyrics: () => _showLyrics(c),
+    mute: _mute,
     legacy: MiniPlayerLegacyBars(
       shortcuts: ref.watch(shortcutServiceProvider),
       onJam: _openJamPanel,

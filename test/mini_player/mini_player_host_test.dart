@@ -61,7 +61,7 @@ Map<String, MiniPlayerTheme> _themes(_Seen seen) => {
 };
 
 class _Counts {
-  int open = 0, toggle = 0;
+  int open = 0, toggle = 0, queue = 0, lyrics = 0;
 }
 
 void main() {
@@ -146,6 +146,8 @@ void main() {
                     themes: _themes(seen),
                     onOpenPlayer: () => counts.open++,
                     onTogglePlay: () => counts.toggle++,
+                    onOpenQueue: () => counts.queue++,
+                    onOpenLyrics: () => counts.lyrics++,
                   ),
                 ],
               ),
@@ -245,6 +247,20 @@ void main() {
       await tester.tap(find.byIcon(Icons.play_arrow_rounded));
       expect(counts.toggle, 1);
       expect(counts.open, 1);
+    });
+
+    testWidgets('cola y letras las abre el shell; el EQ, una hoja propia', (
+      tester,
+    ) async {
+      await setup(tester);
+      await mount(tester);
+      seen.actions!.openQueue();
+      seen.actions!.openLyrics();
+      expect((counts.queue, counts.lyrics), (1, 1));
+      expect(seen.state!.equalizerAvailable, controller.eq.supported);
+      seen.actions!.openEqualizer();
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
     });
 
     testWidgets('estado y acciones salen del controlador', (tester) async {
