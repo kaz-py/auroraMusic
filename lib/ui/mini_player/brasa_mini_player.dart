@@ -103,26 +103,14 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
             left: 0,
             right: 0,
             height: _hairlineZone,
-            child: ExcludeSemantics(
-              child: IgnorePointer(
-                child: RepaintBoundary(
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(end: _hover ? 1 : 0),
-                    duration: reduce
-                        ? Duration.zero
-                        : const Duration(milliseconds: 120),
-                    curve: Curves.easeOut,
-                    builder: (_, knob, _) => CustomPaint(
-                      painter: _HairlinePainter(
-                        progress: s.progress,
-                        ember: ember,
-                        knob: knob,
-                        blurred: blurred,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            child: _Scrub(
+              progress: s.progress,
+              canSeek: s.canSeek,
+              hover: _hover,
+              ember: ember,
+              blurred: blurred,
+              reduce: reduce,
+              onSeek: widget.actions.seek,
             ),
           ),
         ],
@@ -592,9 +580,101 @@ class _PlayKey extends StatelessWidget {
   }
 }
 
+/// Franja superior de 12 px con la línea de brasa. Con [canSeek] es arrastrable
+/// (tocar o arrastrar mueve la marca; la posición se confirma al soltar) y gana
+/// al deslizar de pista de la barra dentro de la franja. Sin permiso (Jam sin ser
+/// anfitrión) solo se ve. Con el cursor encima o arrastrando, la marca de la
+/// cabeza crece a un cuadrado.
+class _Scrub extends StatefulWidget {
+  const _Scrub({
+    required this.progress,
+    required this.canSeek,
+    required this.hover,
+    required this.ember,
+    required this.blurred,
+    required this.reduce,
+    required this.onSeek,
+  });
+
+  final double progress;
+  final bool canSeek, hover, blurred, reduce;
+  final Color ember;
+  final ValueChanged<double> onSeek;
+
+  @override
+  State<_Scrub> createState() => _ScrubState();
+}
+
+class _ScrubState extends State<_Scrub> {
+  double? _drag;
+
+  double _at(Offset local) {
+    final w = context.size?.width ?? 0;
+    return w <= 0 ? 0 : (local.dx / w).clamp(0.0, 1.0);
+  }
+
+  void _commit(double fraction) {
+    setState(() => _drag = null);
+    widget.onSeek(fraction);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
+    final percent = '${(value * 100).round()} %';
+    final line = ExcludeSemantics(
+      child: RepaintBoundary(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(
+            end: widget.canSeek && (widget.hover || _drag != null) ? 1 : 0,
+          ),
+          duration: widget.reduce
+              ? Duration.zero
+              : const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          builder: (_, knob, _) => CustomPaint(
+            painter: _HairlinePainter(
+              progress: value,
+              ember: widget.ember,
+              knob: knob,
+              blurred: widget.blurred,
+            ),
+          ),
+        ),
+      ),
+    );
+    return Semantics(
+      container: true,
+      label: 'Posición',
+      value: percent,
+      increasedValue: percent,
+      decreasedValue: percent,
+      onIncrease: widget.canSeek
+          ? () => widget.onSeek((widget.progress + .05).clamp(0.0, 1.0))
+          : null,
+      onDecrease: widget.canSeek
+          ? () => widget.onSeek((widget.progress - .05).clamp(0.0, 1.0))
+          : null,
+      child: widget.canSeek
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onTapUp: (d) => _commit(_at(d.localPosition)),
+              onHorizontalDragStart: (d) =>
+                  setState(() => _drag = _at(d.localPosition)),
+              onHorizontalDragUpdate: (d) =>
+                  setState(() => _drag = _at(d.localPosition)),
+              onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
+              onHorizontalDragCancel: () => setState(() => _drag = null),
+              child: line,
+            )
+          : IgnorePointer(child: line),
+    );
+  }
+}
+
 /// Línea de brasa del borde superior: pista tenue, tramo encendido en
-/// degradado hasta la posición, resplandor y marca en la cabeza. Con el cursor
-/// encima, la marca crece a un cuadrado (solo indica la posición).
+/// degradado hasta la posición, resplandor y marca en la cabeza.
 class _HairlinePainter extends CustomPainter {
   const _HairlinePainter({
     required this.progress,
@@ -629,31 +709,28 @@ class _HairlinePainter extends CustomPainter {
     }
     canvas.drawRect(track, Paint()..color = ember.withValues(alpha: .24));
     final x = (w * progress.clamp(0.0, 1.0)).toDouble();
-    if (x <= 0) return;
-    final lit = Rect.fromLTWH(0, 0, x, _hairline);
-    canvas
-      ..drawRect(
-        Rect.fromLTRB(math.max(0, x - 36), 0, x, _hairline),
-        Paint()
-          ..color = ember.withValues(alpha: .6)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-      )
-      ..drawRect(
-        lit,
-        Paint()
-          ..shader = LinearGradient(
-            colors: [ember.withValues(alpha: .4), ember],
-          ).createShader(lit),
-      )
-      ..drawRect(Rect.fromLTWH(x - 1, 0, 2, 5), Paint()..color = Brasa.cream);
+    if (x > 0) {
+      final lit = Rect.fromLTWH(0, 0, x, _hairline);
+      canvas
+        ..drawRect(
+          Rect.fromLTRB(math.max(0, x - 36), 0, x, _hairline),
+          Paint()
+            ..color = ember.withValues(alpha: .6)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+        )
+        ..drawRect(
+          lit,
+          Paint()
+            ..shader = LinearGradient(
+              colors: [ember.withValues(alpha: .4), ember],
+            ).createShader(lit),
+        )
+        ..drawRect(Rect.fromLTWH(x - 1, 0, 2, 5), Paint()..color = Brasa.cream);
+    }
     if (knob > 0) {
       final side = 10 * knob;
       final cx = x.clamp(side / 2, math.max(side / 2, w - side / 2)).toDouble();
-      final box = Rect.fromCenter(
-        center: Offset(cx, _hairline / 2),
-        width: side,
-        height: side,
-      );
+      final box = Rect.fromLTWH(cx - side / 2, 0, side, side).deflate(1);
       canvas
         ..drawRect(box, Paint()..color = Brasa.cream)
         ..drawRect(

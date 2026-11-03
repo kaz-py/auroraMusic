@@ -115,8 +115,10 @@ Barra acoplada al borde inferior (esquinas superiores de 6 px, sin flotar),
 
 - **Progreso**: línea de brasa de 2 px en el borde superior: pista tenue, tramo
   encendido en degradado hasta la posición, resplandor y marca en la cabeza.
-  Con el cursor encima la marca crece a un cuadrado; solo indica la posición
-  (las acciones no tienen «buscar», así que no se arrastra).
+  Con `canSeek` la franja de 12 px es arrastrable (tocar o arrastrar mueve la
+  marca, que con el cursor encima o al arrastrar crece a un cuadrado; `seek` se
+  llama al soltar) y gana al deslizar de pista; semántica «Posición N %» con
+  ajuste de 5 %. Sin `canSeek` solo se ve.
 - **Texto**: artista en versalitas (11,5 px, tracking 1,4, ámbar) y pista debajo;
   hora `m:ss / m:ss` en monoespaciada (visible desde ~412 px; con texto grande se
   oculta). Con fallo del motor, `ERR` en rojo.

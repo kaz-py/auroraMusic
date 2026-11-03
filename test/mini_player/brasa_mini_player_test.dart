@@ -10,6 +10,7 @@ import 'package:aurora_music/ui/mini_player/brasa_mini_player.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -36,12 +37,14 @@ const _withCover = Track(
 
 class _Calls {
   int open = 0, play = 0, next = 0, previous = 0, like = 0;
+  final seeks = <double>[];
   late final actions = MiniPlayerActions(
     openPlayer: () => open++,
     togglePlay: () => play++,
     next: () => next++,
     previous: () => previous++,
     toggleLike: () => like++,
+    seek: seeks.add,
   );
 }
 
@@ -56,6 +59,7 @@ MiniPlayerState _state({
   bool hasPrevious = true,
   bool canTogglePlay = true,
   String? jamHostName,
+  bool canSeek = true,
 }) => MiniPlayerState(
   track: track,
   isPlaying: isPlaying,
@@ -68,6 +72,7 @@ MiniPlayerState _state({
   jamActive: false,
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
+  canSeek: canSeek,
 );
 
 List<Color> _flat(Color c) => List.filled(64, c);
@@ -382,6 +387,90 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(calls.open, 1);
+    });
+  });
+
+  group('buscar en la línea de brasa', () {
+    Offset top(WidgetTester tester, double dx) =>
+        tester.getTopLeft(_bar) + Offset(dx, 5);
+
+    testWidgets('arrastrar confirma al soltar y no salta de pista', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls);
+      final g = await tester.startGesture(top(tester, 100));
+      await g.moveBy(const Offset(40, 0));
+      await g.moveBy(const Offset(60, 0));
+      await tester.pump();
+      expect(calls.seeks, isEmpty, reason: 'solo al soltar');
+      await g.up();
+      await tester.pumpAndSettle();
+      expect(calls.seeks, hasLength(1));
+      expect(calls.seeks.single, closeTo(200 / 412, .02));
+      expect((calls.next, calls.previous, calls.open), (0, 0, 0));
+    });
+
+    testWidgets('tocar la franja busca y no abre el reproductor', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls);
+      await tester.tapAt(top(tester, 103));
+      expect(calls.seeks.single, closeTo(.25, .001));
+      expect(calls.open, 0);
+    });
+
+    testWidgets('fuera de la franja el deslizamiento sigue saltando de pista', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls);
+      await tester.dragFrom(
+        tester.getCenter(find.byType(Artwork)),
+        const Offset(-120, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(calls.next, 1);
+      expect(calls.seeks, isEmpty);
+    });
+
+    testWidgets('sin permiso la franja no se arrastra y el swipe funciona', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls, state: _state(canSeek: false));
+      await tester.dragFrom(top(tester, 300), const Offset(-120, 0));
+      await tester.pumpAndSettle();
+      expect(calls.next, 1);
+      expect(calls.seeks, isEmpty);
+    });
+
+    testWidgets('semántica «Posición N %» con ajuste de 5 %', (tester) async {
+      final calls = _Calls();
+      final handle = tester.ensureSemantics();
+      await _mount(tester, calls, state: _state(progress: .5));
+      final node = tester.getSemantics(find.bySemanticsLabel('Posición'));
+      expect(node.value, '50 %');
+      expect(
+        node.getSemanticsData().hasAction(SemanticsAction.increase),
+        isTrue,
+      );
+      tester.semantics.increase(find.semantics.byLabel('Posición'));
+      expect(calls.seeks.single, closeTo(.55, .001));
+      handle.dispose();
+    });
+
+    testWidgets('sin permiso la semántica no ofrece ajustar', (tester) async {
+      final calls = _Calls();
+      final handle = tester.ensureSemantics();
+      await _mount(tester, calls, state: _state(canSeek: false));
+      final node = tester.getSemantics(find.bySemanticsLabel('Posición'));
+      expect(
+        node.getSemanticsData().hasAction(SemanticsAction.increase),
+        isFalse,
+      );
+      handle.dispose();
     });
   });
 
