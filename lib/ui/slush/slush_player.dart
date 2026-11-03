@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 
 import '../../app_controller.dart';
 import '../../core/models.dart';
+import '../../jam/jam_controller.dart';
 import '../../lyrics/lyrics_service.dart';
 import '../../theme/slush_theme.dart';
 import '../../theme/accent_transition.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
+import '../mini_player/mini_player_model.dart';
+import '../studio/studio_transport.dart' show transportJamAudio;
 
 /// Reproductor Vinilo + Letras del tema Slush (escritorio y móvil).
 /// Secciones del shell: 4 vinilo, 6 letras, 13 ecualizador, 5 cola.
@@ -825,14 +828,24 @@ class _Round extends StatelessWidget {
   }
 }
 
+/// Línea del artista de los reproductores completos: misma prioridad que
+/// `miniSubtitle` (anuncio, Jam, artista) pero con la pista que pinta la
+/// pantalla. Con audio de Jam manda la Jam, no el anuncio del sitio.
+String playerArtistLine(AppController c, JamController? jam, Track track) {
+  if (transportJamAudio(c, jam)) return '${track.artist} \u00b7 Jam';
+  return c.adPlaying ? miniAdNotice : track.artist;
+}
+
 class _Controls extends StatelessWidget {
   const _Controls({
     required this.controller,
+    this.jam,
     this.size = SlushControl.bar,
     this.gap = 10,
     this.wrap = false,
   });
   final AppController controller;
+  final JamController? jam;
   final double size, gap;
 
   /// Móvil: salta de línea en vez de encoger (objetivos >= 44 siempre).
@@ -843,8 +856,18 @@ class _Controls extends StatelessWidget {
     final track = c.currentTrack;
     final liked = track != null && c.favoriteIds.contains(track.id);
     return ListenableBuilder(
-      listenable: Listenable.merge([c, c.audio]),
+      listenable: Listenable.merge([c, c.audio, ?jam]),
       builder: (context, _) {
+        // Con audio de Jam mandan los permisos de la sesión (como el mini).
+        final s = MiniPlayerState.fromController(c, jam: jam);
+        final a = MiniPlayerActions.forController(
+          c,
+          jam: jam,
+          openPlayer: () {},
+        );
+        final j = jam;
+        final handsOff = s.jamAudio && !j!.canSkip;
+        final votes = handsOff && j.service.rules.votes;
         final items = <Widget>[
           _Round(
             icon: Icons.shuffle_rounded,
@@ -855,24 +878,34 @@ class _Controls extends StatelessWidget {
           ),
           _Round(
             icon: Icons.skip_previous_rounded,
-            tooltip: 'Anterior',
+            tooltip: s.jamAudio ? 'No disponible en una Jam' : 'Anterior',
             size: size,
-            onTap: track == null ? null : c.previous,
+            onTap: track == null || s.jamActive ? null : a.previous,
           ),
           _Round(
             icon: c.audio.isPlaying
                 ? Icons.pause_rounded
                 : Icons.play_arrow_rounded,
-            tooltip: c.audio.isPlaying ? 'Pausar' : 'Reproducir',
+            tooltip: s.jamHostName != null
+                ? 'Lo controla ${s.jamHostName}'
+                : c.audio.isPlaying
+                ? 'Pausar'
+                : 'Reproducir',
             big: true,
             size: size,
-            onTap: track == null ? null : c.togglePlayback,
+            onTap: s.canTogglePlay ? a.togglePlay : null,
           ),
           _Round(
-            icon: Icons.skip_next_rounded,
-            tooltip: 'Siguiente',
+            icon: votes ? Icons.how_to_vote_outlined : Icons.skip_next_rounded,
+            tooltip: !handsOff
+                ? 'Siguiente'
+                : votes
+                ? 'Votar para saltar'
+                : 'Lo controla ${j.hostName}',
             size: size,
-            onTap: track == null ? null : c.next,
+            onTap: !s.hasTrack || (s.jamAudio ? !s.hasNext : track == null)
+                ? null
+                : a.next,
           ),
           _Round(
             icon: c.repeat == RepeatMode.one
@@ -1066,6 +1099,7 @@ class SlushPlayerScreen extends StatelessWidget {
     required this.onToggleCassette,
     required this.cassette,
     this.onSection,
+    this.jam,
     this.onBack,
   });
   final AppController controller;
@@ -1075,6 +1109,9 @@ class SlushPlayerScreen extends StatelessWidget {
   final VoidCallback onToggleCassette;
   final bool cassette;
   final ValueChanged<int>? onSection;
+
+  /// Con una Jam activa: permisos y etiqueta «· Jam» (ver `playerArtistLine`).
+  final JamController? jam;
 
   /// Flecha atrás del móvil; por defecto vuelve a Inicio.
   final VoidCallback? onBack;
@@ -1137,16 +1174,21 @@ class SlushPlayerScreen extends StatelessWidget {
     );
   }
 
-  Widget _artist(BuildContext context) => Text(
-    track == null ? 'Elige una canción de tu biblioteca' : track!.artist,
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: TextStyle(
-      fontFamily: 'Inter',
-      fontSize: 16,
-      fontWeight: FontWeight.w700,
-      // Sobre el color vivo de la portada (claro) solo la tinta plena llega a 4,5.
-      color: _isDark(context) ? context.slush.ink2 : context.slush.ink,
+  Widget _artist(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([controller, controller.audio, ?jam]),
+    builder: (context, _) => Text(
+      track == null
+          ? 'Elige una canción de tu biblioteca'
+          : playerArtistLine(controller, jam, track!),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        // Sobre el color vivo de la portada (claro) solo la tinta plena llega a 4,5.
+        color: _isDark(context) ? context.slush.ink2 : context.slush.ink,
+      ),
     ),
   );
 
@@ -1355,7 +1397,7 @@ class SlushPlayerScreen extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: _Controls(controller: c),
+                child: _Controls(controller: c, jam: jam),
               ),
             ),
             Positioned(left: 14, top: h * .78, child: _nextUp(context)),
@@ -1492,6 +1534,7 @@ class SlushPlayerScreen extends StatelessWidget {
                         Center(
                           child: _Controls(
                             controller: c,
+                            jam: jam,
                             size: SlushControl.touch,
                             gap: SlushSpacing.s8,
                             wrap: true,

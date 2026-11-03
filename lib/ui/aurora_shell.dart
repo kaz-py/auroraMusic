@@ -1486,6 +1486,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           follow: ref.read(followServiceProvider),
           onSection: _navigate,
           onBack: () => _handleBack(ref.read(controllerProvider)),
+          jam: _jam,
         );
       case 5:
         if (isSlush(context)) {

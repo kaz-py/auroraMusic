@@ -33,6 +33,10 @@ const double _coverRadius = 11;
 const double _target = 44;
 const double _scrubHeight = 10;
 
+/// Ancho de la tarjeta desde el que el móvil añade «siguiente»; por debajo
+/// basta con deslizar.
+const double _kNextMinInner = 330;
+
 class ModernMiniPlayer extends StatelessWidget {
   const ModernMiniPlayer({
     super.key,
@@ -315,6 +319,17 @@ class _Body extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final compact = box.maxWidth < 640;
+        final showNext = wide || box.maxWidth >= _kNextMinInner;
+        // Fijo de la fila ancha: relleno, portada, huecos, 4 botones y los
+        // controles de escritorio; la hora solo si el título conserva 150.
+        final controls =
+            kMiniControlTarget * 4 + (compact ? 0 : kMiniVolumeSlider);
+        final showTime =
+            wide &&
+            box.maxWidth -
+                    (20 + 48 + 12 + 4 + 44 * 4 + 8 + controls) -
+                    (kMiniTimeWidth + 8) >=
+                150;
         return Stack(
           children: [
             Padding(
@@ -326,20 +341,26 @@ class _Body extends StatelessWidget {
                     SizedBox.square(dimension: cover, child: art),
                     const SizedBox(width: 12),
                     Expanded(child: text),
+                    if (showTime) ...[
+                      const SizedBox(width: 8),
+                      MiniPlayerTime(state: state, color: inkSoft),
+                    ],
                     const SizedBox(width: 4),
                     heart,
                     if (wide)
                       skip(
                         Icons.skip_previous_rounded,
-                        'Anterior',
+                        state.previousLabel(),
                         state.hasPrevious,
                         actions.previous,
                       ),
                     play,
-                    if (wide)
+                    if (showNext)
                       skip(
-                        Icons.skip_next_rounded,
-                        'Siguiente',
+                        state.jamVoteSkip
+                            ? Icons.how_to_vote_outlined
+                            : Icons.skip_next_rounded,
+                        state.nextLabel(),
                         state.hasNext,
                         actions.next,
                       ),

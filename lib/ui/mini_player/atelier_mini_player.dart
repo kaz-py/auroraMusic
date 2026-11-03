@@ -228,6 +228,12 @@ class _Dock extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final showHeart = box.maxWidth >= 330;
+        // La hora solo cuando los controles de escritorio ya caben enteros y
+        // sobra su ancho además del título mínimo.
+        final showTime =
+            wide &&
+            box.maxWidth - _kWideFixed * scale - 150 - _kDesktopFull >=
+                kMiniTimeWidth + 8;
         return Material(
           type: MaterialType.transparency,
           child: ConstrainedBox(
@@ -271,6 +277,10 @@ class _Dock extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (showTime) ...[
+                        const SizedBox(width: 8),
+                        MiniPlayerTime(state: state, color: ink.sub),
+                      ],
                       if (showHeart)
                         _Quiet(
                           tooltip: state.liked
@@ -284,7 +294,7 @@ class _Dock extends StatelessWidget {
                         ),
                       if (wide)
                         _Quiet(
-                          tooltip: 'Anterior',
+                          tooltip: state.previousLabel(),
                           icon: StudioSymbols.skipPrevious,
                           color: ink.fg,
                           onPressed: state.hasPrevious
@@ -293,8 +303,10 @@ class _Dock extends StatelessWidget {
                         ),
                       _PlayButton(state: state, actions: actions, ink: ink),
                       _Quiet(
-                        tooltip: 'Siguiente',
-                        icon: StudioSymbols.skipNext,
+                        tooltip: state.nextLabel(),
+                        icon: state.jamVoteSkip
+                            ? Icons.how_to_vote_outlined
+                            : StudioSymbols.skipNext,
                         color: ink.fg,
                         onPressed: state.hasNext ? actions.next : null,
                       ),

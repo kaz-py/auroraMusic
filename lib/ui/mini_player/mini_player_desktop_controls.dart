@@ -56,7 +56,9 @@ class MiniPlayerDesktopControls extends StatelessWidget {
   String get _queueTip =>
       state.hasQueue ? 'Abrir cola (${state.queueLength})' : 'Abrir cola';
   String get _eqTip => !state.equalizerAvailable
-      ? 'Ecualizador no disponible en este reproductor'
+      ? state.equalizerUnavailableReason == null
+            ? 'Ecualizador no disponible en este reproductor'
+            : 'Ecualizador no disponible: ${state.equalizerUnavailableReason}'
       : 'Ecualizador${state.equalizerActive ? ' (activo)' : ''}';
 
   Widget _button(
@@ -211,4 +213,45 @@ class MiniPlayerDesktopControls extends StatelessWidget {
       );
     },
   );
+}
+
+/// Ancho fijo que reserva [MiniPlayerTime] (el texto se encoge, no desborda).
+const double kMiniTimeWidth = 104;
+
+/// `1:23 / 3:45` en cifras tabulares, solo para filas anchas con holgura. Mide
+/// siempre [kMiniTimeWidth]: con tamaños de texto grandes el texto se reduce
+/// para caber. Un solo nodo semántico («Tiempo: 1:23 de 3:45»).
+class MiniPlayerTime extends StatelessWidget {
+  const MiniPlayerTime({super.key, required this.state, required this.color});
+
+  final MiniPlayerState state;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final known = state.duration > Duration.zero;
+    final elapsed = miniClock(known ? state.elapsed : Duration.zero);
+    final total = known ? miniClock(state.duration) : '--:--';
+    return Semantics(
+      label: 'Tiempo: $elapsed de $total',
+      excludeSemantics: true,
+      child: SizedBox(
+        width: kMiniTimeWidth,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerRight,
+          child: Text(
+            '$elapsed / $total',
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

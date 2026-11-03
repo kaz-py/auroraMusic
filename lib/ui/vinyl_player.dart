@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 
 import '../app_controller.dart';
+import '../jam/jam_controller.dart';
 import '../follow/follow_service.dart';
 import '../theme/accent_transition.dart';
 import '../theme/brasa_theme.dart';
@@ -24,7 +25,11 @@ class VinylPlayer extends StatefulWidget {
     this.follow,
     this.onSection,
     this.onBack,
+    this.jam,
   });
+
+  /// Jam activa: limita saltos y anterior en los controles de Slush.
+  final JamController? jam;
 
   /// Slush: cambia de sección del shell (0 inicio, 4 vinilo, 5 cola, 6 letras, 13 EQ).
   final ValueChanged<int>? onSection;
@@ -788,6 +793,7 @@ extension on _VinylPlayerState {
     bool compact,
     BoxConstraints constraints,
   ) => SlushPlayerScreen(
+    jam: widget.jam,
     controller: c,
     track: track,
     compact: compact,

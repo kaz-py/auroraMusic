@@ -341,6 +341,8 @@ class _Body extends StatelessWidget {
               : room >= _kControlsNoSlider
               ? _kControlsNoSlider
               : kMiniControlTarget;
+          // La hora solo si los controles caben enteros y sobra su ancho.
+          final showTime = wide && room >= _kControlsFull + kMiniTimeWidth + 8;
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -360,6 +362,10 @@ class _Body extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
+                  if (showTime) ...[
+                    MiniPlayerTime(state: state, color: look.sub),
+                    const SizedBox(width: 6),
+                  ],
                   if (wide) ...[
                     SizedBox(
                       width: controls,
@@ -370,7 +376,7 @@ class _Body extends StatelessWidget {
                       ),
                     ),
                     _IconAction(
-                      tooltip: 'Anterior',
+                      tooltip: state.previousLabel(),
                       icon: Icons.skip_previous_rounded,
                       color: look.fg,
                       onTap: state.hasPrevious ? actions.previous : null,
@@ -384,8 +390,10 @@ class _Body extends StatelessWidget {
                   ),
                   if (next)
                     _IconAction(
-                      tooltip: 'Siguiente',
-                      icon: Icons.skip_next_rounded,
+                      tooltip: state.nextLabel(),
+                      icon: state.jamVoteSkip
+                          ? Icons.how_to_vote_outlined
+                          : Icons.skip_next_rounded,
                       color: look.fg,
                       onTap: state.hasNext ? actions.next : null,
                     ),

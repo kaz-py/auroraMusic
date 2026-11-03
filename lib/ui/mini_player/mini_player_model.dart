@@ -38,6 +38,10 @@ class MiniPlayerState {
     this.equalizerAvailable = false,
     this.equalizerActive = false,
     this.lyricsAvailable = false,
+    this.jamSkipHost,
+    this.jamVoteSkip = false,
+    this.equalizerUnavailableReason,
+    this.duration = Duration.zero,
   });
 
   /// Pista que suena (en Jam, la de la sesión). `null`: nada cargado.
@@ -46,6 +50,12 @@ class MiniPlayerState {
 
   /// 0..1; 0 mientras no se conoce la duración.
   final double progress;
+
+  /// Duración conocida (motor o pista); cero si aún no se sabe.
+  final Duration duration;
+
+  /// Posición actual derivada de [progress].
+  Duration get elapsed => duration * progress;
 
   /// Resolviendo la pista o con el motor en búfer.
   final bool buffering;
@@ -92,6 +102,16 @@ class MiniPlayerState {
   /// Hay pista de la que mostrar letra (el transporte siempre ofrece Letras).
   final bool lyricsAvailable;
 
+  /// Con audio de Jam y sin permiso para saltar: quién controla («Lo controla
+  /// X» si tampoco se puede votar). `null`: se salta con normalidad.
+  final String? jamSkipHost;
+
+  /// Sin permiso para saltar, pero la Jam deja votar: «siguiente» vota.
+  final bool jamVoteSkip;
+
+  /// Por qué no hay ecualizador (motor web o dispositivo); `null` si lo hay.
+  final String? equalizerUnavailableReason;
+
   /// Hay que avisar del anuncio; con audio de Jam manda la Jam.
   bool get adShowing => adPlaying && !jamAudio;
 
@@ -99,6 +119,17 @@ class MiniPlayerState {
   bool get hasQueue => queueLength > 0;
 
   bool get hasTrack => track != null;
+
+  /// Tooltip y semántica de «siguiente»; [normal] lo pone cada tema.
+  String nextLabel([String normal = 'Siguiente']) => jamSkipHost == null
+      ? normal
+      : jamVoteSkip
+      ? 'Votar para saltar'
+      : 'Lo controla $jamSkipHost';
+
+  /// Con la Jam «anterior» no existe; el motivo va en su tooltip.
+  String previousLabel([String normal = 'Anterior']) =>
+      jamActive ? 'No disponible en una Jam' : normal;
 
   factory MiniPlayerState.fromController(
     AppController c, {
@@ -141,6 +172,8 @@ class MiniPlayerState {
       jamAudio: jamAudio,
       canTogglePlay: jamAudio ? jam!.canPause : track != null && !jamOwns,
       jamHostName: jamAudio && !jam!.canPause ? jam.hostName : null,
+      jamSkipHost: jamAudio && !jam!.canSkip ? jam.hostName : null,
+      jamVoteSkip: jamAudio && !jam!.canSkip && jam.service.rules.votes,
       canSeek:
           track != null &&
           duration > Duration.zero &&
@@ -149,9 +182,23 @@ class MiniPlayerState {
       queueLength: c.queue.length,
       equalizerAvailable: c.eq.supported,
       equalizerActive: c.eq.active,
+      duration: duration,
+      equalizerUnavailableReason: c.eq.supported
+          ? null
+          : c.webPlayback
+          ? 'el reproductor oficial de YouTube Music no lo admite'
+          : 'este dispositivo no lo admite',
       lyricsAvailable: track != null,
     );
   }
+}
+
+/// Hora `m:ss` (`h:mm:ss` desde la hora).
+String miniClock(Duration d) {
+  final s = d.inSeconds < 0 ? 0 : d.inSeconds;
+  final h = s ~/ 3600, m = s % 3600 ~/ 60, sec = s % 60;
+  final tail = sec.toString().padLeft(2, '0');
+  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$tail' : '$m:$tail';
 }
 
 const miniAdNotice = 'Anuncio · tu canción sigue después';

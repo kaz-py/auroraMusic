@@ -32,6 +32,10 @@ Widget _build(
 );
 
 const _hairline = 2.0;
+
+/// Ancho de la barra desde el que el móvil añade «siguiente»; por debajo basta
+/// con deslizar.
+const _kNextMinInner = 330.0;
 const _hairlineZone = 12.0;
 const _corner = 6.0;
 const _error = Color(0xffff8a7a);
@@ -188,8 +192,13 @@ class _Row extends StatelessWidget {
         // Controles de escritorio: completos desde 900 px, sin slider debajo.
         final compactControls = c.maxWidth < 900;
         final controlsWidth = compactControls ? 176.0 : 272.0;
+        final showNext = wide || c.maxWidth >= _kNextMinInner;
         // Ancho que se reserva al bloque de texto antes de sumar la hora.
-        final fixed = wide ? 300.0 + controlsWidth + 1 : 156.0;
+        final fixed = wide
+            ? 300.0 + controlsWidth + 1
+            : showNext
+            ? 200.0
+            : 156.0;
         final showTime = c.maxWidth - fixed - timeWidth >= (wide ? 150 : 132);
 
         final info = _Info(
@@ -218,6 +227,18 @@ class _Row extends StatelessWidget {
           ember: ember,
         );
         final time = _Time(state: state, tone: tone);
+        final next = _Key(
+          label: state.nextLabel('Pista siguiente'),
+          onTap: state.hasNext ? actions.next : null,
+          backing: blurred,
+          icon: Icon(
+            state.jamVoteSkip
+                ? Icons.how_to_vote_outlined
+                : Icons.skip_next_rounded,
+            size: 22,
+            color: tone.foreground,
+          ),
+        );
 
         if (!wide) {
           return Padding(
@@ -228,6 +249,7 @@ class _Row extends StatelessWidget {
                 if (showTime) ...[const SizedBox(width: 8), time],
                 heart,
                 play,
+                if (showNext) next,
               ],
             ),
           );
@@ -259,7 +281,7 @@ class _Row extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _Key(
-                        label: 'Pista anterior',
+                        label: state.previousLabel('Pista anterior'),
                         onTap: state.hasPrevious ? actions.previous : null,
                         backing: blurred,
                         icon: Icon(
@@ -271,16 +293,7 @@ class _Row extends StatelessWidget {
                       const SizedBox(width: 4),
                       play,
                       const SizedBox(width: 4),
-                      _Key(
-                        label: 'Pista siguiente',
-                        onTap: state.hasNext ? actions.next : null,
-                        backing: blurred,
-                        icon: Icon(
-                          Icons.skip_next_rounded,
-                          size: 22,
-                          color: tone.foreground,
-                        ),
-                      ),
+                      next,
                     ],
                   ),
                 ),

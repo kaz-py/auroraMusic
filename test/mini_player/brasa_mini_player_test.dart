@@ -212,11 +212,16 @@ void main() {
       }
     }
 
-    testWidgets('la hora cabe desde 412 y se oculta a 360', (tester) async {
+    testWidgets('la hora cabe desde ~420 y se oculta a 412 y 360', (
+      tester,
+    ) async {
       final calls = _Calls();
       await _mount(tester, calls, width: 360);
-      expect(find.text('1:30 / 3:00'), findsNothing);
+      expect(find.textContaining('1:30'), findsNothing);
+      // Desde 330 entra «siguiente» y la hora cede su sitio.
       await _mount(tester, calls, width: 412);
+      expect(find.textContaining('1:30'), findsNothing);
+      await _mount(tester, calls, width: 440);
       expect(find.textContaining('1:30'), findsOneWidget);
       expect(find.textContaining('3:00'), findsOneWidget);
     });

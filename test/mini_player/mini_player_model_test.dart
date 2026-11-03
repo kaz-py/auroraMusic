@@ -199,4 +199,47 @@ void main() {
       expect(miniSubtitleIsError(state(jam: true, error: true)), isFalse);
     });
   });
+
+  test('miniClock: m:ss, h:mm:ss y negativos a cero', () {
+    expect(miniClock(Duration.zero), '0:00');
+    expect(miniClock(const Duration(seconds: 65)), '1:05');
+    expect(miniClock(const Duration(seconds: 3605)), '1:00:05');
+    expect(miniClock(const Duration(seconds: -3)), '0:00');
+  });
+
+  group('etiquetas de siguiente y anterior', () {
+    MiniPlayerState state({
+      String? skipHost,
+      bool vote = false,
+      bool jam = false,
+    }) => MiniPlayerState(
+      track: _a,
+      isPlaying: true,
+      progress: 0,
+      buffering: false,
+      hasError: false,
+      liked: false,
+      hasNext: true,
+      hasPrevious: true,
+      jamActive: jam,
+      canTogglePlay: true,
+      jamSkipHost: skipHost,
+      jamVoteSkip: vote,
+    );
+
+    test('siguiente: normal, lo controla el anfitrión o votar', () {
+      expect(state().nextLabel(), 'Siguiente');
+      expect(state().nextLabel('Pista siguiente'), 'Pista siguiente');
+      expect(state(skipHost: 'Ana').nextLabel(), 'Lo controla Ana');
+      expect(
+        state(skipHost: 'Ana', vote: true).nextLabel(),
+        'Votar para saltar',
+      );
+    });
+
+    test('anterior: no disponible con la Jam activa', () {
+      expect(state().previousLabel(), 'Anterior');
+      expect(state(jam: true).previousLabel(), 'No disponible en una Jam');
+    });
+  });
 }

@@ -215,25 +215,27 @@ void main() {
       expect(find.text('Aurora Boreal'), findsNothing);
     });
 
-    testWidgets('móvil: tarjeta de 60 px con título, artista, corazón y play', (
-      tester,
-    ) async {
-      await mount(tester);
-      expect(find.text('Noches de neón'), findsOneWidget);
-      expect(find.text('Aurora Boreal'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
-      final card = tester.getSize(find.byType(ModernMiniPlayer));
-      // 60 px de tarjeta + 4 y 8 de margen.
-      expect(card.height, closeTo(72, .01));
-      expect(card.width, 390);
-      // Título arriba, artista debajo.
-      expect(
-        tester.getTopLeft(find.text('Noches de neón')).dy,
-        lessThan(tester.getTopLeft(find.text('Aurora Boreal')).dy),
-      );
-    });
+    testWidgets(
+      'móvil: tarjeta de 60 px con título, artista, corazón, play y siguiente',
+      (tester) async {
+        await mount(tester);
+        expect(find.text('Noches de neón'), findsOneWidget);
+        expect(find.text('Aurora Boreal'), findsOneWidget);
+        expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+        // Desde 330 px interiores el móvil también muestra «siguiente».
+        expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+        final card = tester.getSize(find.byType(ModernMiniPlayer));
+        // 60 px de tarjeta + 4 y 8 de margen.
+        expect(card.height, closeTo(72, .01));
+        expect(card.width, 390);
+        // Título arriba, artista debajo.
+        expect(
+          tester.getTopLeft(find.text('Noches de neón')).dy,
+          lessThan(tester.getTopLeft(find.text('Aurora Boreal')).dy),
+        );
+      },
+    );
 
     testWidgets('ancho: tarjeta centrada de 960 con anterior/siguiente', (
       tester,
