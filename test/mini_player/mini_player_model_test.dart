@@ -131,4 +131,28 @@ void main() {
       expect(s.canTogglePlay, isFalse);
     },
   );
+
+  test('canSeek y seek(fracción) usan la duración y el controlador', () async {
+    final audio = FakeAudio();
+    final c = await createTestController(audio: audio);
+    addTearDown(() => closeTestController(c));
+    expect(MiniPlayerState.fromController(c).canSeek, isFalse);
+    await c.playTrack(
+      const Track(
+        id: 'a',
+        title: 'Uno',
+        artist: 'Aurora',
+        pageUrl: 'https://www.youtube.com/watch?v=a',
+        duration: Duration(minutes: 3),
+      ),
+    );
+    expect(MiniPlayerState.fromController(c).canSeek, isTrue);
+    final actions = MiniPlayerActions.forController(c, openPlayer: () {});
+    actions.seek(.5);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(audio.position, const Duration(seconds: 90));
+    actions.seek(2);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(audio.position, const Duration(minutes: 3));
+  });
 }

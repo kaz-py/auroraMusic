@@ -27,6 +27,7 @@ class MiniPlayerState {
     required this.jamActive,
     required this.canTogglePlay,
     this.jamHostName,
+    this.canSeek = false,
   });
 
   /// Pista que suena (en Jam, la de la sesión). `null`: nada cargado.
@@ -50,6 +51,10 @@ class MiniPlayerState {
 
   /// Con Jam y sin permiso, quién controla («Lo controla X»).
   final String? jamHostName;
+
+  /// Se puede mover la posición: hay pista con duración conocida y, con Jam,
+  /// solo el anfitrión.
+  final bool canSeek;
 
   bool get hasTrack => track != null;
 
@@ -92,6 +97,10 @@ class MiniPlayerState {
       jamActive: jamOwns,
       canTogglePlay: jamAudio ? jam!.canPause : track != null && !jamOwns,
       jamHostName: jamAudio && !jam!.canPause ? jam.hostName : null,
+      canSeek:
+          track != null &&
+          duration > Duration.zero &&
+          (jamOwns ? jamAudio && jam!.isHost : true),
     );
   }
 }
@@ -109,9 +118,15 @@ class MiniPlayerActions {
     required this.next,
     required this.previous,
     required this.toggleLike,
+    this.seek = _ignoreSeek,
   });
 
   final VoidCallback openPlayer, togglePlay, next, previous, toggleLike;
+
+  /// Fracción 0..1 de la pista; solo tiene efecto si `MiniPlayerState.canSeek`.
+  final ValueChanged<double> seek;
+
+  static void _ignoreSeek(double _) {}
 
   /// Acciones sobre los métodos existentes del controlador y la Jam.
   /// [togglePlay] permite al shell conservar su manejo de errores de Jam.
@@ -139,6 +154,17 @@ class MiniPlayerActions {
       toggleLike: () {
         final track = c.nowTrack;
         if (track != null) unawaited(c.toggleFavorite(track));
+      },
+      seek: (fraction) {
+        final duration = c.audio.duration > Duration.zero
+            ? c.audio.duration
+            : c.nowTrack?.duration ?? Duration.zero;
+        if (duration <= Duration.zero) return;
+        final position = Duration(
+          milliseconds: (duration.inMilliseconds * fraction.clamp(0.0, 1.0))
+              .round(),
+        );
+        unawaited(jamAudio ? jam!.seek(position) : c.seek(position));
       },
     );
   }
