@@ -222,7 +222,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   late final AudioBackend _audio;
   late final DesktopShell _desktop;
   late final DuvetPresence _duvet;
-  final bool _playerOpen = false;
+  // Hay un consumidor visible del espectro: Vinilo, EQ o la hoja del EQ.
+  bool get _playerOpen =>
+      _section == 4 || _section == 13 || equalizerSheetsOpen.value > 0;
   bool _foreground = true;
   bool _analysisEnabled = false;
   late final UpdateController _updates;
@@ -242,6 +244,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _duvet = DuvetPresence(ref.read(controllerProvider))..start();
     _guardWebClose();
     _audio.setVisualizationEnabled(false);
+    equalizerSheetsOpen.addListener(_eqSheetChanged);
     _listenForJamLinks();
     _startFollow();
     _friendsSub = ref
@@ -347,6 +350,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _syncVisualization();
   }
 
+  void _eqSheetChanged() {
+    if (mounted) _syncVisualization();
+  }
+
   void _syncVisualization() {
     final c = ref.read(controllerProvider);
     final enabled =
@@ -378,6 +385,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _jam?.removeListener(_jamChanged);
     _jam?.dispose();
     _spotifyAdderCache?.dispose();
+    equalizerSheetsOpen.removeListener(_eqSheetChanged);
     if (_analysisEnabled) _audio.setVisualizationEnabled(false);
     _updates.dispose();
     _search.dispose();
@@ -435,6 +443,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         _likesSelected = false;
       });
       _guardWebClose();
+      _syncVisualization();
       if (value != 10 && ref.read(controllerProvider).youtubeMusicActive) {
         ref.read(controllerProvider).closeYouTubeMusic();
       }

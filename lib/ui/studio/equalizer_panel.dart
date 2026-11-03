@@ -15,23 +15,29 @@ import '../slush/slush_eq_queue.dart';
 import 'studio_components.dart';
 import 'studio_symbols.dart';
 
+/// Hojas del ecualizador abiertas ahora mismo; el shell enciende el análisis
+/// del espectro mientras haya alguna.
+final ValueNotifier<int> equalizerSheetsOpen = ValueNotifier<int>(0);
+
 /// Hoja compacta con el ecualizador: se abre sobre la pantalla actual (Jam,
 /// cola, letras…) sin salir de ella. Reutiliza [EqualizerPanel].
-Future<void> showEqualizerSheet(BuildContext context, AppController c) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      constraints: const BoxConstraints(maxWidth: 640),
-      builder: (context) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        child: EqualizerPanel(
-          controller: c,
-          onClose: () => Navigator.pop(context),
-        ),
+Future<void> showEqualizerSheet(BuildContext context, AppController c) {
+  equalizerSheetsOpen.value++;
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    constraints: const BoxConstraints(maxWidth: 640),
+    builder: (context) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      child: EqualizerPanel(
+        controller: c,
+        onClose: () => Navigator.pop(context),
       ),
-    );
+    ),
+  ).whenComplete(() => equalizerSheetsOpen.value--);
+}
 
 String eqFrequencyLabel(double f, {bool short = false}) {
   if (f >= 1000) {
