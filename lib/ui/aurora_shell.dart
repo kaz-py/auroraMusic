@@ -37,6 +37,7 @@ import 'studio/studio_navigation.dart';
 import 'slush/slush_bars.dart';
 import 'slush/slush_pages.dart';
 import 'slush/slush_decor.dart';
+import 'mini_player/mini_player_host.dart';
 import 'studio/studio_transport.dart';
 import 'studio/session_aside.dart';
 import 'studio/downloads_studio_page.dart';
@@ -751,32 +752,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                           ],
                         ),
                       ),
-                      if (_section == 10 && c.usesOfficialYouTubeMusic ||
-                          (slushBar && _section == 4 && !c.jamPlaybackActive) ||
-                          (!rail && isSlush(context) && !c.jamPlaybackActive))
-                        const SizedBox.shrink()
-                      else if (slushBar && !c.jamPlaybackActive)
-                        SlushPlayerBar(
-                          controller: c,
-                          onLyrics: () => _showLyrics(c),
-                          onVinyl: () => _navigate(4),
-                          onQueue: () => _navigate(5),
-                          onEqualizer: () => _navigate(13),
-                          onSettings: () => _navigate(7),
-                          onOpenPlayer: () => _showPlayer(c),
-                        )
-                      else
-                        StudioTransport(
-                          shortcuts: ref.watch(shortcutServiceProvider),
-                          jam: _jam,
-                          onJam: _openJamPanel,
-                          onStartJam: _startJam,
-                          controller: c,
-                          onLyrics: () => _showLyrics(c),
-                          onVinyl: () => _navigate(4),
-                          onQueue: () => _navigate(5),
-                          onOpenPlayer: () => _showPlayer(c),
-                        ),
+                      _miniPlayer(c, rail, MiniPlayerPlacement.body),
                     ],
                   ),
                 ),
@@ -786,31 +762,25 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                     ? MediaQuery.withClampedTextScaling(
                         maxScaleFactor: 1.3,
                         child: SlushBottomBar(
-                        icons: [
-                          for (final s in _slushPrimarySections)
-                            switch (s) {
-                              2 => Icons.queue_music,
-                              8 => Icons.auto_awesome,
-                              9 => Icons.groups_outlined,
-                              _ => _icons[s],
-                            },
-                        ],
-                        labels: [
-                          for (final s in _slushPrimarySections) _sections[s],
-                        ],
-                        selected: _slushPrimarySections.indexOf(_section),
-                        onSelect: (i) => _navigate(_slushPrimarySections[i]),
-                        mini:
-                            _section == 4 ||
-                                c.jamPlaybackActive ||
-                                (_section == 10 && c.usesOfficialYouTubeMusic)
-                            ? null
-                            : SlushMiniPlayer(
-                                controller: c,
-                                onOpen: () => _navigate(4),
-                                onToggle: () => _togglePlay(c),
-                                onNext: c.next,
-                              ),
+                          icons: [
+                            for (final s in _slushPrimarySections)
+                              switch (s) {
+                                2 => Icons.queue_music,
+                                8 => Icons.auto_awesome,
+                                9 => Icons.groups_outlined,
+                                _ => _icons[s],
+                              },
+                          ],
+                          labels: [
+                            for (final s in _slushPrimarySections) _sections[s],
+                          ],
+                          selected: _slushPrimarySections.indexOf(_section),
+                          onSelect: (i) => _navigate(_slushPrimarySections[i]),
+                          mini: _miniPlayer(
+                            c,
+                            rail,
+                            MiniPlayerPlacement.bottomBar,
+                          ),
                         ),
                       )
                     : NavigationBar(
@@ -3154,6 +3124,32 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     ),
   );
 
+  /// Mini reproductor / barra de transporte (ver `mini_player_host.dart`).
+  Widget _miniPlayer(
+    AppController c,
+    bool rail,
+    MiniPlayerPlacement placement,
+  ) => MiniPlayerHost(
+    controller: c,
+    section: _section,
+    rail: rail,
+    placement: placement,
+    jam: _jam,
+    onOpenPlayer: () => _navigate(4),
+    onTogglePlay: () => _togglePlay(c),
+    legacy: MiniPlayerLegacyBars(
+      shortcuts: ref.watch(shortcutServiceProvider),
+      onJam: _openJamPanel,
+      onStartJam: _startJam,
+      onLyrics: () => _showLyrics(c),
+      onVinyl: () => _navigate(4),
+      onQueue: () => _navigate(5),
+      onEqualizer: () => _navigate(13),
+      onSettings: () => _navigate(7),
+      onOpenPlayer: () => _showPlayer(c),
+    ),
+  );
+
   Future<void> _showPlayer(AppController c) async {
     _playerOpen = true;
     _syncVisualization();
@@ -3994,6 +3990,5 @@ class _SlushSectionFadeState extends State<_SlushSectionFade>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      SlushMotion.fadeSlide(_c, widget.child);
+  Widget build(BuildContext context) => SlushMotion.fadeSlide(_c, widget.child);
 }
