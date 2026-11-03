@@ -161,15 +161,20 @@ Funda de disco acoplada al borde inferior, sin esquinas ni sombra: papel cálido
 
 Pegatina flotante: contorno de 2 px, sombra dura (3,4) fija detrás y esquinas de
 28 (32 con carril). Móvil: dentro de `SlushBottomBar`, a su ancho (márgenes de
-12), unos 72 px. Con carril: dock centrado de 720 px como máximo, en el cuerpo,
-con el margen de pantalla de Slush; los gestos cubren solo el dock.
+12), unos 72 px. Con carril: dock centrado de 720 px como máximo (920 desde
+1100 px de ancho), en el cuerpo, con el margen de pantalla de Slush; los gestos
+cubren solo el dock. En la pantalla Cola/EQ el titular se compacta con poca
+altura para que el mini y la barra no la desborden.
 
 - **Color**: claro = losa de color vivo (menta, amarillo, lila o naranja, según
   el tono de `AccentScope`), tinta encima, play negro. Oscuro = losa `raised`
   con contorno crema; el vivo queda en el play y el progreso.
-- **Progreso**: barra de 5 px en segmentos de 10 px con mando cuadrado de 10 px
-  (solo indica; sin arrastre). Se pinta con un `CustomPaint` sin animación
-  propia.
+- **Progreso**: barra de 5 px en segmentos de 10 px con mando cuadrado de 10 px.
+  Con `canSeek` es arrastrable (tocar o arrastrar mueve la posición) en una
+  franja de 24 px; sin `canSeek` solo indica. Se pinta con un `CustomPaint` sin
+  animación propia.
+- **Escritorio**: con carril, volumen, cola, letras y ecualizador salen de
+  `MiniPlayerDesktopControls`.
 - **Texto**: título Inter 800 (14; 15 con carril) y artista debajo, ambos en
   tinta. Con fallo, «No se pudo reproducir» sustituye al artista.
 - **Botones**: favorito de pegatina (círculo de 34 en zona de 44; rosa al
@@ -185,9 +190,7 @@ con el margen de pantalla de Slush; los gestos cubren solo el dock.
 - **Movimiento**: entra con opacidad y 8 px de recorrido (240 ms); al cambiar de
   pista el cover y el texto cruzan con `SlushMotion.fadeSlide`; el play cambia de
   icono con escala. Con movimiento reducido solo opacidad.
-- Sustituye a `SlushMiniPlayer` (móvil) y `SlushPlayerBar` (carril): con carril
-  ya no hay seek, volumen, cola, letras ni ecualizador en la barra; se llega a
-  ellos desde las pestañas del reproductor (Vinilo, Letras, EQ, Cola).
+- Sustituye a `SlushMiniPlayer` (móvil) y `SlushPlayerBar` (carril).
 - Pruebas: `test/mini_player/slush_mini_player_test.dart`.
 
 ## Controles de escritorio (carril ancho)

@@ -645,82 +645,91 @@ class _QueueCardState extends State<_QueueCard> {
         ],
       );
       final summary = _summary(ordered);
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: _card(context),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+      return LayoutBuilder(
+        builder: (context, box) {
+          // Con poca altura (móvil con mini + barra) la cabecera se compacta y
+          // la lista, único scroll, absorbe el resto.
+          final compact =
+              widget.fill && box.hasBoundedHeight && box.maxHeight < 340;
+          final gap = compact ? 4.0 : 10.0;
+          return Container(
+            padding: EdgeInsets.all(compact ? 10 : 16),
+            decoration: _card(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
+                Row(
+                  children: [
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'COLA',
+                          style: TextStyle(
+                            fontFamily: 'Bagel Fat One',
+                            fontSize: compact ? 32 : 52,
+                            height: 1,
+                            color: context.slush.ink,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: c.shuffle
+                          ? 'Desactivar aleatorio'
+                          : 'Activar aleatorio',
+                      child: SlushPressable(
+                        elevation: SlushElevation.none,
+                        onTap: () => c.setShuffle(!c.shuffle),
+                        child: SlushPill(
+                          c.shuffle ? 'Aleatorio activo' : 'Aleatorio',
+                          color: c.shuffle ? Slush.mint : context.slush.paper,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (summary.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(top: compact ? 2 : 6),
                     child: Text(
-                      'COLA',
+                      summary,
                       style: TextStyle(
-                        fontFamily: 'Bagel Fat One',
-                        fontSize: 52,
-                        height: 1,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .6,
                         color: context.slush.ink,
                       ),
                     ),
                   ),
-                ),
-                Tooltip(
-                  message: c.shuffle
-                      ? 'Desactivar aleatorio'
-                      : 'Activar aleatorio',
-                  child: SlushPressable(
-                    elevation: SlushElevation.none,
-                    onTap: () => c.setShuffle(!c.shuffle),
-                    child: SlushPill(
-                      c.shuffle ? 'Aleatorio activo' : 'Aleatorio',
-                      color: c.shuffle ? Slush.mint : context.slush.paper,
-                    ),
+                SizedBox(height: gap),
+                if (q.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No hay canciones en la cola')),
+                  )
+                else if (widget.fill)
+                  Expanded(child: stack)
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 340),
+                    child: stack,
+                  ),
+                if (widget.fill && q.isEmpty) const Spacer(),
+                SizedBox(height: gap),
+                OutlinedButton.icon(
+                  onPressed: widget.onSearch,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text(
+                    'REPRODUCIR A CONTINUACIÓN…',
+                    style: TextStyle(fontSize: 12),
                   ),
                 ),
               ],
             ),
-            if (summary.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  summary,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .6,
-                    color: context.slush.ink,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 10),
-            if (q.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: Text('No hay canciones en la cola')),
-              )
-            else if (widget.fill)
-              Expanded(child: stack)
-            else
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 340),
-                child: stack,
-              ),
-            if (widget.fill && q.isEmpty) const Spacer(),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: widget.onSearch,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text(
-                'REPRODUCIR A CONTINUACIÓN…',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
     },
   );
