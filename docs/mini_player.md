@@ -131,3 +131,31 @@ Barra acoplada al borde inferior (esquinas superiores de 6 px, sin flotar),
 - **Movimiento**: pulsar encoge a 0,92 al bajar el dedo (100 ms); con movimiento
   reducido solo baja la opacidad. La marca de la cabeza usa 120 ms.
 - Pruebas: `test/mini_player/brasa_mini_player_test.dart`.
+
+## Atelier (`atelier_mini_player.dart`)
+
+Funda de disco acoplada al borde inferior, sin esquinas ni sombra: papel cálido
+(`surfaceContainerLow`; oscuro, carbón cálido). 56 px en móvil y 64 con carril
+(×1,5 como máximo con el texto, que el widget también recorta a ×1,5).
+
+- **Funda**: portada cuadrada (46 px, 54 con carril, radio 6) con un vinilo que
+  asoma por la derecha (disco negro, surcos, dos reflejos y etiqueta de acento).
+  Con la pista sonando gira una vuelta cada 10 s (solo `transform`, un
+  `RepaintBoundary`); en búfer, con error o con movimiento reducido, quieto.
+- **Progreso**: la regla superior de 1 px es la línea de tiempo: tramo recorrido
+  en acento y un nudo de 5 px en la posición. Solo indica; no se arrastra (5 px
+  no es objetivo táctil y chocaría con el deslizar a los lados).
+- **Texto**: título en la cara de display del tema (Newsreader 16,5/18 px,
+  peso 500) y artista debajo en cursiva pequeña (14 px). Con fallo, el aviso
+  «No se pudo reproducir» sustituye al artista.
+- **Botones** (44 × 44): favorito y siguiente sin relleno; reproducir es un
+  círculo de acento (en búfer, anillo; con movimiento reducido, reloj quieto).
+  Con carril se añade «anterior». Bajo 330 px se omite el favorito.
+- **Difuminado**: `BlurredCoverBackdrop(matchTheme: true)`: portada bajo el velo
+  cálido del tema. El artista pasa arriba, en display de 22 px (26 con carril),
+  tracking negativo, como la etiqueta de un disco; el título baja a cursiva
+  pequeña. Sobre la portada el acento cede su sitio al color del texto garantizado
+  (línea, nudo, play y favorito).
+- **Movimiento**: pulsar hunde el botón a 0,93 (100 ms, ease-out); con
+  movimiento reducido no hay hundimiento ni giro.
+- Pruebas: `test/mini_player/atelier_mini_player_test.dart`.
