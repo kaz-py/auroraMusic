@@ -63,6 +63,8 @@ MiniPlayerState _state({
   bool hasNext = true,
   bool hasPrevious = true,
   String? jamHost,
+  bool ad = false,
+  bool jam = false,
   int queueLength = 3,
   bool eqAvailable = true,
   bool lyricsAvailable = true,
@@ -79,6 +81,8 @@ MiniPlayerState _state({
   canTogglePlay: canTogglePlay,
   canSeek: canSeek,
   jamHostName: jamHost,
+  adPlaying: ad,
+  jamAudio: jam,
   queueLength: queueLength,
   equalizerAvailable: eqAvailable,
   lyricsAvailable: lyricsAvailable,
@@ -702,6 +706,50 @@ void main() {
       expect(find.byType(ModernMiniPlayer), findsOneWidget);
       expect(find.text('Aurora Boreal'), findsOneWidget);
     });
+  });
+
+  group('anuncio y Jam en el subtítulo', () {
+    for (final scale in const [1.0, 2.0]) {
+      for (final blurred in const [false, true]) {
+        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
+        Future<void> pump(WidgetTester tester, MiniPlayerState state) async {
+          final image = (await tester.runAsync(
+            () => decodeImageFromList(base64Decode(_png)),
+          ))!;
+          await mount(
+            tester,
+            width: 360,
+            scale: scale,
+            blurred: blurred,
+            source: blurred ? _Covers(image, Colors.white) : null,
+            state: state,
+          );
+        }
+
+        testWidgets('anuncio · $tag', (tester) async {
+          await pump(tester, _state(ad: true, playing: true));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text('Anuncio · tu canción sigue después'),
+            findsOneWidget,
+          );
+          // Difuminado: el artista sigue de titular.
+          expect(
+            find.text('Aurora Boreal'),
+            blurred ? findsOneWidget : findsNothing,
+          );
+        });
+
+        testWidgets('Jam · $tag', (tester) async {
+          await pump(tester, _state(jam: true, playing: true));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text(blurred ? 'Noches de neón · Jam' : 'Aurora Boreal · Jam'),
+            findsOneWidget,
+          );
+        });
+      }
+    }
   });
 }
 

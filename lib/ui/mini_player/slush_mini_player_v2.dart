@@ -352,10 +352,10 @@ class _Body extends StatelessWidget {
                   Expanded(
                     child: swap(
                       _Titles(
+                        state: state,
                         track: track,
                         look: look,
                         wide: wide,
-                        error: state.hasError,
                       ),
                     ),
                   ),
@@ -517,18 +517,21 @@ class _Cover extends StatelessWidget {
 
 class _Titles extends StatelessWidget {
   const _Titles({
+    required this.state,
     required this.track,
     required this.look,
     required this.wide,
-    required this.error,
   });
 
+  final MiniPlayerState state;
   final Track track;
   final _Look look;
-  final bool wide, error;
+  final bool wide;
 
   @override
   Widget build(BuildContext context) {
+    final error = miniSubtitleIsError(state);
+    final onCover = look.onCover;
     final titleSize = wide ? 15.0 : 14.0, subSize = wide ? 13.0 : 12.0;
     final line = Text(
       track.title,
@@ -542,7 +545,7 @@ class _Titles extends StatelessWidget {
       ),
     );
     final artist = Text(
-      track.artist,
+      miniSubtitle(state, artistProminent: onCover),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -558,7 +561,7 @@ class _Titles extends StatelessWidget {
         const SizedBox(width: 4),
         Expanded(
           child: Text(
-            'No se pudo reproducir',
+            miniErrorNotice,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -572,7 +575,7 @@ class _Titles extends StatelessWidget {
       ],
     );
 
-    if (look.onCover) {
+    if (onCover) {
       // Artista como protagonista: Bagel Fat One en mayúsculas.
       final size = wide ? 26.0 : 20.0;
       final scaler = MediaQuery.textScalerOf(
@@ -598,7 +601,7 @@ class _Titles extends StatelessWidget {
           error
               ? problem
               : Text(
-                  track.title,
+                  miniSubtitle(state, artistProminent: true),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

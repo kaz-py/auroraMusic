@@ -27,6 +27,8 @@ class MiniPlayerState {
     required this.hasNext,
     required this.hasPrevious,
     required this.jamActive,
+    this.adPlaying = false,
+    this.jamAudio = false,
     required this.canTogglePlay,
     this.jamHostName,
     this.canSeek = false,
@@ -53,6 +55,14 @@ class MiniPlayerState {
   final bool liked;
   final bool hasNext, hasPrevious;
   final bool jamActive;
+
+  /// El sitio web muestra un anuncio (`AppController.adPlaying`).
+  final bool adPlaying;
+
+  /// Suena audio de Jam con controlador activo (`transportJamAudio`): la pista
+  /// es la de la sesión. Distinto de [jamActive], que ya vale mientras la Jam
+  /// es dueña del audio aunque aún no haya controlador.
+  final bool jamAudio;
 
   /// Pausar/reanudar permitido (en Jam depende del rol).
   final bool canTogglePlay;
@@ -81,6 +91,9 @@ class MiniPlayerState {
 
   /// Hay pista de la que mostrar letra (el transporte siempre ofrece Letras).
   final bool lyricsAvailable;
+
+  /// Hay que avisar del anuncio; con audio de Jam manda la Jam.
+  bool get adShowing => adPlaying && !jamAudio;
 
   bool get muted => volume <= 0;
   bool get hasQueue => queueLength > 0;
@@ -124,6 +137,8 @@ class MiniPlayerState {
       hasNext: hasNext,
       hasPrevious: track != null && !jamOwns,
       jamActive: jamOwns,
+      adPlaying: c.adPlaying,
+      jamAudio: jamAudio,
       canTogglePlay: jamAudio ? jam!.canPause : track != null && !jamOwns,
       jamHostName: jamAudio && !jam!.canPause ? jam.hostName : null,
       canSeek:
@@ -137,6 +152,25 @@ class MiniPlayerState {
       lyricsAvailable: track != null,
     );
   }
+}
+
+const miniAdNotice = 'Anuncio · tu canción sigue después';
+const miniErrorNotice = 'No se pudo reproducir';
+
+/// El subtítulo es un fallo del motor (los temas le ponen su icono/color).
+bool miniSubtitleIsError(MiniPlayerState s) =>
+    s.hasError && !s.adShowing && !s.jamAudio;
+
+/// Línea secundaria única de los cuatro temas. Prioridad: anuncio, Jam,
+/// fallo, artista. Con [artistProminent] (fondo de portada difuminada) el
+/// artista ya es el titular, así que la línea de reserva es la pista.
+String miniSubtitle(MiniPlayerState s, {bool artistProminent = false}) {
+  final track = s.track!;
+  final lead = artistProminent ? track.title : track.artist;
+  if (s.adShowing) return miniAdNotice;
+  if (s.jamAudio) return '$lead · Jam';
+  if (s.hasError) return miniErrorNotice;
+  return lead;
 }
 
 /// Acciones del mini reproductor. Los temas las invocan; no contienen lógica.

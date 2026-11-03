@@ -38,6 +38,8 @@ MiniPlayerState _state({
   bool hasPrevious = true,
   bool canTogglePlay = true,
   String? jamHostName,
+  bool ad = false,
+  bool jam = false,
   bool canSeek = false,
   double volume = .75,
   int queueLength = 3,
@@ -56,6 +58,8 @@ MiniPlayerState _state({
   jamActive: false,
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
+  adPlaying: ad,
+  jamAudio: jam,
   canSeek: canSeek,
   volume: volume,
   queueLength: queueLength,
@@ -862,6 +866,49 @@ void main() {
       expect(find.text('Mare Sol'), findsOneWidget);
       expect(find.text('MARE SOL'), findsNothing);
     });
+  });
+
+  group('anuncio y Jam en el subtítulo', () {
+    for (final scale in const [1.0, 2.0]) {
+      for (final blurred in const [false, true]) {
+        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
+        Future<void> pump(WidgetTester tester, MiniPlayerState state) async {
+          final image = await tester.runAsync(_image);
+          await mount(
+            tester,
+            size: const Size(360, 640),
+            scale: scale,
+            blurred: blurred,
+            source: blurred ? _FakeCovers(image!, Colors.white) : null,
+            state: state,
+          );
+        }
+
+        testWidgets('anuncio · $tag', (tester) async {
+          await pump(tester, _state(ad: true, isPlaying: true));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text('Anuncio · tu canción sigue después'),
+            findsOneWidget,
+          );
+          // Difuminado: el artista sigue de titular (en mayúsculas).
+          expect(
+            find.text('MARE SOL'),
+            blurred ? findsOneWidget : findsNothing,
+          );
+          expect(find.text('Mare Sol'), findsNothing);
+        });
+
+        testWidgets('Jam · $tag', (tester) async {
+          await pump(tester, _state(jam: true, isPlaying: true));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text(blurred ? 'Luz de luna · Jam' : 'Mare Sol · Jam'),
+            findsOneWidget,
+          );
+        });
+      }
+    }
   });
 }
 

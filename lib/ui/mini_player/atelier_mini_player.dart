@@ -200,7 +200,7 @@ class _Dock extends StatelessWidget {
       height: 1.2,
       fontStyle: FontStyle.italic,
     );
-    final detail = state.hasError
+    final detail = miniSubtitleIsError(state)
         ? Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -208,14 +208,14 @@ class _Dock extends StatelessWidget {
               const SizedBox(width: 4),
               Flexible(
                 child: line(
-                  'No se pudo reproducir',
+                  miniSubtitle(state),
                   base.merge(small).copyWith(color: ink.error),
                 ),
               ),
             ],
           )
         : line(
-            blurred ? track.title : track.artist,
+            miniSubtitle(state, artistProminent: blurred),
             base.merge(small).copyWith(color: ink.sub),
           );
     final text = Column(

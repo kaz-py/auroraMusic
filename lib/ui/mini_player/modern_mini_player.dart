@@ -177,8 +177,8 @@ class _Body extends StatelessWidget {
       color: inkSoft,
     );
 
-    final String? note = state.hasError
-        ? 'No se pudo reproducir'
+    final String? note = miniSubtitleIsError(state)
+        ? miniErrorNotice
         : state.jamHostName != null
         ? 'Lo controla ${state.jamHostName}'
         : null;
@@ -198,7 +198,7 @@ class _Body extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (state.hasError) ...[
+              if (miniSubtitleIsError(state)) ...[
                 Icon(Icons.error_outline_rounded, size: 14, color: errorInk),
                 const SizedBox(width: 4),
               ],
@@ -208,7 +208,7 @@ class _Body extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: secondaryStyle.copyWith(
-                    color: state.hasError ? errorInk : inkSoft,
+                    color: miniSubtitleIsError(state) ? errorInk : inkSoft,
                   ),
                 ),
               ),
@@ -216,7 +216,7 @@ class _Body extends StatelessWidget {
           )
         else
           Text(
-            blurred ? track.title : track.artist,
+            miniSubtitle(state, artistProminent: blurred),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: secondaryStyle,

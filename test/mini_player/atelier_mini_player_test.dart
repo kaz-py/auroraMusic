@@ -77,6 +77,8 @@ MiniPlayerState _state({
   bool eq = false,
   bool lyrics = false,
   String? jamHost,
+  bool ad = false,
+  bool jam = false,
 }) => MiniPlayerState(
   track: track,
   isPlaying: playing,
@@ -93,6 +95,8 @@ MiniPlayerState _state({
   equalizerAvailable: eq,
   lyricsAvailable: lyrics,
   jamHostName: jamHost,
+  adPlaying: ad,
+  jamAudio: jam,
 );
 
 final _light = auroraTheme(Brightness.light, const Color(0xffe86927));
@@ -681,5 +685,46 @@ void main() {
       await tester.tapAt(top + const Offset(225, 6));
       expect(calls.seeks, isEmpty);
     });
+  });
+
+  group('anuncio y Jam en el subtítulo', () {
+    const plain = Track(id: 's', title: 'Luz de luna', artist: 'Mare Sol');
+    const art = Track(
+      id: 's',
+      title: 'Luz de luna',
+      artist: 'Mare Sol',
+      artworkUrl: _asset,
+    );
+    for (final scale in const [1.0, 2.0]) {
+      for (final blurred in const [false, true]) {
+        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
+        Future<void> pump(WidgetTester tester, MiniPlayerState state) => mount(
+          tester,
+          width: 360,
+          scale: scale,
+          blurred: blurred,
+          source: blurred ? _Covers(image, Colors.white) : null,
+          state: state,
+        );
+        final track = blurred ? art : plain;
+
+        testWidgets('anuncio · $tag', (tester) async {
+          await pump(tester, _state(track: track, ad: true, playing: true));
+          expect(tester.takeException(), isNull);
+          expect(text('Anuncio · tu canción sigue después'), findsOneWidget);
+          // Difuminado: el artista sigue de titular.
+          expect(text('Mare Sol'), blurred ? findsOneWidget : findsNothing);
+        });
+
+        testWidgets('Jam · $tag', (tester) async {
+          await pump(tester, _state(track: track, jam: true, playing: true));
+          expect(tester.takeException(), isNull);
+          expect(
+            text(blurred ? 'Luz de luna · Jam' : 'Mare Sol · Jam'),
+            findsOneWidget,
+          );
+        });
+      }
+    }
   });
 }

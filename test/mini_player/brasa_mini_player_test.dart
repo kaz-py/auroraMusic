@@ -64,6 +64,8 @@ MiniPlayerState _state({
   bool hasPrevious = true,
   bool canTogglePlay = true,
   String? jamHostName,
+  bool ad = false,
+  bool jam = false,
   bool canSeek = true,
 }) => MiniPlayerState(
   track: track,
@@ -77,6 +79,8 @@ MiniPlayerState _state({
   jamActive: false,
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
+  adPlaying: ad,
+  jamAudio: jam,
   canSeek: canSeek,
   queueLength: 3,
   equalizerAvailable: true,
@@ -760,5 +764,48 @@ void main() {
       await mountHost(tester, section: 4);
       expect(_bar, findsNothing);
     });
+  });
+
+  group('anuncio y Jam en el subtítulo', () {
+    for (final scale in const [1.0, 2.0]) {
+      for (final blurred in const [false, true]) {
+        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
+        Future<void> pump(WidgetTester tester, MiniPlayerState state) async {
+          final image = (await tester.runAsync(
+            () => decodeImageFromList(base64Decode(_png)),
+          ))!;
+          await _mount(
+            tester,
+            _Calls(),
+            width: 360,
+            scale: scale,
+            blurred: blurred,
+            covers: blurred ? _Covers(image, Colors.black) : null,
+            state: state,
+          );
+        }
+
+        final track = blurred ? _withCover : _plain;
+
+        testWidgets('anuncio · $tag', (tester) async {
+          await pump(tester, _state(track: track, ad: true, isPlaying: true));
+          expect(tester.takeException(), isNull);
+          expect(
+            find.text('Anuncio · tu canción sigue después'),
+            findsOneWidget,
+          );
+          // El artista sigue arriba; el aviso reemplaza a la pista.
+          expect(find.text('LOS RESCOLDOS'), findsOneWidget);
+          expect(find.text('Cenizas'), findsNothing);
+        });
+
+        testWidgets('Jam · $tag', (tester) async {
+          await pump(tester, _state(track: track, jam: true, isPlaying: true));
+          expect(tester.takeException(), isNull);
+          expect(find.text('LOS RESCOLDOS · JAM'), findsOneWidget);
+          expect(find.text('Cenizas'), findsOneWidget);
+        });
+      }
+    }
   });
 }

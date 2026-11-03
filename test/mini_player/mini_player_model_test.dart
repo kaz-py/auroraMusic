@@ -155,4 +155,48 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(audio.position, const Duration(minutes: 3));
   });
+
+  group('miniSubtitle', () {
+    MiniPlayerState state({
+      bool ad = false,
+      bool jam = false,
+      bool error = false,
+    }) => MiniPlayerState(
+      track: _a,
+      isPlaying: true,
+      progress: 0,
+      buffering: false,
+      hasError: error,
+      liked: false,
+      hasNext: false,
+      hasPrevious: false,
+      jamActive: jam,
+      adPlaying: ad,
+      jamAudio: jam,
+      canTogglePlay: true,
+    );
+
+    test('artista por defecto; con artista de titular, la pista', () {
+      expect(miniSubtitle(state()), 'Aurora');
+      expect(miniSubtitle(state(), artistProminent: true), 'Uno');
+    });
+
+    test('anuncio, Jam y fallo con su prioridad', () {
+      expect(miniSubtitle(state(ad: true, error: true)), miniAdNotice);
+      expect(
+        miniSubtitle(state(ad: true), artistProminent: true),
+        miniAdNotice,
+      );
+      // El anuncio no cuenta con audio de Jam.
+      expect(miniSubtitle(state(ad: true, jam: true)), 'Aurora · Jam');
+      expect(
+        miniSubtitle(state(jam: true), artistProminent: true),
+        'Uno · Jam',
+      );
+      expect(miniSubtitle(state(error: true)), miniErrorNotice);
+      expect(miniSubtitleIsError(state(error: true)), isTrue);
+      expect(miniSubtitleIsError(state(ad: true, error: true)), isFalse);
+      expect(miniSubtitleIsError(state(jam: true, error: true)), isFalse);
+    });
+  });
 }
