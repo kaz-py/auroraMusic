@@ -69,6 +69,7 @@ class ModernMiniPlayer extends StatelessWidget {
       actions: actions,
       blurred: blurred,
       wide: wide,
+      fill: fill,
     );
     if (blurred) {
       body = BlurredCoverBackdrop(
@@ -121,11 +122,15 @@ class _Body extends StatelessWidget {
     required this.actions,
     required this.blurred,
     required this.wide,
+    required this.fill,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
   final bool blurred, wide;
+
+  /// Color opaco de la tarjeta (contra el que se ajusta el acento).
+  final Color fill;
 
   @override
   Widget build(BuildContext context) {
@@ -138,10 +143,16 @@ class _Body extends StatelessWidget {
 
     final inkOn = onCover ? tone.foreground : scheme.onSurface;
     final inkSoft = onCover ? tone.secondary : scheme.onSurfaceVariant;
-    final playFill = onCover ? tone.foreground : scheme.tertiary;
+    // Con fondo claro u oscuro el acento del tema se ajusta contra el color de
+    // la tarjeta (más clara que el lienzo), no contra el lienzo.
+    final accent = _legible(scheme.tertiary, fill, isDarkTheme(context));
+    final playFill = onCover ? tone.foreground : accent;
     final playInk = onCover
         ? (tone.foreground.computeLuminance() > .5 ? Tracky.navy : Colors.white)
-        : scheme.onTertiary;
+        : (coverContrast(Colors.white, accent) >
+                  coverContrast(Tracky.navy, accent)
+              ? Colors.white
+              : Tracky.navy);
     final liked = isDarkTheme(context) ? Tracky.coral : const Color(0xffd32f2f);
     final likedInk = onCover ? tone.foreground : liked;
 
@@ -334,7 +345,7 @@ class _Body extends StatelessWidget {
             progress: state.progress,
             canSeek: state.canSeek,
             onSeek: actions.seek,
-            color: onCover ? tone.foreground : scheme.tertiary,
+            color: onCover ? tone.foreground : accent,
             trackColor: inkOn.withValues(alpha: .14),
           ),
         ),
@@ -348,6 +359,16 @@ class _Body extends StatelessWidget {
     padding: EdgeInsets.zero,
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
   );
+}
+
+/// Acerca [c] a claro (tema oscuro) u oscuro hasta llegar a 3:1 con [bg].
+Color _legible(Color c, Color bg, bool dark) {
+  var hsl = HSLColor.fromColor(c);
+  for (var i = 0; i < 100 && coverContrast(c, bg) < 3; i++) {
+    hsl = hsl.withLightness((hsl.lightness + (dark ? .01 : -.01)).clamp(0, 1));
+    c = hsl.toColor();
+  }
+  return c;
 }
 
 /// Cambio de icono: escala 0,8 → 1 con fundido; con movimiento reducido solo
