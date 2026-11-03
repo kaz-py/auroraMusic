@@ -21,8 +21,7 @@ Igual para todos los temas.
 | `mini_player_gestures.dart` | `MiniPlayerGestures`: toque, arrastre arriba, deslizar a los lados. |
 | `mini_player_theme.dart` | `MiniPlayerBuilder` y `MiniPlayerTheme`. |
 | `mini_player_host.dart` | `MiniPlayerHost` y registro `miniPlayerThemes`. |
-| `atelier_/modern_/brasa_mini_player.dart`, `slush_mini_player_v2.dart` | Un tema cada uno (fase 2). Hoy delegan en la barra de siempre (`legacy: true`). |
-| `mini_player_legacy.dart` | Puente temporal a `StudioTransport`, `SlushPlayerBar` y `SlushMiniPlayer`. Se borra cuando ningún tema sea `legacy`. |
+| `atelier_/modern_/brasa_mini_player.dart`, `slush_mini_player_v2.dart` | Un tema cada uno. |
 
 ## `BlurredCoverBackdrop`
 
@@ -58,7 +57,6 @@ MiniPlayerHost(
   controller: c, section: _section, rail: rail,
   placement: MiniPlayerPlacement.body,   // o bottomBar (SlushBottomBar.mini)
   jam: _jam, onOpenPlayer: () => _navigate(4), onTogglePlay: () => _togglePlay(c),
-  legacy: MiniPlayerLegacyBars(...),
 )
 ```
 
@@ -67,8 +65,7 @@ corresponde a `MiniPlayerHost.placementFor`. Va en flujo, así que el shell
 reserva su altura sin medirla. `MiniPlayerHost.heightFor(context, wide:)` es la
 altura mínima (56 móvil, 64 con carril, hasta ×1,5 con el texto).
 
-Un tema nuevo se registra en `miniPlayerThemes` con
-`MiniPlayerTheme(build: ...)` (sin `legacy`):
+Un tema nuevo se registra en `miniPlayerThemes` con `MiniPlayerTheme(build: ...)`:
 
 ```dart
 typedef MiniPlayerBuilder = Widget Function(
@@ -81,12 +78,10 @@ typedef MiniPlayerBuilder = Widget Function(
 - El host ya aplica: oculto sin pista, en la sección 4 y en la página oficial de
   YouTube Music; `MiniPlayerGestures` y la altura mínima. El tema no repite
   gestos ni visibilidad: dibuja y cablea play, favorito y siguiente.
-- Con `legacy: true` el host conserva las reglas de antes (Atelier/Modern/Brasa
-  siempre visibles también sin pista; Slush oculto en la sección 4; con Jam,
-  `StudioTransport` en el cuerpo) y no envuelve en gestos.
-
-Migración de un tema (fase 2): reemplazar el cuerpo de `_build` en su archivo,
-quitar `legacy: true`.
+- Con Jam activa se ve el mismo mini del tema (también el de Slush en su barra
+  inferior móvil): `MiniPlayerState` ya aplica los permisos de la Jam (sin
+  «anterior», «siguiente» solo con permiso o voto, play desactivado sin
+  permiso). No hay otra barra para Jam.
 
 ## Modelo y acciones
 

@@ -26,13 +26,7 @@ typedef MiniPlayerBuilder =
     });
 
 /// Un tema del mini reproductor.
-///
-/// [legacy]: sigue siendo la barra anterior a 1.5.0. El host conserva
-/// entonces su visibilidad y su manejo de Jam de siempre y **no** lo envuelve
-/// en gestos ni altura mínima. Al sustituir el cuerpo por el mini nuevo,
-/// quitar `legacy: true`.
 class MiniPlayerTheme {
-  const MiniPlayerTheme({required this.build, this.legacy = false});
+  const MiniPlayerTheme({required this.build});
   final MiniPlayerBuilder build;
-  final bool legacy;
 }

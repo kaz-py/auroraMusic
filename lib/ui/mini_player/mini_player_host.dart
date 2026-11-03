@@ -8,7 +8,6 @@ import '../../theme/slush_theme.dart';
 import 'atelier_mini_player.dart';
 import 'brasa_mini_player.dart';
 import 'mini_player_gestures.dart';
-import 'mini_player_legacy.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 import 'modern_mini_player.dart';
@@ -16,7 +15,6 @@ import 'slush_mini_player_v2.dart';
 
 export 'mini_player_desktop_controls.dart' show MiniPlayerDesktopControls;
 export 'mini_player_gestures.dart' show MiniPlayerGestures;
-export 'mini_player_legacy.dart' show MiniPlayerLegacyBars;
 export 'mini_player_model.dart'
     show MiniPlayerActions, MiniPlayerState, MuteMemory;
 export 'mini_player_theme.dart' show MiniPlayerBuilder, MiniPlayerTheme;
@@ -46,9 +44,10 @@ enum MiniPlayerPlacement {
 /// (columna del cuerpo o zona inferior), el shell reserva su altura sin
 /// medir nada.
 ///
-/// Visibilidad (temas nuevos): oculto sin pista, en la sección 4 (reproductor
-/// completo) y en la página oficial de YouTube Music (sección 10). Los temas
-/// `legacy` conservan sus reglas de antes.
+/// Visibilidad: oculto sin pista, en la sección 4 (reproductor completo) y en
+/// la página oficial de YouTube Music (sección 10). Con Jam se ve el mismo mini
+/// del tema: el estado ya limita «anterior», «siguiente» y reproducir según los
+/// permisos de la Jam.
 class MiniPlayerHost extends StatelessWidget {
   const MiniPlayerHost({
     super.key,
@@ -59,7 +58,6 @@ class MiniPlayerHost extends StatelessWidget {
     required this.onOpenPlayer,
     required this.onTogglePlay,
     this.jam,
-    this.legacy,
     this.onOpenQueue,
     this.onOpenLyrics,
     this.mute,
@@ -89,8 +87,6 @@ class MiniPlayerHost extends StatelessWidget {
   /// Memoria de silencio compartida con el atajo del shell.
   final MuteMemory? mute;
 
-  /// Imprescindible mientras algún tema sea `legacy`.
-  final MiniPlayerLegacyBars? legacy;
   final Map<String, MiniPlayerTheme> themes;
 
   /// Clave del tema vigente según el `ThemeData` activo.
@@ -109,14 +105,12 @@ class MiniPlayerHost extends StatelessWidget {
     required bool officialMusicPage,
   }) => hasTrack && section != 4 && !officialMusicPage;
 
-  /// Slush en móvil lleva el mini dentro de su barra inferior; con Jam, un
-  /// tema `legacy` cae al transporte del cuerpo como siempre.
+  /// Slush en móvil lleva el mini dentro de su barra inferior (también con
+  /// Jam); el resto, en el cuerpo.
   static MiniPlayerPlacement placementFor({
     required bool slush,
     required bool rail,
-    required bool legacy,
-    required bool jamAudio,
-  }) => slush && !rail && !(legacy && jamAudio)
+  }) => slush && !rail
       ? MiniPlayerPlacement.bottomBar
       : MiniPlayerPlacement.body;
 
@@ -140,41 +134,12 @@ class MiniPlayerHost extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final slush = kind == 'slush';
-        final jamOwns = c.jamPlaybackActive;
-        final mine = placementFor(
-          slush: slush,
-          rail: rail,
-          legacy: theme.legacy,
-          jamAudio: jamOwns,
-        );
+        final mine = placementFor(slush: slush, rail: rail);
         if (mine != placement) return const SizedBox.shrink();
 
         final openVinyl = onOpenPlayer;
-        if (theme.legacy) {
-          // Antes: Slush ocultaba su barra en la sección 4 (salvo con Jam).
-          if (slush && !jamOwns && section == 4) return const SizedBox.shrink();
-          final bars = legacy;
-          assert(bars != null, 'Un tema legacy necesita MiniPlayerLegacyBars');
-          return MiniPlayerLegacyScope(
-            controller: c,
-            jam: jam,
-            bars: bars!,
-            rail: rail,
-            onOpenVinyl: openVinyl,
-            onTogglePlay: onTogglePlay,
-            child: Builder(
-              builder: (context) => theme.build(
-                context,
-                MiniPlayerState.fromController(c, jam: jam),
-                _actions(context, c, openVinyl),
-                blurred: false,
-                wide: rail,
-              ),
-            ),
-          );
-        }
-
         final state = MiniPlayerState.fromController(c, jam: jam);
+
         if (!isVisible(
           hasTrack: state.hasTrack,
           section: section,

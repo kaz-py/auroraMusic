@@ -46,12 +46,19 @@ class _Covers implements CoverBackdropSource {
 
 class _Calls {
   int open = 0, play = 0, next = 0, previous = 0, like = 0;
+  int mute = 0, queue = 0, eq = 0, lyrics = 0;
+  final seeks = <double>[];
   late final actions = MiniPlayerActions(
     openPlayer: () => open++,
     togglePlay: () => play++,
     next: () => next++,
     previous: () => previous++,
     toggleLike: () => like++,
+    seek: seeks.add,
+    toggleMute: () => mute++,
+    openQueue: () => queue++,
+    openEqualizer: () => eq++,
+    openLyrics: () => lyrics++,
   );
 }
 
@@ -65,6 +72,10 @@ MiniPlayerState _state({
   bool hasNext = true,
   bool hasPrevious = true,
   bool canTogglePlay = true,
+  bool seek = false,
+  int queue = 0,
+  bool eq = false,
+  bool lyrics = false,
   String? jamHost,
 }) => MiniPlayerState(
   track: track,
@@ -77,6 +88,10 @@ MiniPlayerState _state({
   hasPrevious: hasPrevious,
   jamActive: false,
   canTogglePlay: canTogglePlay,
+  canSeek: seek,
+  queueLength: queue,
+  equalizerAvailable: eq,
+  lyricsAvailable: lyrics,
   jamHostName: jamHost,
 );
 
@@ -163,7 +178,6 @@ void main() {
   );
 
   test('el registro usa el diseño nuevo, no la barra anterior', () {
-    expect(atelierMiniPlayer.legacy, isFalse);
     expect(miniPlayerThemes['atelier'], same(atelierMiniPlayer));
   });
 
@@ -572,6 +586,100 @@ void main() {
       await tester.fling(bar, const Offset(0, -120), 900);
       await tester.pumpAndSettle();
       expect((calls.next, calls.open), (1, 1));
+    });
+  });
+
+  group('escritorio: controles y posición', () {
+    testWidgets('el carril muestra volumen, cola, EQ y letras que actúan', (
+      tester,
+    ) async {
+      final calls = await mount(
+        tester,
+        wide: true,
+        width: 1440,
+        state: _state(seek: true, queue: 3, eq: true, lyrics: true),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Slider), findsOneWidget);
+      await tester.tap(find.byTooltip('Silenciar'));
+      await tester.tap(find.byTooltip('Abrir cola (3)'));
+      await tester.tap(find.byTooltip('Ecualizador'));
+      await tester.tap(find.byTooltip('Letras'));
+      expect([calls.mute, calls.queue, calls.eq, calls.lyrics], [1, 1, 1, 1]);
+    });
+
+    testWidgets('el móvil no lleva controles de escritorio', (tester) async {
+      await mount(tester, state: _state(queue: 3));
+      expect(find.byTooltip('Silenciar'), findsNothing);
+      expect(find.byType(Slider), findsNothing);
+    });
+
+    testWidgets('a 600 px los controles se pliegan sin desbordar', (
+      tester,
+    ) async {
+      await mount(tester, wide: true, width: 600, scale: 2, state: _state());
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('arrastrar la regla mueve la marca y confirma solo al soltar', (
+      tester,
+    ) async {
+      final calls = await mount(
+        tester,
+        wide: true,
+        width: 900,
+        gestures: true,
+        state: _state(seek: true),
+      );
+      final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
+      final g = await tester.startGesture(top + const Offset(90, 6));
+      await g.moveBy(const Offset(180, 0));
+      await g.moveBy(const Offset(180, 0));
+      await tester.pump();
+      expect(calls.seeks, isEmpty);
+      expect(calls.next + calls.previous, 0);
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(calls.seeks, hasLength(1));
+      expect(calls.seeks.single, closeTo(.5, .02));
+      expect(calls.next + calls.previous, 0);
+    });
+
+    testWidgets('tocar la regla salta a ese punto y anuncia «Posición»', (
+      tester,
+    ) async {
+      final calls = await mount(
+        tester,
+        wide: true,
+        width: 900,
+        state: _state(seek: true),
+      );
+      final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
+      await tester.tapAt(top + const Offset(225, 6));
+      expect(calls.seeks.single, closeTo(.25, .01));
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Posición')),
+        matchesSemantics(
+          label: 'Posición',
+          value: '40 %',
+          increasedValue: '40 %',
+          decreasedValue: '40 %',
+          hasIncreaseAction: true,
+          hasDecreaseAction: true,
+        ),
+      );
+    });
+
+    testWidgets('sin permiso de posición la regla no responde', (tester) async {
+      final calls = await mount(
+        tester,
+        wide: true,
+        width: 900,
+        state: _state(),
+      );
+      final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
+      await tester.tapAt(top + const Offset(225, 6));
+      expect(calls.seeks, isEmpty);
     });
   });
 }

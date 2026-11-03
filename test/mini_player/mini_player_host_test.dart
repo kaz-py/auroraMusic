@@ -82,24 +82,14 @@ void main() {
       },
     );
 
-    test(
-      'Slush móvil lleva el mini en su barra; legacy con Jam, en el cuerpo',
-      () {
-        MiniPlayerPlacement p(bool slush, bool rail, bool legacy, bool jam) =>
-            MiniPlayerHost.placementFor(
-              slush: slush,
-              rail: rail,
-              legacy: legacy,
-              jamAudio: jam,
-            );
-        expect(p(true, false, false, false), MiniPlayerPlacement.bottomBar);
-        expect(p(true, false, false, true), MiniPlayerPlacement.bottomBar);
-        expect(p(true, false, true, false), MiniPlayerPlacement.bottomBar);
-        expect(p(true, false, true, true), MiniPlayerPlacement.body);
-        expect(p(true, true, false, false), MiniPlayerPlacement.body);
-        expect(p(false, false, false, false), MiniPlayerPlacement.body);
-      },
-    );
+    test('Slush móvil lleva el mini en su barra, también con Jam', () {
+      MiniPlayerPlacement p(bool slush, bool rail) =>
+          MiniPlayerHost.placementFor(slush: slush, rail: rail);
+      expect(p(true, false), MiniPlayerPlacement.bottomBar);
+      expect(p(true, true), MiniPlayerPlacement.body);
+      expect(p(false, false), MiniPlayerPlacement.body);
+      expect(p(false, true), MiniPlayerPlacement.body);
+    });
 
     test('el registro cubre los cuatro temas', () {
       expect(
