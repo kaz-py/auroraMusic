@@ -33,6 +33,8 @@ const _long = Track(
 
 class _Calls {
   int open = 0, play = 0, next = 0, previous = 0, like = 0;
+  int queue = 0, eq = 0, lyrics = 0, mute = 0;
+  final volumes = <double>[];
   final seeks = <double>[];
   late final actions = MiniPlayerActions(
     openPlayer: () => open++,
@@ -41,6 +43,11 @@ class _Calls {
     previous: () => previous++,
     toggleLike: () => like++,
     seek: seeks.add,
+    setVolume: volumes.add,
+    toggleMute: () => mute++,
+    openQueue: () => queue++,
+    openEqualizer: () => eq++,
+    openLyrics: () => lyrics++,
   );
 }
 
@@ -56,6 +63,9 @@ MiniPlayerState _state({
   bool hasNext = true,
   bool hasPrevious = true,
   String? jamHost,
+  int queueLength = 3,
+  bool eqAvailable = true,
+  bool lyricsAvailable = true,
 }) => MiniPlayerState(
   track: track,
   isPlaying: playing,
@@ -69,6 +79,9 @@ MiniPlayerState _state({
   canTogglePlay: canTogglePlay,
   canSeek: canSeek,
   jamHostName: jamHost,
+  queueLength: queueLength,
+  equalizerAvailable: eqAvailable,
+  lyricsAvailable: lyricsAvailable,
 );
 
 class _Covers implements CoverBackdropSource {
@@ -218,7 +231,7 @@ void main() {
       );
     });
 
-    testWidgets('ancho: tarjeta centrada de 760 con anterior/siguiente', (
+    testWidgets('ancho: tarjeta centrada de 960 con anterior/siguiente', (
       tester,
     ) async {
       await mount(tester, width: 1440);
@@ -231,12 +244,12 @@ void main() {
         reason: 'ocupa el ancho; la tarjeta se centra dentro',
       );
       final scrub = scrubRect(tester);
-      expect(scrub.width, closeTo(760 - 28, 1));
+      expect(scrub.width, closeTo(960 - 28, 1));
       expect(scrub.center.dx, closeTo(720, 1));
       expect(play.dx, greaterThan(720));
     });
 
-    for (final width in [360.0, 412.0, 600.0, 900.0, 1440.0]) {
+    for (final width in [360.0, 412.0, 600.0, 900.0, 1440.0, 1920.0]) {
       for (final scale in [1.0, 2.0]) {
         for (final dark in [false, true]) {
           for (final blurred in [false, true]) {
@@ -349,6 +362,57 @@ void main() {
       );
       await tester.tap(find.byTooltip('Siguiente'), warnIfMissed: false);
       expect(calls.next, 0);
+    });
+
+    testWidgets('ancho: controles de escritorio y acciones', (tester) async {
+      final calls = await mount(tester, width: 1440);
+      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(Slider), findsOneWidget);
+      await tester.tap(find.byTooltip('Silenciar'));
+      await tester.tap(find.byTooltip('Abrir cola (3)'));
+      await tester.tap(find.byTooltip('Ecualizador'));
+      await tester.tap(find.byTooltip('Letras'));
+      await tester.tap(find.byType(Slider));
+      expect(
+        (calls.mute, calls.queue, calls.eq, calls.lyrics, calls.open),
+        (1, 1, 1, 1, 0),
+      );
+      expect(calls.volumes, hasLength(1));
+      // La tarjeta crece a 960 px en >= 1100.
+      expect(scrubRect(tester).width, closeTo(960 - 28, 1));
+    });
+
+    testWidgets('600 y 900: tarjeta < 640 sin slider, 900 de 760 con él', (
+      tester,
+    ) async {
+      await mount(tester, width: 600);
+      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(Slider), findsNothing);
+      expect(find.byTooltip('Silenciar'), findsOneWidget);
+      await mount(tester, width: 900);
+      expect(find.byType(Slider), findsOneWidget);
+      expect(scrubRect(tester).width, closeTo(760 - 28, 1));
+    });
+
+    testWidgets('móvil: sin controles de escritorio', (tester) async {
+      await mount(tester);
+      expect(find.byType(MiniPlayerDesktopControls), findsNothing);
+      expect(find.byType(Slider), findsNothing);
+      expect(find.byTooltip('Silenciar'), findsNothing);
+    });
+
+    testWidgets('ancho: sin EQ ni letras se desactivan', (tester) async {
+      final calls = await mount(
+        tester,
+        width: 1440,
+        state: _state(eqAvailable: false, lyricsAvailable: false),
+      );
+      await tester.tap(find.byTooltip('Letras'), warnIfMissed: false);
+      await tester.tap(
+        find.byTooltip('Ecualizador no disponible en este reproductor'),
+        warnIfMissed: false,
+      );
+      expect((calls.eq, calls.lyrics), (0, 0));
     });
 
     testWidgets('tocar la tarjeta abre el reproductor', (tester) async {
@@ -520,6 +584,58 @@ void main() {
       });
     }
 
+    for (final dark in [false, true]) {
+      testWidgets('controles de escritorio con contraste >= 3 '
+          '${dark ? 'oscuro' : 'claro'}', (tester) async {
+        await mount(tester, width: 1440, dark: dark);
+        final context = tester.element(find.byType(ModernMiniPlayer));
+        final card = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.byType(ModernMiniPlayer),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .map((d) => d.decoration)
+            .whereType<BoxDecoration>()
+            .firstWhere((d) => d.boxShadow != null && d.color != null)
+            .color!;
+        final icon = tester.widget<Icon>(
+          find.descendant(
+            of: find.byTooltip('Letras'),
+            matching: find.byType(Icon),
+          ),
+        );
+        expect(icon.color, Theme.of(context).colorScheme.onSurfaceVariant);
+        expect(ratio(icon.color!, card), greaterThanOrEqualTo(3));
+      });
+    }
+
+    for (final (name, cover) in [
+      ('blanca', Colors.white),
+      ('negra', Colors.black),
+    ]) {
+      testWidgets('difuminado $name: controles de escritorio >= 3', (
+        tester,
+      ) async {
+        final image = (await tester.runAsync(
+          () => decodeImageFromList(base64Decode(_png)),
+        ))!;
+        final covers = _Covers(image, cover);
+        await mount(tester, width: 1440, blurred: true, source: covers);
+        final tone = covers.data.adaptiveTone;
+        final bg = Color.alphaBlend(tone.scrim, cover);
+        final icon = tester.widget<Icon>(
+          find.descendant(
+            of: find.byTooltip('Letras'),
+            matching: find.byType(Icon),
+          ),
+        );
+        expect(icon.color, tone.secondary);
+        expect(ratio(icon.color!, bg), greaterThanOrEqualTo(3));
+      });
+    }
+
     testWidgets('difuminado activo pero portada sin cargar: aspecto normal', (
       tester,
     ) async {
@@ -535,8 +651,8 @@ void main() {
   });
 
   group('Registro en el host', () {
-    test('Modern ya no es legacy', () {
-      expect(miniPlayerThemes['modern']!.legacy, isFalse);
+    test('Modern está registrado', () {
+      expect(miniPlayerThemes['modern'], same(modernMiniPlayer));
     });
 
     testWidgets('el host lo oculta sin pista y lo pinta con pista', (

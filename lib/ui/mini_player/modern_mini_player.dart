@@ -5,6 +5,7 @@ import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
 import '../artwork.dart';
 import 'blurred_cover_backdrop.dart';
+import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 
@@ -108,7 +109,13 @@ class ModernMiniPlayer extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         heightFactor: 1,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: wide ? 760 : double.infinity),
+          constraints: BoxConstraints(
+            maxWidth: !wide
+                ? double.infinity
+                : MediaQuery.sizeOf(context).width >= 1100
+                ? 960
+                : 760,
+          ),
           child: MouseRegion(cursor: SystemMouseCursors.click, child: card),
         ),
       ),
@@ -304,52 +311,73 @@ class _Body extends StatelessWidget {
       ),
     );
 
-    return Stack(
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(8, 6, wide ? 12 : 8, _scrubHeight),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: _target),
-            child: Row(
-              children: [
-                SizedBox.square(dimension: cover, child: art),
-                const SizedBox(width: 12),
-                Expanded(child: text),
-                const SizedBox(width: 4),
-                heart,
-                if (wide)
-                  skip(
-                    Icons.skip_previous_rounded,
-                    'Anterior',
-                    state.hasPrevious,
-                    actions.previous,
-                  ),
-                play,
-                if (wide)
-                  skip(
-                    Icons.skip_next_rounded,
-                    'Siguiente',
-                    state.hasNext,
-                    actions.next,
-                  ),
-              ],
+    // Tarjeta < 640 px: controles sin slider de volumen.
+    return LayoutBuilder(
+      builder: (context, box) {
+        final compact = box.maxWidth < 640;
+        return Stack(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(8, 6, wide ? 12 : 8, _scrubHeight),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: _target),
+                child: Row(
+                  children: [
+                    SizedBox.square(dimension: cover, child: art),
+                    const SizedBox(width: 12),
+                    Expanded(child: text),
+                    const SizedBox(width: 4),
+                    heart,
+                    if (wide)
+                      skip(
+                        Icons.skip_previous_rounded,
+                        'Anterior',
+                        state.hasPrevious,
+                        actions.previous,
+                      ),
+                    play,
+                    if (wide)
+                      skip(
+                        Icons.skip_next_rounded,
+                        'Siguiente',
+                        state.hasNext,
+                        actions.next,
+                      ),
+                    if (wide)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: SizedBox(
+                          width:
+                              kMiniControlTarget * 4 +
+                              (compact ? 0 : kMiniVolumeSlider),
+                          child: MiniPlayerDesktopControls(
+                            state: state,
+                            actions: actions,
+                            color: inkSoft,
+                            compact: compact,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-        Positioned(
-          left: 14,
-          right: 14,
-          bottom: 0,
-          height: _scrubHeight,
-          child: _ScrubLine(
-            progress: state.progress,
-            canSeek: state.canSeek,
-            onSeek: actions.seek,
-            color: onCover ? tone.foreground : accent,
-            trackColor: inkOn.withValues(alpha: .14),
-          ),
-        ),
-      ],
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 0,
+              height: _scrubHeight,
+              child: _ScrubLine(
+                progress: state.progress,
+                canSeek: state.canSeek,
+                onSeek: actions.seek,
+                color: onCover ? tone.foreground : accent,
+                trackColor: inkOn.withValues(alpha: .14),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
