@@ -17,6 +17,7 @@ import 'dart:io';
 
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/friends/friends_providers.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/slush/slush_bars.dart';
@@ -26,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
+import '../support/friends_fakes.dart';
 import 'guard_checks.dart';
 import 'known_issues.dart';
 
@@ -81,6 +83,7 @@ const _allScreens = <String, int>{
   'Descargas': 3,
   'Artistas': 12,
   'Amigos': 14,
+  'Chat': 14,
   'Letras': 6,
   'Ecualizador': 13,
 };
@@ -91,7 +94,15 @@ const _quickScreens = <String>[
   'Jam',
   'Cola/EQ',
   'Vinilo',
+  'Amigos',
+  'Chat',
 ];
+
+/// Tras navegar, pantallas que piden abrir algo más (pestaña, hilo) antes de
+/// medir. Cada clave se pulsa por orden.
+const _openAfterNavigate = <String, List<String>>{
+  'Chat': ['friends-tab-2', 'friends-chat-u1'],
+};
 
 const _navSize = Size(1440, 900);
 
@@ -184,7 +195,12 @@ void main() {
             await tester.runAsync(() => c.playQueueAt(0));
             await c.audio.pause();
             final container = ProviderContainer(
-              overrides: [controllerProvider.overrideWith((ref) => c)],
+              overrides: [
+                controllerProvider.overrideWith((ref) => c),
+                friendsServiceProvider.overrideWith(
+                  (ref) => seededFriendsService(),
+                ),
+              ],
             );
             addTearDown(() async {
               await tester.pumpWidget(const SizedBox.shrink());
@@ -217,6 +233,19 @@ void main() {
               );
               if (name != 'Inicio') {
                 await _navigate(tester, _allScreens[name]!, size, errors);
+                for (final key
+                    in _openAfterNavigate[name] ?? const <String>[]) {
+                  final target = find.byKey(ValueKey(key));
+                  // Al cuarto superior: `ensureVisible` a secas lo deja en el
+                  // borde, bajo la barra inferior/mini que se superpone.
+                  await Scrollable.ensureVisible(
+                    tester.element(target),
+                    alignment: .25,
+                  );
+                  await tester.pump();
+                  await tester.tap(target);
+                  await _settle(tester);
+                }
               }
               final scaffold = find.byType(Scaffold).first;
               final bg =

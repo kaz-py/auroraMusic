@@ -82,6 +82,9 @@ class FriendChatThread extends StatefulWidget {
   State<FriendChatThread> createState() => _FriendChatThreadState();
 }
 
+/// Alto mínimo del hilo: por debajo, la página entera se desplaza.
+const _minThreadHeight = 480.0;
+
 class _FriendChatThreadState extends State<FriendChatThread> {
   final _note = TextEditingController();
   // Propio: el primario vive dentro del NestedScrollView de Slush.
@@ -303,7 +306,10 @@ class _FriendChatThreadState extends State<FriendChatThread> {
           _scheduleSeen(thread);
           _scheduleExpiry(thread);
           final maxBubble = math.min(440.0, box.maxWidth * .8);
-          return Column(
+          final h = box.hasBoundedHeight
+              ? math.max(box.maxHeight, _minThreadHeight)
+              : _minThreadHeight;
+          final column = Column(
             children: [
               theme.header(context, widget.peer, widget.onBack),
               Expanded(
@@ -356,16 +362,30 @@ class _FriendChatThreadState extends State<FriendChatThread> {
                         ],
                       ),
               ),
-              theme.composer(
-                context,
-                ChatComposerData(
-                  note: _note,
-                  actions: _composerActions(),
-                  busy: _busy,
+              // Con texto grande o poco alto el compositor no puede comerse el
+              // hilo: se acota y se desplaza por dentro.
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: h * .45),
+                child: SingleChildScrollView(
+                  child: theme.composer(
+                    context,
+                    ChatComposerData(
+                      note: _note,
+                      actions: _composerActions(),
+                      busy: _busy,
+                    ),
+                  ),
                 ),
               ),
             ],
           );
+          // Si la página es muy baja (texto grande, barras), todo el hilo se
+          // desplaza en lugar de desbordar.
+          return h > box.maxHeight
+              ? SingleChildScrollView(
+                  child: SizedBox(height: h, child: column),
+                )
+              : column;
         },
       ),
     );

@@ -1,5 +1,8 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/friends/friends_providers.dart';
+import 'package:aurora_music/friends/friends_service.dart';
+import 'package:aurora_music/ui/studio/studio_navigation.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/queue_panel.dart';
 import 'package:aurora_music/ui/mini_player/atelier_mini_player.dart';
@@ -12,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fakes.dart';
+import 'support/friends_fakes.dart';
 
 const _long =
     'Un título extremadamente largo para comprobar que se recorta con puntos suspensivos en móvil';
@@ -156,7 +160,10 @@ void main() {
     }
   });
 
-  Future<AppController> pumpPhone(WidgetTester tester) async {
+  Future<AppController> pumpPhone(
+    WidgetTester tester, {
+    FriendsService? friends,
+  }) async {
     final controller = (await tester.runAsync(
       () => createTestController(tracks: _tracks, audio: FakeAudio()),
     ))!;
@@ -167,7 +174,11 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [controllerProvider.overrideWith((ref) => controller)],
+        overrides: [
+          controllerProvider.overrideWith((ref) => controller),
+          if (friends != null)
+            friendsServiceProvider.overrideWith((ref) => friends),
+        ],
         child: const AuroraApp(),
       ),
     );
@@ -221,6 +232,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.searchDetail, isNotNull);
     expect(find.byTooltip('Volver a los resultados'), findsOneWidget);
+  });
+
+  testWidgets('atrás cierra el chat de Amigos sin salir de la sección', (
+    tester,
+  ) async {
+    await pumpPhone(tester, friends: seededFriendsService());
+    // El menú móvil no es el objeto de la prueba: se llega a Amigos con la
+    // navegación ancha y se vuelve al móvil.
+    tester.view.physicalSize = const Size(1000, 800);
+    await tester.pumpAndSettle();
+    tester.widget<StudioTitleBar>(find.byType(StudioTitleBar)).onNavigate(14);
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(360, 640);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-back')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-back')), findsNothing);
+    expect(find.byKey(const ValueKey('friends-tab-2')), findsOneWidget);
   });
 }
 
