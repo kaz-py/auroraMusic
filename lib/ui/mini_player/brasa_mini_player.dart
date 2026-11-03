@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../theme/brasa_theme.dart';
 import '../artwork.dart';
 import 'blurred_cover_backdrop.dart';
+import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 
@@ -184,8 +185,11 @@ class _Row extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final timeWidth = 80.0 * textScale + 8;
+        // Controles de escritorio: completos desde 900 px, sin slider debajo.
+        final compactControls = c.maxWidth < 900;
+        final controlsWidth = compactControls ? 176.0 : 272.0;
         // Ancho que se reserva al bloque de texto antes de sumar la hora.
-        final fixed = wide ? 300.0 : 156.0;
+        final fixed = wide ? 300.0 + controlsWidth + 1 : 156.0;
         final showTime = c.maxWidth - fixed - timeWidth >= (wide ? 150 : 132);
 
         final info = _Info(
@@ -288,6 +292,22 @@ class _Row extends StatelessWidget {
                   child: Align(alignment: Alignment.centerRight, child: time),
                 ),
               ],
+              divider,
+              SizedBox(
+                width: controlsWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: blurred ? Colors.black.withValues(alpha: .55) : null,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: MiniPlayerDesktopControls(
+                    state: state,
+                    actions: actions,
+                    color: ember,
+                    compact: compactControls,
+                  ),
+                ),
+              ),
             ],
           ),
         );

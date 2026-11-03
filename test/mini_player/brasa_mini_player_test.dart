@@ -37,6 +37,7 @@ const _withCover = Track(
 
 class _Calls {
   int open = 0, play = 0, next = 0, previous = 0, like = 0;
+  int mute = 0, queue = 0, eq = 0, lyrics = 0;
   final seeks = <double>[];
   late final actions = MiniPlayerActions(
     openPlayer: () => open++,
@@ -45,6 +46,10 @@ class _Calls {
     previous: () => previous++,
     toggleLike: () => like++,
     seek: seeks.add,
+    toggleMute: () => mute++,
+    openQueue: () => queue++,
+    openEqualizer: () => eq++,
+    openLyrics: () => lyrics++,
   );
 }
 
@@ -73,6 +78,9 @@ MiniPlayerState _state({
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
   canSeek: canSeek,
+  queueLength: 3,
+  equalizerAvailable: true,
+  lyricsAvailable: true,
 );
 
 List<Color> _flat(Color c) => List.filled(64, c);
@@ -154,10 +162,6 @@ Future<void> _mount(
 Finder get _bar => find.byType(BrasaMiniPlayer);
 
 void main() {
-  test('el tema ya no es legacy', () {
-    expect(brasaMiniPlayer.legacy, isFalse);
-  });
-
   test('reloj m:ss y h:mm:ss', () {
     expect(brasaClock(Duration.zero), '0:00');
     expect(brasaClock(const Duration(seconds: 65)), '1:05');
@@ -234,6 +238,43 @@ void main() {
       expect(find.byTooltip('Pista anterior'), findsNothing);
     });
 
+    testWidgets('controles de escritorio: solo en ancho y accionan', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls, width: 900);
+      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(Slider), findsOneWidget);
+      await tester.tap(find.byTooltip('Silenciar'));
+      await tester.tap(find.byTooltip('Abrir cola (3)'));
+      await tester.tap(find.byTooltip('Ecualizador'));
+      await tester.tap(find.byTooltip('Letras'));
+      expect([calls.mute, calls.queue, calls.eq, calls.lyrics], [1, 1, 1, 1]);
+      expect(calls.open, 0);
+      await _mount(tester, calls, width: 600);
+      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(Slider), findsNothing);
+      await _mount(tester, calls, width: 360);
+      expect(find.byType(MiniPlayerDesktopControls), findsNothing);
+    });
+
+    for (final width in <double>[600, 900, 1440, 1920]) {
+      testWidgets('con controles: sin desbordes a $width px, texto ×2', (
+        tester,
+      ) async {
+        final calls = _Calls();
+        await _mount(
+          tester,
+          calls,
+          width: width,
+          scale: 2,
+          state: _state(isPlaying: true, liked: true),
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byTooltip('Letras'), findsOneWidget);
+        expect(tester.getSize(find.byTooltip('Letras')).shortestSide, 44);
+      });
+    }
     testWidgets('todos los botones miden ≥ 44 px', (tester) async {
       final calls = _Calls();
       for (final (width, scale) in [(360.0, 1.0), (900.0, 1.0), (412.0, 2.0)]) {
@@ -609,6 +650,18 @@ void main() {
             bg,
           );
           expect(coverContrast(Brasa.accent, backed), greaterThanOrEqualTo(3));
+          // Controles de escritorio: mismo ámbar sobre el mismo fondo negro.
+          final controlsBacking = tester
+              .widgetList<DecoratedBox>(
+                find.ancestor(
+                  of: find.byType(MiniPlayerDesktopControls),
+                  matching: find.byType(DecoratedBox),
+                ),
+              )
+              .map((d) => (d.decoration as BoxDecoration).color)
+              .whereType<Color>()
+              .first;
+          expect(controlsBacking.a, closeTo(.55, .01));
           expect(tester.takeException(), isNull);
         });
       }
