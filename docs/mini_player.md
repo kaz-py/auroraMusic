@@ -161,3 +161,36 @@ Funda de disco acoplada al borde inferior, sin esquinas ni sombra: papel cálido
 - **Movimiento**: pulsar hunde el botón a 0,93 (100 ms, ease-out); con
   movimiento reducido no hay hundimiento ni giro.
 - Pruebas: `test/mini_player/atelier_mini_player_test.dart`.
+
+## Slush (`slush_mini_player_v2.dart`)
+
+Pegatina flotante: contorno de 2 px, sombra dura (3,4) fija detrás y esquinas de
+28 (32 con carril). Móvil: dentro de `SlushBottomBar`, a su ancho (márgenes de
+12), unos 72 px. Con carril: dock centrado de 720 px como máximo, en el cuerpo,
+con el margen de pantalla de Slush; los gestos cubren solo el dock.
+
+- **Color**: claro = losa de color vivo (menta, amarillo, lila o naranja, según
+  el tono de `AccentScope`), tinta encima, play negro. Oscuro = losa `raised`
+  con contorno crema; el vivo queda en el play y el progreso.
+- **Progreso**: barra de 5 px en segmentos de 10 px con mando cuadrado de 10 px
+  (solo indica; sin arrastre). Se pinta con un `CustomPaint` sin animación
+  propia.
+- **Texto**: título Inter 800 (14; 15 con carril) y artista debajo, ambos en
+  tinta. Con fallo, «No se pudo reproducir» sustituye al artista.
+- **Botones**: favorito de pegatina (círculo de 34 en zona de 44; rosa al
+  marcarlo, con un salto de 260 ms), play circular con relieve (en búfer,
+  anillo; con movimiento reducido, puntos quietos) y, desde 330 px de ancho
+  interior, siguiente. Con carril se añade anterior. Sin permiso en Jam el play
+  se desactiva y avisa «Lo controla X».
+- **Difuminado**: `BlurredCoverBackdrop` bajo el contorno. El artista pasa a
+  Bagel Fat One en mayúsculas (20; 26 con carril, escala ≤ 1,5) y el título a
+  pequeño debajo; contornos, iconos y progreso toman el color de texto garantizado
+  y el play y el mando conservan el color vivo. Si la portada aún no carga, se ve
+  el aspecto normal.
+- **Movimiento**: entra con opacidad y 8 px de recorrido (240 ms); al cambiar de
+  pista el cover y el texto cruzan con `SlushMotion.fadeSlide`; el play cambia de
+  icono con escala. Con movimiento reducido solo opacidad.
+- Sustituye a `SlushMiniPlayer` (móvil) y `SlushPlayerBar` (carril): con carril
+  ya no hay seek, volumen, cola, letras ni ecualizador en la barra; se llega a
+  ellos desde las pestañas del reproductor (Vinilo, Letras, EQ, Cola).
+- Pruebas: `test/mini_player/slush_mini_player_test.dart`.
