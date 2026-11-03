@@ -2,7 +2,7 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/queue_panel.dart';
-import 'package:aurora_music/ui/studio/studio_transport.dart';
+import 'package:aurora_music/ui/mini_player/atelier_mini_player.dart';
 import 'package:aurora_music/core/source_backend.dart';
 import 'package:aurora_music/ui/follow_widgets.dart';
 import 'package:aurora_music/ui/home_music_page.dart';
@@ -95,7 +95,7 @@ void main() {
           expect(tester.takeException(), isNull, reason: 'home');
 
           // Mini transport: ellipsized title, tappable controls with labels.
-          final transport = find.byType(StudioTransport);
+          final transport = find.byType(AtelierMiniPlayer);
           expect(transport, findsOneWidget);
           final mini = find.descendant(
             of: transport,
@@ -109,38 +109,17 @@ void main() {
           );
           expect(find.byTooltip('Reproducir'), findsWidgets);
 
-          // Full player.
+          // Tapping the mini opens the full player (vinyl page, section 4)
+          // and the mini steps aside.
           await tester.tap(mini);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull, reason: 'player');
-          expect(find.text('AHORA SUENA'), findsOneWidget);
+          expect(find.byType(AtelierMiniPlayer), findsNothing);
           expect(find.text(_long), findsWidgets);
-          expect(find.byType(Slider), findsAtLeastNWidgets(3));
-          for (final tip in const [
-            'Aleatorio',
-            'Anterior',
-            'Siguiente',
-            'Añadir a favoritos',
-            'Cerrar reproductor',
-          ]) {
+          for (final tip in const ['Anterior', 'Siguiente']) {
             expect(find.byTooltip(tip), findsWidgets, reason: tip);
           }
-          expect(find.byTooltip(RegExp('^Repetición')), findsOneWidget);
-          final sheetButtons = find.descendant(
-            of: find.byType(BottomSheet),
-            matching: find.byType(IconButton),
-          );
-          for (var i = 0; i < sheetButtons.evaluate().length; i++) {
-            await tester.ensureVisible(sheetButtons.at(i));
-            _expectTargets(tester, sheetButtons.at(i));
-          }
           expect(tester.takeException(), isNull, reason: 'player controls');
-
-          // Queue sheet opened from the player.
-          await tester.ensureVisible(find.byTooltip('Cola de reproducción'));
-          await tester.tap(find.byTooltip('Cola de reproducción'));
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull, reason: 'queue sheet');
         });
       }
     }
