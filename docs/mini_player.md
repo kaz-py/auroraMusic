@@ -87,8 +87,22 @@ typedef MiniPlayerBuilder = Widget Function(
 
 `MiniPlayerState.fromController(c, jam:)`: `track` (`nowTrack`), `isPlaying`,
 `progress` 0..1, `buffering`, `hasError`, `liked`, `hasNext`, `hasPrevious`,
-`jamActive`, `canTogglePlay`, `jamHostName`. Con Jam: sin «anterior», siguiente
-solo con permiso o voto.
+`jamActive`, `adPlaying` (`controller.adPlaying`), `jamAudio`
+(`transportJamAudio`), `canTogglePlay`, `jamHostName`. Con Jam: sin «anterior»,
+siguiente solo con permiso o voto.
+
+### Línea secundaria (`miniSubtitle`)
+
+Los cuatro temas pintan la misma línea con `miniSubtitle(state)`; prioridad:
+anuncio («Anuncio · tu canción sigue después», solo si no hay audio de Jam,
+`state.adShowing`), audio de Jam («Artista · Jam»), fallo («No se pudo
+reproducir», `miniSubtitleIsError` para el icono/color) y, si no, el artista.
+Con el fondo difuminado el artista ya es el titular: se pasa
+`artistProminent: true` y el artista de reserva es la pista («Pista · Jam»).
+Brasa, donde el artista va arriba en versalitas y la pista debajo, mantiene su
+maquetación: con anuncio el aviso sustituye a la pista; con Jam el titular es
+«ARTISTA · JAM». Todo va en una línea con elipsis. El seek sigue la regla de
+`canSeek` (sin condición de anuncio, igual que el transporte anterior).
 
 `MiniPlayerActions.forController(c, jam:, openPlayer:, togglePlay:)` usa los
 métodos del controlador y de la Jam; no hay lógica propia.
