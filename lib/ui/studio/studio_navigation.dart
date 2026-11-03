@@ -901,7 +901,7 @@ class StudioSidebar extends StatelessWidget {
                         shortcut,
                         style: TextStyle(
                           fontSize: slush ? 12 : 11,
-                          color: fg.withValues(alpha: slush ? 1 : .6),
+                          color: fg.withValues(alpha: slush ? 1 : .8),
                         ),
                       ),
                   ],

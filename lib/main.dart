@@ -428,6 +428,9 @@ ThemeData auroraTheme(Brightness brightness, Color accent) {
     scaffoldBackgroundColor: scheme.surface,
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, thickness: 1),
     visualDensity: VisualDensity.standard,
+    chipTheme: const ChipThemeData(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 44),

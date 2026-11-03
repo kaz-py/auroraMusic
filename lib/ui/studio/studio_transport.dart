@@ -146,22 +146,29 @@ class _StudioTransportState extends State<StudioTransport> {
                       MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () => c.openArtist(track.artist),
-                          child: Text(
-                            c.adPlaying && !jamAudio
-                                ? 'Anuncio · tu canción sigue después'
-                                : jamAudio
-                                ? '${track.artist} · Jam'
-                                : track.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: brasa
-                                  ? Brasa.steel
-                                  : modern && !isSlush(context)
-                                  ? Tracky.slate
-                                  : colors.onSurfaceVariant,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 40),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                c.adPlaying && !jamAudio
+                                    ? 'Anuncio · tu canción sigue después'
+                                    : jamAudio
+                                    ? '${track.artist} · Jam'
+                                    : track.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: brasa
+                                      ? Brasa.steel
+                                      : modern && !isSlush(context)
+                                      ? Tracky.slate
+                                      : colors.onSurfaceVariant,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -625,7 +632,7 @@ class TransportPlayButton extends StatelessWidget {
       return Tooltip(
         message: tip,
         child: SizedBox.square(
-          dimension: brasa ? 36 : (isSlush(context) ? SlushControl.touch : 40),
+          dimension: isSlush(context) ? SlushControl.touch : 40,
           child: Material(
             color: enabled
                 ? (brasa

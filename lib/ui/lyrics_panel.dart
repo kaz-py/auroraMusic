@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -424,7 +425,7 @@ class _LyricsPanelState extends State<LyricsPanel> {
           // Slush: el escritorio (puntero fino) no escala más de 1,3 para que
           // cabezal, opciones y transporte quepan sin desborde.
           return MediaQuery.withClampedTextScaling(
-            maxScaleFactor: isSlush(context) ? 1.3 : double.infinity,
+            maxScaleFactor: 1.3,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
               child: Column(
@@ -571,7 +572,7 @@ class _LyricsPanelState extends State<LyricsPanel> {
             ),
           );
         }
-        return Padding(
+        final page = Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
           child: Column(
             children: [
@@ -600,6 +601,16 @@ class _LyricsPanelState extends State<LyricsPanel> {
                 ),
               lyrics,
             ],
+          ),
+        );
+        // Con texto muy grande cabecera y controles no caben: se desplaza.
+        if (isSlush(context) || MediaQuery.textScalerOf(context).scale(14) <= 18) {
+          return page;
+        }
+        return SingleChildScrollView(
+          child: SizedBox(
+            height: math.max(constraints.maxHeight, 760),
+            child: page,
           ),
         );
       },

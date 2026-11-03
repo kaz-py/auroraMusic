@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../core/models.dart';
+import '../theme/modern_theme.dart';
 import '../theme/slush_theme.dart';
 import 'artwork_cache.dart';
 
@@ -69,9 +70,10 @@ class Artwork extends StatelessWidget {
           ? artworkContext.constrain(constraints)
           : math.min(size, bound);
       final colors = Theme.of(context).colorScheme;
-      // Slush: primary (tinta) al 10 % se funde con el papel y el icono
-      // primary queda tinta sobre tinta; fondo opaco lila/violeta y tinta del tema.
-      final slush = isSlush(context);
+      // Slush/Modern: primary al 10 % se funde con el fondo (vinilo oscuro,
+      // tarjeta blanca) y el icono primary queda sin contraste: fondo opaco
+      // y tinta del tema.
+      final slush = isSlush(context) || isModern(context);
       final placeholder = Container(
         color: slush
             ? colors.surfaceContainerHigh

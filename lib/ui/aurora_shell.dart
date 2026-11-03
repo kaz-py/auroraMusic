@@ -1742,11 +1742,13 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       ],
     );
-    if (!isSlush(context) || MediaQuery.textScalerOf(context).scale(14) <= 18) {
-      return column;
-    }
-    // Con texto muy grande el cuerpo queda casi sin alto: la pantalla se
-    // desplaza en vez de desbordar.
+    return _scrollIfShort(column);
+  }
+
+  /// Con texto muy grande el cuerpo queda casi sin alto: la pantalla se
+  /// desplaza en vez de desbordar.
+  Widget _scrollIfShort(Widget column) {
+    if (MediaQuery.textScalerOf(context).scale(14) <= 18) return column;
     return LayoutBuilder(
       builder: (_, box) => box.maxHeight >= 480
           ? column
@@ -2256,7 +2258,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               ),
       );
     }
-    return Column(
+    final column = Column(
       children: [
         if (!isSlush(context))
           Padding(
@@ -2357,6 +2359,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       ],
     );
+    return _scrollIfShort(column);
   }
 
   Widget _trackTile(

@@ -606,7 +606,7 @@ class StudioHomeIntroduction extends StatelessWidget {
             children: [
               Icon(
                 StudioSymbols.verified,
-                color: colors.primaryContainer,
+                color: colors.primary,
                 size: 18,
               ),
               const SizedBox(width: 6),
