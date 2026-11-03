@@ -12,6 +12,7 @@ import '../theme/modern_theme.dart';
 import '../theme/modern_widgets.dart';
 import '../theme/slush_theme.dart';
 import 'slush/slush_player.dart';
+import 'mini_player/blurred_cover_backdrop.dart';
 import 'artwork.dart';
 import 'cassette_player.dart';
 import 'follow_widgets.dart';
@@ -138,13 +139,41 @@ class _VinylPlayerState extends State<VinylPlayer>
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
-    builder: (context, _) => isModern(context) || isBrasa(context)
-        ? _content(context)
-        : ListenableBuilder(
-            listenable: widget.controller.audio,
-            builder: (context, _) => _content(context),
-          ),
+    builder: (context, _) => _withCoverBackdrop(
+      isModern(context) || isBrasa(context)
+          ? _content(context)
+          : ListenableBuilder(
+              listenable: widget.controller.audio,
+              builder: (context, _) => _content(context),
+            ),
+    ),
   );
+
+  /// «Fondo difuminado de la portada»: la portada difuminada sube tras la
+  /// cabecera y se funde con el fondo del tema (el texto de la pantalla
+  /// conserva sus colores; ver `BlurredCoverBackdrop.matchTheme`).
+  Widget _withCoverBackdrop(Widget page) {
+    final track = widget.controller.currentTrack;
+    if (!widget.controller.blurredCoverMode || track == null) return page;
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 240,
+          child: BlurredCoverBackdrop(
+            track: track,
+            matchTheme: true,
+            fadeBottom: true,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        page,
+      ],
+    );
+  }
 
   Duration _liveDuration() {
     final a = widget.controller.audio.duration;
