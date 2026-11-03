@@ -106,3 +106,28 @@ supera el umbral de arrastre de Flutter. La barra sigue al dedo con resistencia
 (solo `transform`) y vuelve con un muelle que hereda la velocidad. Un único
 nodo semántico con acciones (abrir, siguiente, anterior); los botones del hijo
 conservan el suyo.
+
+## Brasa (`brasa_mini_player.dart`)
+
+Barra acoplada al borde inferior (esquinas superiores de 6 px, sin flotar),
+60 px en móvil y 64 con carril (×1,5 como máximo con el texto). Siempre oscura
+(`Brasa.obsidian`, acento `Brasa.accent`).
+
+- **Progreso**: línea de brasa de 2 px en el borde superior: pista tenue, tramo
+  encendido en degradado hasta la posición, resplandor y marca en la cabeza.
+  Con el cursor encima la marca crece a un cuadrado; solo indica la posición
+  (las acciones no tienen «buscar», así que no se arrastra).
+- **Texto**: artista en versalitas (11,5 px, tracking 1,4, ámbar) y pista debajo;
+  hora `m:ss / m:ss` en monoespaciada (visible desde ~412 px; con texto grande se
+  oculta). Con fallo del motor, `ERR` en rojo.
+- **Teclas**: zona táctil de 44 px, trazo de 36–40. Reproducir es un cuadrado de
+  borde ámbar que se rellena al sonar (anillo en búfer, reintento en rojo con
+  fallo). Favorito es un glifo ámbar. Con carril (≥ 600 px) se añaden
+  anterior/siguiente y la barra se divide en tres columnas con filetes.
+- **Difuminado**: `BlurredCoverBackdrop(matchTheme: true)` (velo del tema, texto
+  crema), viñeta oscura en los bordes y brillo de brasa sobre la línea; el artista
+  pasa a 19 px, peso 800, tracking negativo. Las teclas y la línea llevan un
+  fondo negro (55–60 %) para que el ámbar mantenga contraste ≥ 3.
+- **Movimiento**: pulsar encoge a 0,92 al bajar el dedo (100 ms); con movimiento
+  reducido solo baja la opacidad. La marca de la cabeza usa 120 ms.
+- Pruebas: `test/mini_player/brasa_mini_player_test.dart`.
