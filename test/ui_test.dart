@@ -89,6 +89,9 @@ void main() {
           data: MediaQueryData(
             size: size,
             textScaler: TextScaler.linear(scale),
+            // El vinilo del mini gira sin fin al sonar: sin animaciones el
+            // giro se detiene y pumpAndSettle termina.
+            disableAnimations: true,
           ),
           child: const RepaintBoundary(
             key: ValueKey('ui-review'),

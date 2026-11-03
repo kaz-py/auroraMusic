@@ -304,14 +304,20 @@ class _VinylPlayerState extends State<VinylPlayer>
                     onTap: track == null
                         ? null
                         : () => widget.controller.openArtist(track.artist),
-                    child: Text(
-                      track?.artist ??
-                          'Elige una canci\u00f3n de tu biblioteca',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: color.onSurfaceVariant,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: 1,
+                        child: Text(
+                          track?.artist ??
+                              'Elige una canci\u00f3n de tu biblioteca',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: color.onSurfaceVariant),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
