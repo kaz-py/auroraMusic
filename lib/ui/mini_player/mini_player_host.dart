@@ -110,9 +110,8 @@ class MiniPlayerHost extends StatelessWidget {
   static MiniPlayerPlacement placementFor({
     required bool slush,
     required bool rail,
-  }) => slush && !rail
-      ? MiniPlayerPlacement.bottomBar
-      : MiniPlayerPlacement.body;
+  }) =>
+      slush && !rail ? MiniPlayerPlacement.bottomBar : MiniPlayerPlacement.body;
 
   /// Altura mínima de la barra: 56 en móvil, 64 con carril, crece hasta ×1,5
   /// con el tamaño de texto (por encima el contenido se recorta con puntos,

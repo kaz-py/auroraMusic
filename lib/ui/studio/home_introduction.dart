@@ -604,11 +604,7 @@ class StudioHomeIntroduction extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                StudioSymbols.verified,
-                color: colors.primary,
-                size: 18,
-              ),
+              Icon(StudioSymbols.verified, color: colors.primary, size: 18),
               const SizedBox(width: 6),
               const Expanded(
                 child: StudioStamp('EDICIÓN MÁSTER · AUDIÓFILO DE LA SEMANA'),

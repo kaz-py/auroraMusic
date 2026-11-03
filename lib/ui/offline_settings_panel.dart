@@ -106,58 +106,57 @@ class _OfflineTrackPickerState extends State<_OfflineTrackPicker> {
           child: SizedBox(
             height: MediaQuery.sizeOf(context).height * .65,
             child: Column(
-
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Descargar para escuchar sin conexión',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Filtrar canciones',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (value) => setState(() => query = value),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: matches.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No hay canciones que coincidan.',
-                        style: slush
-                            ? TextStyle(color: context.slush.ink2)
-                            : null,
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: matches.length,
-                      itemBuilder: (context, index) {
-                        final track = matches[index];
-                        return ListTile(
-                          minTileHeight: 56,
-                          title: Text(track.title),
-                          subtitle: Text(
-                            track.artist,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Descargar para escuchar sin conexión',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Filtrar canciones',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) => setState(() => query = value),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: matches.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No hay canciones que coincidan.',
                             style: slush
                                 ? TextStyle(color: context.slush.ink2)
                                 : null,
                           ),
-                          trailing: const Icon(Icons.download_outlined),
-                          enabled: !submitting,
-                          onTap: () async {
-                            setState(() => submitting = true);
-                            await widget.onDownload(track);
-                            if (context.mounted) Navigator.pop(context);
+                        )
+                      : ListView.builder(
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            final track = matches[index];
+                            return ListTile(
+                              minTileHeight: 56,
+                              title: Text(track.title),
+                              subtitle: Text(
+                                track.artist,
+                                style: slush
+                                    ? TextStyle(color: context.slush.ink2)
+                                    : null,
+                              ),
+                              trailing: const Icon(Icons.download_outlined),
+                              enabled: !submitting,
+                              onTap: () async {
+                                setState(() => submitting = true);
+                                await widget.onDownload(track);
+                                if (context.mounted) Navigator.pop(context);
+                              },
+                            );
                           },
-                        );
-                      },
-                    ),
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
           ),
         ),
       ),

@@ -16,7 +16,6 @@ const _songs = [
   Track(id: 'c', title: 'Noche', artist: 'Otro'),
 ];
 
-
 void main() {
   for (final mode in const ['light', 'dark']) {
     for (final size in const [Size(1440, 900), Size(390, 844)]) {
@@ -69,7 +68,11 @@ void main() {
             final bg =
                 tester.widget<Scaffold>(scaffold).backgroundColor ??
                 Theme.of(tester.element(scaffold)).scaffoldBackgroundColor;
-            final hits = scanLegibility(tester.binding.renderViews.first, bg, size);
+            final hits = scanLegibility(
+              tester.binding.renderViews.first,
+              bg,
+              size,
+            );
             final seen = <String>{};
             for (final h in hits) {
               final row =

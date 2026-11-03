@@ -760,7 +760,9 @@ class _InboxCard extends StatelessWidget {
       ),
     );
     final body = Padding(
-      padding: slush ? EdgeInsets.zero : const EdgeInsets.symmetric(vertical: 8),
+      padding: slush
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

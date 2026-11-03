@@ -604,7 +604,8 @@ class _LyricsPanelState extends State<LyricsPanel> {
           ),
         );
         // Con texto muy grande cabecera y controles no caben: se desplaza.
-        if (isSlush(context) || MediaQuery.textScalerOf(context).scale(14) <= 18) {
+        if (isSlush(context) ||
+            MediaQuery.textScalerOf(context).scale(14) <= 18) {
           return page;
         }
         return SingleChildScrollView(

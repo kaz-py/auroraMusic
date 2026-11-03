@@ -671,98 +671,98 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
   Widget _downloadCard(DownloadJob job) => isSlush(context)
       ? _slushRow(job)
       : Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: _panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Artwork(
-                track: job.track,
-                artworkContext: ArtworkContext.thumbnailDetail,
-                radius: 4,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _format(job),
-                      style: _stamp(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    Text(
-                      job.track.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: 'Newsreader',
-                        fontSize: 24,
-                      ),
-                    ),
-                    Text(
-                      '${job.track.artist}${job.track.album == null ? '' : ' · ${job.track.album}'}',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _well(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _panel(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_status(job), style: _stamp()),
-                if (job.status == DownloadStatus.downloading) ...[
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: job.progress.clamp(0, 1),
-                    minHeight: isBrasa(context) ? 4 : null,
-                    borderRadius: isBrasa(context)
-                        ? BorderRadius.circular(9999)
-                        : isModern(context)
-                        ? BorderRadius.circular(8)
-                        : null,
-                    color: isBrasa(context)
-                        ? Brasa.accent
-                        : isModern(context)
-                        ? Tracky.mint
-                        : Theme.of(context).colorScheme.primaryContainer,
-                  ),
-                ],
-                if (job.localPath != null) ...[
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    'Destino: ${job.localPath}',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Artwork(
+                      track: job.track,
+                      artworkContext: ArtworkContext.thumbnailDetail,
+                      radius: 4,
                     ),
-                  ),
-                ],
-                if (job.error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    job.error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _format(job),
+                            style: _stamp(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          Text(
+                            job.track.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Newsreader',
+                              fontSize: 24,
+                            ),
+                          ),
+                          Text(
+                            '${job.track.artist}${job.track.album == null ? '' : ' · ${job.track.album}'}',
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _well(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_status(job), style: _stamp()),
+                      if (job.status == DownloadStatus.downloading) ...[
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: job.progress.clamp(0, 1),
+                          minHeight: isBrasa(context) ? 4 : null,
+                          borderRadius: isBrasa(context)
+                              ? BorderRadius.circular(9999)
+                              : isModern(context)
+                              ? BorderRadius.circular(8)
+                              : null,
+                          color: isBrasa(context)
+                              ? Brasa.accent
+                              : isModern(context)
+                              ? Tracky.mint
+                              : Theme.of(context).colorScheme.primaryContainer,
+                        ),
+                      ],
+                      if (job.localPath != null) ...[
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          'Destino: ${job.localPath}',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      if (job.error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          job.error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, children: _actions(job)),
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, children: _actions(job)),
-        ],
-      ),
-    ),
-  );
+        );
 
   Widget _table(List<DownloadJob> jobs) => _well(
     child: Column(
@@ -976,7 +976,9 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
       color: isSlush(context)
           ? context.slush.inset
           : Theme.of(context).colorScheme.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(isSlush(context) ? SlushRadius.r16 : 4),
+      borderRadius: BorderRadius.circular(
+        isSlush(context) ? SlushRadius.r16 : 4,
+      ),
     ),
     child: child,
   );
