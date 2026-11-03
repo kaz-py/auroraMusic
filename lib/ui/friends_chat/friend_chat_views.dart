@@ -10,16 +10,23 @@ import '../friends_page.dart' show friendsAgo;
 import '../mini_player/mini_player_host.dart';
 import '../undo_snackbar.dart';
 import 'atelier_chat.dart';
+import 'brasa_chat.dart';
 import 'chat_model.dart';
 import 'chat_theme.dart';
+import 'modern_chat.dart';
+import 'slush_chat.dart';
 
 /// Registro por tema, con la misma detección que el mini reproductor
 /// (`MiniPlayerHost.kindOf`: Slush también lleva `ModernMarker`, el orden
 /// importa). Cada tema vive en su archivo.
-const Map<String, ChatTheme> chatThemes = {'atelier': atelierChat};
+const Map<String, ChatTheme> chatThemes = {
+  'atelier': atelierChat,
+  'slush': slushChat,
+  'modern': modernChat,
+  'brasa': brasaChat,
+};
 
-ChatTheme chatThemeOf(BuildContext c) =>
-    chatThemes[MiniPlayerHost.kindOf(c)] ?? atelierChat;
+ChatTheme chatThemeOf(BuildContext c) => chatThemes[MiniPlayerHost.kindOf(c)]!;
 
 /// Lista de conversaciones (una por amigo). Va dentro del `ListView` de la
 /// página de Amigos.
