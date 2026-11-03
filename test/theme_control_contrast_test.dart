@@ -41,10 +41,12 @@ void main() {
         text('tinta sobre $f ($tag)', Slush.ink, f);
         ctrl('contorno sobre $f ($tag)', Slush.ink, f);
       }
-      expect(t.chipTheme.side?.color, Slush.ink);
-      expect(t.chipTheme.side?.width, greaterThanOrEqualTo(2));
+      final chipSide = (t.chipTheme.side! as WidgetStateProperty<BorderSide?>)
+          .resolve({});
+      expect(chipSide?.color, Slush.ink);
+      expect(chipSide?.width, greaterThanOrEqualTo(2));
       expect(t.chipTheme.color!.resolve({WidgetState.selected}), Slush.mint);
-      expect(t.chipTheme.color!.resolve({}), Colors.white);
+      expect(t.chipTheme.color!.resolve({}), SlushPalette.light.paper);
       final track = t.switchTheme.trackColor!;
       final on = track.resolve({WidgetState.selected})!;
       final off = track.resolve({})!;

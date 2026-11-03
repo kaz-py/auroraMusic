@@ -160,8 +160,9 @@ List<GuardViolation> checkClipping(WidgetTester tester, Size screen) {
   final seen = <String>{};
   void visit(RenderObject o) {
     if (o is RenderOffstage && o.offstage) return;
-    if (o is RenderParagraph || o is RenderImage)
+    if (o is RenderParagraph || o is RenderImage) {
       _checkLeaf(o, screen, out, seen);
+    }
     o.visitChildren(visit);
   }
 
