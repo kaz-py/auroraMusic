@@ -194,3 +194,27 @@ con el margen de pantalla de Slush; los gestos cubren solo el dock.
   ya no hay seek, volumen, cola, letras ni ecualizador en la barra; se llega a
   ellos desde las pestañas del reproductor (Vinilo, Letras, EQ, Cola).
 - Pruebas: `test/mini_player/slush_mini_player_test.dart`.
+
+## Controles de escritorio (carril ancho)
+
+En ancho (≥ 600) el mini sustituye al transporte, así que el contrato también
+lleva lo que ese transporte ofrecía:
+
+- `MiniPlayerState`: `volume` (0..1), `muted`, `canSetVolume`, `queueLength`,
+  `hasQueue`, `equalizerAvailable` (= `controller.eq.supported`, lo que decide
+  `TransportEqualizerButton`), `equalizerActive`, `lyricsAvailable` (hay pista).
+- `MiniPlayerActions`: `setVolume(double)`, `toggleMute`, `openQueue` (sección
+  5), `openEqualizer` (`showEqualizerSheet`, cada oyente el suyo), `openLyrics`
+  (el diálogo de letras que ya abría el transporte). Todos tienen valor por
+  defecto (no-op), así que lo existente no se rompe.
+- `MuteMemory`: recuerda el volumen previo al silenciar; el shell tiene una
+  instancia compartida con el atajo de silencio (`MiniPlayerHost.mute`).
+- `MiniPlayerHost` recibe `onOpenQueue`, `onOpenLyrics` y `mute` del shell y
+  construye `openEqualizer` con su propio contexto.
+- `MiniPlayerDesktopControls({state, actions, color, iconSize = 20, compact})`
+  (`mini_player_desktop_controls.dart`): silencio + slider de 96 px, cola, EQ y
+  letras, cada uno de 44×44 con tooltip y semántica; el slider anuncia
+  «Volumen N por ciento». Según el ancho que recibe pasa de completo a sin
+  slider (también con `compact: true`) y a un menú «⋯»; nunca desborda. Colóquelo
+  en un `SizedBox`/`Flexible`. `color` lo da el tema (contraste ≥ 3 con su
+  fondo; los botones desactivados se atenúan).

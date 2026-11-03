@@ -1,0 +1,214 @@
+import 'package:flutter/material.dart';
+
+import '../studio/studio_symbols.dart';
+import 'mini_player_model.dart';
+
+/// Lado del objetivo táctil de cada botón.
+const double kMiniControlTarget = 44;
+
+/// Ancho del slider de volumen.
+const double kMiniVolumeSlider = 96;
+
+/// Controles de escritorio del mini reproductor (carril ancho): volumen
+/// (silencio + slider corto), cola, ecualizador y letras. Los 4 temas lo
+/// colocan en su fila ancha y solo le pasan su color.
+///
+/// - Cada botón mide 44×44 y lleva tooltip y semántica propios; el slider
+///   anuncia «Volumen N por ciento».
+/// - Se adapta al ancho que recibe (póngalo en un `SizedBox`/`Flexible`; sin
+///   límite usa el tamaño completo): completo (slider + 3 botones) →
+///   [compact] sin slider (el volumen es solo el botón de silencio) → menú «⋯»
+///   (silencio, cola, ecualizador, letras). Nunca desborda.
+/// - [compact] fuerza directamente la variante sin slider.
+/// - El EQ se desactiva si `state.equalizerAvailable` es falso; letras, si no
+///   hay pista. El EQ activo se marca con un punto del color del tema.
+/// - [color]: color de iconos y slider; el tema es responsable de que alcance
+///   contraste ≥ 3 con su fondo (la pista inactiva del slider usa el mismo
+///   color con menos opacidad). Los botones desactivados lo atenúan.
+class MiniPlayerDesktopControls extends StatelessWidget {
+  const MiniPlayerDesktopControls({
+    super.key,
+    required this.state,
+    required this.actions,
+    required this.color,
+    this.iconSize = 20,
+    this.compact = false,
+  });
+
+  final MiniPlayerState state;
+  final MiniPlayerActions actions;
+  final Color color;
+  final double iconSize;
+  final bool compact;
+
+  static const _buttons = 3;
+  static const double _full =
+      kMiniControlTarget * (_buttons + 1) + kMiniVolumeSlider;
+  static const double _noSlider = kMiniControlTarget * (_buttons + 1);
+
+  IconData get _volumeIcon => state.muted
+      ? Icons.volume_off_rounded
+      : state.volume < .5
+      ? Icons.volume_down_rounded
+      : StudioSymbols.volumeUp;
+
+  String get _muteTip => state.muted ? 'Quitar silencio' : 'Silenciar';
+  String get _queueTip =>
+      state.hasQueue ? 'Abrir cola (${state.queueLength})' : 'Abrir cola';
+  String get _eqTip => !state.equalizerAvailable
+      ? 'Ecualizador no disponible en este reproductor'
+      : 'Ecualizador${state.equalizerActive ? ' (activo)' : ''}';
+
+  Widget _button(
+    String tip,
+    IconData icon,
+    VoidCallback? onTap, {
+    bool marked = false,
+  }) => Tooltip(
+    message: tip,
+    child: Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: tip,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: SizedBox.square(
+        dimension: kMiniControlTarget,
+        child: InkResponse(
+          onTap: onTap,
+          radius: kMiniControlTarget / 2,
+          child: Center(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  size: iconSize,
+                  color: onTap == null ? color.withValues(alpha: .38) : color,
+                ),
+                if (marked)
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const SizedBox.square(dimension: 6),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _slider(BuildContext context) => SizedBox(
+    width: kMiniVolumeSlider,
+    height: kMiniControlTarget,
+    child: SliderTheme(
+      data: SliderTheme.of(context).copyWith(
+        trackHeight: 4,
+        activeTrackColor: color,
+        inactiveTrackColor: color.withValues(alpha: .35),
+        thumbColor: color,
+        overlayColor: color.withValues(alpha: .12),
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+      ),
+      child: Slider(
+        semanticFormatterCallback: (value) =>
+            'Volumen ${(value * 100).round()} por ciento',
+        value: state.volume.clamp(0.0, 1.0),
+        onChanged: state.canSetVolume ? actions.setVolume : null,
+      ),
+    ),
+  );
+
+  Widget _menu() => SizedBox.square(
+    dimension: kMiniControlTarget,
+    child: PopupMenuButton<void>(
+      tooltip: 'Más acciones',
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_horiz_rounded, size: iconSize, color: color),
+      itemBuilder: (_) => [
+        _item(_muteTip, _volumeIcon, actions.toggleMute, state.canSetVolume),
+        _item(_queueTip, StudioSymbols.queueMusic, actions.openQueue, true),
+        _item(
+          _eqTip,
+          StudioSymbols.equalizer,
+          actions.openEqualizer,
+          state.equalizerAvailable,
+        ),
+        _item(
+          'Letras',
+          StudioSymbols.lyrics,
+          actions.openLyrics,
+          state.lyricsAvailable,
+        ),
+      ],
+    ),
+  );
+
+  PopupMenuItem<void> _item(
+    String text,
+    IconData icon,
+    VoidCallback onTap,
+    bool enabled,
+  ) => PopupMenuItem<void>(
+    enabled: enabled,
+    onTap: onTap,
+    child: Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Text(text)),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final room = box.maxWidth;
+      final Widget content;
+      if (room < _noSlider) {
+        content = _menu();
+      } else {
+        final slider = !compact && room >= _full;
+        content = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _button(
+              _muteTip,
+              _volumeIcon,
+              state.canSetVolume ? actions.toggleMute : null,
+            ),
+            if (slider) _slider(context),
+            _button(_queueTip, StudioSymbols.queueMusic, actions.openQueue),
+            _button(
+              _eqTip,
+              StudioSymbols.equalizer,
+              state.equalizerAvailable ? actions.openEqualizer : null,
+              marked: state.equalizerAvailable && state.equalizerActive,
+            ),
+            _button(
+              'Letras',
+              StudioSymbols.lyrics,
+              state.lyricsAvailable ? actions.openLyrics : null,
+            ),
+          ],
+        );
+      }
+      return Semantics(
+        container: true,
+        explicitChildNodes: true,
+        label: 'Controles del reproductor',
+        child: content,
+      );
+    },
+  );
+}
