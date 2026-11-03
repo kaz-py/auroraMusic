@@ -227,8 +227,16 @@ Widget _bubble(BuildContext context, ChatEntry entry) {
                             tooltip: a.label,
                             constraints: _touch,
                             style: IconButton.styleFrom(
-                              backgroundColor: Tracky.navy,
-                              foregroundColor: Tracky.canvas,
+                              // En oscuro el fondo del bubble del amigo ya es
+                              // navy: el botón primario cambia a menta.
+                              backgroundColor:
+                                  entry.mine || !isDarkTheme(context)
+                                  ? Tracky.navy
+                                  : Tracky.mint,
+                              foregroundColor:
+                                  entry.mine || !isDarkTheme(context)
+                                  ? Tracky.canvas
+                                  : Tracky.navy,
                             ),
                             icon: Icon(a.icon),
                             onPressed: a.onTap,

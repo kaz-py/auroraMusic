@@ -186,6 +186,7 @@ Widget _square(ChatAction a) {
       button: true,
       enabled: enabled,
       label: a.label,
+      onTap: a.onTap,
       excludeSemantics: true,
       child: Material(
         color: primary ? Brasa.amber : Colors.transparent,
