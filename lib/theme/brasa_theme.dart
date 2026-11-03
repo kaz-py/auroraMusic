@@ -172,6 +172,11 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
       color: scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
     ),
+    // El tema usa densidad compacta: sin este padding los chips quedan en 32 px
+    // y en móvil se exige >= 40.
+    chipTheme: const ChipThemeData(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       isDense: true,
