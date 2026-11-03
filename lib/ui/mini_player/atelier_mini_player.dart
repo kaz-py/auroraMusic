@@ -6,6 +6,7 @@ import '../../core/models.dart';
 import '../artwork.dart';
 import '../studio/studio_symbols.dart';
 import 'blurred_cover_backdrop.dart';
+import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 
@@ -30,6 +31,16 @@ Widget _build(
 
 /// Alto de la zona de la regla/nudo (también el aire sobre y bajo el contenido).
 const double _kStrip = 5;
+
+/// Alto de la franja que recibe el arrastre de la regla.
+const double _kScrub = 12;
+
+/// Ancho fijo (a escala 1) de lo que no son texto ni controles en el carril:
+/// margen, funda con vinilo, hueco, corazón, anterior, play y siguiente.
+const double _kWideFixed = 20 + 4 + 72 + 12 + 4 * 44;
+
+/// Ancho completo de `MiniPlayerDesktopControls` (3 botones + silencio + slider).
+const double _kDesktopFull = kMiniControlTarget * 4 + kMiniVolumeSlider;
 
 /// Lado táctil de los botones.
 const double _kTouch = 44;
@@ -228,21 +239,13 @@ class _Dock extends StatelessWidget {
                   left: 0,
                   right: 0,
                   top: 0,
-                  height: _kStrip,
-                  child: IgnorePointer(
-                    child: RepaintBoundary(
-                      child: Semantics(
-                        label: 'Progreso de la pista',
-                        value: '${(state.progress * 100).round()} %',
-                        child: CustomPaint(
-                          painter: _TimelinePainter(
-                            progress: state.progress,
-                            rule: ink.track,
-                            fill: ink.accent,
-                          ),
-                        ),
-                      ),
-                    ),
+                  height: _kScrub,
+                  child: _Scrub(
+                    progress: state.progress,
+                    canSeek: state.canSeek,
+                    onSeek: actions.seek,
+                    rule: ink.track,
+                    fill: ink.accent,
                   ),
                 ),
                 Padding(
@@ -295,6 +298,21 @@ class _Dock extends StatelessWidget {
                         color: ink.fg,
                         onPressed: state.hasNext ? actions.next : null,
                       ),
+                      if (wide)
+                        SizedBox(
+                          width: math.min(
+                            _kDesktopFull,
+                            math.max(
+                              kMiniControlTarget,
+                              box.maxWidth - _kWideFixed * scale - 150,
+                            ),
+                          ),
+                          child: MiniPlayerDesktopControls(
+                            state: state,
+                            actions: actions,
+                            color: ink.sub,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -449,6 +467,95 @@ class _VinylPainter extends CustomPainter {
   @override
   bool shouldRepaint(_VinylPainter old) =>
       old.rim != rim || old.label != label || old.ink != ink;
+}
+
+/// Franja táctil de 12 px con la regla de 5 px arriba. Con [canSeek] se puede
+/// tocar o arrastrar (la posición se confirma al soltar) y gana al deslizar de
+/// pista de la barra dentro de la franja.
+class _Scrub extends StatefulWidget {
+  const _Scrub({
+    required this.progress,
+    required this.canSeek,
+    required this.onSeek,
+    required this.rule,
+    required this.fill,
+  });
+
+  final double progress;
+  final bool canSeek;
+  final ValueChanged<double> onSeek;
+  final Color rule, fill;
+
+  @override
+  State<_Scrub> createState() => _ScrubState();
+}
+
+class _ScrubState extends State<_Scrub> {
+  double? _drag;
+
+  double _at(Offset local) {
+    final w = context.size?.width ?? 0;
+    return w <= 0 ? 0 : (local.dx / w).clamp(0.0, 1.0);
+  }
+
+  void _commit(double fraction) {
+    setState(() => _drag = null);
+    widget.onSeek(fraction);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
+    final percent = '${(value * 100).round()} %';
+    final line = ExcludeSemantics(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          height: _kStrip,
+          child: RepaintBoundary(
+            child: CustomPaint(
+              size: const Size.fromHeight(_kStrip),
+              painter: _TimelinePainter(
+                progress: value,
+                rule: widget.rule,
+                fill: widget.fill,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!widget.canSeek) {
+      return IgnorePointer(
+        child: Semantics(
+          label: 'Progreso de la pista',
+          value: percent,
+          child: line,
+        ),
+      );
+    }
+    return Semantics(
+      container: true,
+      label: 'Posición',
+      value: percent,
+      increasedValue: percent,
+      decreasedValue: percent,
+      onIncrease: () => widget.onSeek((widget.progress + .05).clamp(0.0, 1.0)),
+      onDecrease: () => widget.onSeek((widget.progress - .05).clamp(0.0, 1.0)),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTapUp: (d) => _commit(_at(d.localPosition)),
+        onHorizontalDragStart: (d) =>
+            setState(() => _drag = _at(d.localPosition)),
+        onHorizontalDragUpdate: (d) =>
+            setState(() => _drag = _at(d.localPosition)),
+        onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
+        onHorizontalDragCancel: () => setState(() => _drag = null),
+        child: line,
+      ),
+    );
+  }
 }
 
 /// Regla de un píxel con el tramo recorrido y un nudo de 5 px.
