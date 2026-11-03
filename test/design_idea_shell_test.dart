@@ -7,7 +7,7 @@ import 'package:aurora_music/ui/studio/home_introduction.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/jam/jam_page.dart';
-import 'package:aurora_music/ui/studio/studio_transport.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -186,7 +186,7 @@ void main() {
       ]) {
         await mount(tester, size);
         expect(find.text('Madrugada acústica'), findsOneWidget);
-        expect(find.byType(StudioTransport), findsOneWidget);
+        expect(find.byType(MiniPlayerGestures), findsOneWidget);
         expect(find.byType(JamPage, skipOffstage: false), findsNothing);
         expect((controller.source as FakeSource).searchQueries, isEmpty);
         expect(tester.takeException(), isNull, reason: 'shell $size');
