@@ -2498,7 +2498,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   // Por título; lo no listado (herramientas y diagnóstico) cae en Avanzado.
   int _settingsTabOf(String title) => switch (title) {
-    'Identidad y tema' || 'Color de acento' || 'Movimiento' => 0,
+    'Identidad y tema' ||
+    'Color de acento' ||
+    'Fondo de portada' ||
+    'Movimiento' => 0,
     'Reproducción' ||
     'Reproducción experimental' ||
     'Ecualizador' ||
@@ -2810,6 +2813,21 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             ),
           ],
         ),
+      (
+        title: 'Fondo de portada',
+        subtitle: 'Mini reproductor y reproductor',
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Fondo difuminado de la portada'),
+            subtitle: const Text(
+              'El mini reproductor y el reproductor usan la portada difuminada de fondo, con el artista en grande.',
+            ),
+            value: c.blurredCoverMode,
+            onChanged: c.setBlurredCoverMode,
+          ),
+        ],
+      ),
       (
         title: 'Movimiento',
         subtitle: 'Animaciones de la interfaz',
