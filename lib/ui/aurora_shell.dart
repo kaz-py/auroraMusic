@@ -823,9 +823,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                           (i) => NavigationDestination(
                             icon: Icon(_icons[_primarySections[i]]),
                             selectedIcon: brasa
-                                ? Icon(
-                                    _icons[_primarySections[i]],
-                                    color: Brasa.void_,
+                                ? SizedBox(
+                                    width: 64,
+                                    height: 32,
+                                    child: DecoratedBox(
+                                      decoration: const ShapeDecoration(
+                                        color: Brasa.cream,
+                                        shape: StadiumBorder(),
+                                      ),
+                                      child: Icon(
+                                        _icons[_primarySections[i]],
+                                        color: Brasa.void_,
+                                      ),
+                                    ),
                                   )
                                 : null,
                             label: _primarySections[i] == 3

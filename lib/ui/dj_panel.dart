@@ -421,8 +421,9 @@ class _DjSessionCardState extends State<DjSessionCard> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Incluir novedades de YouTube'),
-                subtitle: const Text(
+                subtitle: Text(
                   'Hasta 2 búsquedas por recarga, guiadas por tu perfil.',
+                  style: brasa ? const TextStyle(color: Brasa.cream) : null,
                 ),
                 value: c.personalDjIncludeDiscovery,
                 onChanged: c.setPersonalDjIncludeDiscovery,

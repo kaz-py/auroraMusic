@@ -140,6 +140,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 40),
+        visualDensity: VisualDensity.standard,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
@@ -150,6 +151,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 40),
+        visualDensity: VisualDensity.standard,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         textStyle: t(14, 1.2, FontWeight.w700),
         shape: pill,
@@ -159,6 +161,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(0, 40),
+        visualDensity: VisualDensity.standard,
         textStyle: t(14, 1.2, FontWeight.w700),
         shape: pill,
       ).copyWith(overlayColor: overlay),
@@ -175,7 +178,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     // El tema usa densidad compacta: sin este padding los chips quedan en 32 px
     // y en móvil se exige >= 40.
     chipTheme: const ChipThemeData(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
