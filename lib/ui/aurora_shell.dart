@@ -877,14 +877,25 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       },
       child: shell,
     );
-    // Modo mini: la ventana compacta sustituye al shell (que conserva su
-    // estado) mientras está activo.
+    // Modo mini y Modo artista sustituyen a todo el shell (que conserva su
+    // estado, incluida la sección) mientras están activos.
     final content = _miniWindow
         ? MiniWindowView(
             controller: c,
             jam: _jam,
             onTogglePlay: () => _togglePlay(c),
             onExit: () => unawaited(_setMiniWindow(false)),
+          )
+        : _section == 15
+        ? Scaffold(
+            body: ArtistModePage(
+              controller: c,
+              jam: _jam,
+              onTogglePlay: () => _togglePlay(c),
+              onClose: () {
+                if (!_handleBack(c)) _navigate(0);
+              },
+            ),
           )
         : guarded;
     if (web == null) return content;
@@ -1620,13 +1631,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             onSettings: () => _navigate(7),
             onJoinJam: (code) => _joinJamLink('aurora://jam/$code'),
           ),
-        );
-      case 15:
-        return ArtistModePage(
-          controller: c,
-          jam: _jam,
-          onTogglePlay: () => _togglePlay(c),
-          onClose: () => _navigate(0),
         );
       case 9:
       case 10:

@@ -158,8 +158,10 @@ void main() {
       await tester.tap(find.byTooltip('Modo artista'));
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(ArtistModePage), findsOneWidget);
-      // La barra de reproducción de abajo desaparece: los controles van dentro.
+      // Se oculta toda la UI (menús, barra de abajo): solo queda esta página.
+      expect(find.byType(MiniPlayerHost), findsNothing);
       expect(find.byTooltip('Modo artista'), findsNothing);
+      expect(find.byTooltip('Minimizar'), findsOneWidget);
       expect(find.byTooltip('Salir del modo artista'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Salir del modo artista'));

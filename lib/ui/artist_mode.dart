@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../core/models.dart';
+import '../core/window_controls.dart';
 import '../jam/jam_controller.dart';
 import '../lyrics/lyrics_service.dart';
 import 'artwork.dart';
@@ -134,6 +136,72 @@ class _ArtistModePageState extends State<ArtistModePage> {
   ) {
     final tone = BlurredCoverTheme.of(context);
     final track = state.track;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
+      },
+      child: Focus(
+        autofocus: true,
+        child: _frame(context, state, actions, tone, track),
+      ),
+    );
+  }
+
+  /// Barra superior: zona de arrastre (la ventana no tiene marco), salir del
+  /// modo y, en Windows, minimizar / maximizar / cerrar la ventana.
+  Widget _topBar() {
+    ButtonStyle style() => IconButton.styleFrom(
+      minimumSize: const Size.square(44),
+      fixedSize: const Size.square(44),
+      padding: EdgeInsets.zero,
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onPanStart: (_) => WindowControls.invoke('drag'),
+            onDoubleTap: () => WindowControls.invoke('maximize'),
+            child: const SizedBox(height: 44),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Salir del modo artista',
+          onPressed: widget.onClose,
+          icon: const Icon(Icons.fullscreen_exit_rounded),
+          style: style(),
+        ),
+        if (WindowControls.supported) ...[
+          IconButton(
+            tooltip: 'Minimizar',
+            onPressed: () => WindowControls.invoke('minimize'),
+            icon: const Icon(Icons.remove_rounded),
+            style: style(),
+          ),
+          IconButton(
+            tooltip: 'Maximizar o restaurar',
+            onPressed: () => WindowControls.invoke('maximize'),
+            icon: const Icon(Icons.crop_square_rounded, size: 20),
+            style: style(),
+          ),
+          IconButton(
+            tooltip: 'Cerrar la ventana',
+            onPressed: () => WindowControls.invoke('close'),
+            icon: const Icon(Icons.close_rounded),
+            style: style(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _frame(
+    BuildContext context,
+    MiniPlayerState state,
+    MiniPlayerActions actions,
+    CoverTone tone,
+    Track? track,
+  ) {
     return Material(
       type: MaterialType.transparency,
       child: DefaultTextStyle.merge(
@@ -152,17 +220,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
                 ),
                 child: Column(
                   children: [
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: IconButton(
-                        tooltip: 'Salir del modo artista',
-                        onPressed: widget.onClose,
-                        icon: const Icon(Icons.close_rounded),
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size.square(44),
-                        ),
-                      ),
-                    ),
+                    _topBar(),
                     Expanded(
                       child: track == null
                           ? Center(

@@ -84,9 +84,10 @@ const _allScreens = <String, int>{
   'Artistas': 12,
   'Amigos': 14,
   'Chat': 14,
-  'Artista': 15,
   'Letras': 6,
   'Ecualizador': 13,
+  // Última: cubre todo el shell, así que no se puede navegar desde ella.
+  'Artista': 15,
 };
 const _quickScreens = <String>[
   'Inicio',
