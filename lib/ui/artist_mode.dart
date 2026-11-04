@@ -57,6 +57,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
   int _request = 0;
   int _lastActive = -1;
   double? _drag;
+  int _offsetMs = 0;
   final Map<int, GlobalKey> _lineKeys = {};
   final _plainScroll = ScrollController();
 
@@ -81,9 +82,19 @@ class _ArtistModePageState extends State<ArtistModePage> {
     _request++;
     _lastActive = -1;
     _lineKeys.clear();
+    _offsetMs = 0;
     _result = null;
     _loading = false;
-    if (track != null) unawaited(_load(track));
+    if (track != null) {
+      unawaited(_load(track));
+      unawaited(
+        _service.readOffset(track, widget.controller.supportDirectory).then((
+          v,
+        ) {
+          if (mounted && _trackId == track.id) setState(() => _offsetMs = v);
+        }),
+      );
+    }
   }
 
   Future<void> _load(Track track) async {
@@ -96,11 +107,72 @@ class _ArtistModePageState extends State<ArtistModePage> {
       );
       if (!mounted || request != _request) return;
       setState(() => _result = result);
+      if (result.kind == LyricsKind.plain) {
+        unawaited(_upgrade(track, request));
+      }
     } catch (_) {
       // Sin letra: se muestra el aviso de siempre.
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
+  }
+
+  /// La letra llegó sin sincronizar: LRCLIB suele tenerla sincronizada pero la
+  /// descarta si la duración difiere más de 3 s (vídeos con intro). Se busca
+  /// entre los candidatos una sincronizada que case con título, artista y una
+  /// duración razonable (±20 s) y se usa; se guarda como elegida a mano, así
+  /// también la verá la página de Letras.
+  Future<void> _upgrade(Track track, int request) async {
+    try {
+      final found = await _service.candidates(track);
+      final total = track.duration.inSeconds;
+      final fits =
+          found
+              .where(
+                (c) =>
+                    c.synced &&
+                    c.score >= .65 &&
+                    (total == 0 || (c.seconds - total).abs() <= 20),
+              )
+              .toList()
+            ..sort((a, b) => b.score.compareTo(a.score));
+      if (fits.isEmpty || !mounted || request != _request) return;
+      final result = await _service.choose(
+        track,
+        widget.controller.supportDirectory,
+        fits.first,
+      );
+      if (!mounted || request != _request) return;
+      if (result.kind == LyricsKind.synced) {
+        setState(() {
+          _result = result;
+          _lastActive = -1;
+          _lineKeys.clear();
+        });
+      }
+    } catch (_) {
+      // Se queda la letra aproximada.
+    }
+  }
+
+  /// Reparte las líneas de una letra sin tiempos a lo largo de la pista (sin el
+  /// 6 % inicial ni el 6 % final). Sin duración no hay nada que repartir.
+  List<LyricLine> _approximate(String text, Duration total) {
+    final rows = [
+      for (final r in text.split(RegExp(r'\r?\n')))
+        if (r.trim().isNotEmpty) r.trim(),
+    ];
+    if (rows.isEmpty || total <= Duration.zero) return const [];
+    final ms = total.inMilliseconds;
+    return [
+      for (var i = 0; i < rows.length; i++)
+        LyricLine(
+          Duration(
+            milliseconds: (ms * .06 + ms * .88 * i / rows.length).round(),
+          ),
+          rows[i],
+        ),
+    ];
   }
 
   @override
@@ -485,7 +557,8 @@ class _ArtistModePageState extends State<ArtistModePage> {
       return Center(child: Text('Instrumental', style: message));
     }
     final size = large ? 30.0 : 22.0;
-    if (result.kind == LyricsKind.plain || result.lines.isEmpty) {
+    if ((result.kind == LyricsKind.plain || result.lines.isEmpty) &&
+        state.duration <= Duration.zero) {
       return Scrollbar(
         controller: _plainScroll,
         child: SingleChildScrollView(
@@ -503,10 +576,16 @@ class _ArtistModePageState extends State<ArtistModePage> {
         ),
       );
     }
-    final lines = result.lines;
+    // Sin sincronizar (LRCLIB no tiene versión que case con esta duración): las
+    // líneas se reparten a lo largo de la pista para que la letra avance igual.
+    final approx = result.kind == LyricsKind.plain || result.lines.isEmpty
+        ? _approximate(result.text, state.duration)
+        : const <LyricLine>[];
+    final isApprox = approx.isNotEmpty;
+    final lines = isApprox ? approx : result.lines;
     final position = widget.controller.audio.position;
     final active = lines.lastIndexWhere(
-      (line) => line.at.inMilliseconds <= position.inMilliseconds,
+      (line) => line.at.inMilliseconds <= position.inMilliseconds + _offsetMs,
     );
     if (active != _lastActive) {
       _lastActive = active;
@@ -524,7 +603,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
         }
       });
     }
-    return ShaderMask(
+    final list = ShaderMask(
       // Las líneas se funden arriba y abajo, como en el reproductor de Apple.
       shaderCallback: (rect) => const LinearGradient(
         begin: Alignment.topCenter,
@@ -567,6 +646,22 @@ class _ArtistModePageState extends State<ArtistModePage> {
           );
         },
       ),
+    );
+    if (!isApprox) return list;
+    return Stack(
+      children: [
+        list,
+        Positioned(
+          top: 0,
+          left: 0,
+          child: Text(
+            'Sincronización aproximada',
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: tone.secondary),
+          ),
+        ),
+      ],
     );
   }
 

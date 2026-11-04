@@ -39,12 +39,56 @@ class _FakeLyrics extends LyricsService {
   );
 }
 
+/// LRCLIB solo tiene texto plano para la pista; con [withSynced] además hay un
+/// candidato sincronizado con título, artista y duración que casan.
+class _PlainLyrics extends LyricsService {
+  _PlainLyrics({this.withSynced = false});
+  final bool withSynced;
+
+  @override
+  Future<LyricsResult> load(
+    Track track,
+    Directory root, {
+    bool force = false,
+    void Function(LyricsResult cached)? onInterim,
+    Duration slowAfter = const Duration(seconds: 3),
+  }) async => const LyricsResult(
+    LyricsKind.plain,
+    text: 'Línea uno\nLínea dos\nLínea tres',
+  );
+
+  @override
+  Future<List<LyricsCandidate>> candidates(Track track) async => [
+    if (withSynced)
+      const LyricsCandidate(
+        title: 'Ok Alright',
+        artist: 'Travis Scott',
+        album: '',
+        seconds: 180,
+        content: '[00:00.00] Línea sincronizada',
+        synced: true,
+        score: .9,
+      ),
+  ];
+
+  @override
+  Future<LyricsResult> choose(
+    Track track,
+    Directory root,
+    LyricsCandidate c,
+  ) async => const LyricsResult(
+    LyricsKind.synced,
+    lines: [LyricLine(Duration.zero, 'Línea sincronizada')],
+  );
+}
+
 void main() {
   Future<AppController> mountPage(
     WidgetTester tester, {
     Size size = const Size(1440, 900),
     double scale = 1,
     VoidCallback? onClose,
+    LyricsService? service,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -67,7 +111,7 @@ void main() {
         home: Scaffold(
           body: ArtistModePage(
             controller: c,
-            service: _FakeLyrics(),
+            service: service ?? _FakeLyrics(),
             onClose: onClose ?? () {},
             onTogglePlay: () {},
           ),
@@ -98,6 +142,26 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('letra sin sincronizar: se reparte por la pista y se avisa', (
+    tester,
+  ) async {
+    await mountPage(tester, service: _PlainLyrics());
+    expect(find.text('Sincronización aproximada'), findsOneWidget);
+    expect(find.text('Línea uno'), findsOneWidget);
+    expect(find.text('Línea dos'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'letra sin sincronizar: si hay una sincronizada que casa, la usa',
+    (tester) async {
+      await mountPage(tester, service: _PlainLyrics(withSynced: true));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Sincronización aproximada'), findsNothing);
+      expect(find.text('Línea sincronizada'), findsOneWidget);
+    },
+  );
 
   testWidgets('el botón de salir llama a onClose', (tester) async {
     var closed = 0;
