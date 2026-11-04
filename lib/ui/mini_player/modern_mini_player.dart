@@ -294,7 +294,9 @@ class _Body extends StatelessWidget {
         final showNext = wide || box.maxWidth >= _kNextMinInner;
         // Fijo de la fila ancha: relleno, portada, huecos, 4 botones y los
         // controles de escritorio; la hora solo si el título conserva 150.
-        final controls = compact ? kMiniDesktopNoSlider : kMiniDesktopFull;
+        final controls = compact
+            ? miniDesktopNoSlider(actions)
+            : miniDesktopFull(actions);
         final showTime =
             wide &&
             box.maxWidth -
@@ -353,8 +355,8 @@ class _Body extends StatelessWidget {
                         padding: const EdgeInsets.only(left: 8),
                         child: SizedBox(
                           width: compact
-                              ? kMiniDesktopNoSlider
-                              : kMiniDesktopFull,
+                              ? miniDesktopNoSlider(actions)
+                              : miniDesktopFull(actions),
                           child: MiniPlayerDesktopControls(
                             state: state,
                             actions: actions,

@@ -173,8 +173,8 @@ class _Row extends StatelessWidget {
         // 900 px de ventana mide 760), sin slider por debajo.
         final compactControls = c.maxWidth < 700;
         final controlsWidth = compactControls
-            ? kMiniDesktopNoSlider
-            : kMiniDesktopFull;
+            ? miniDesktopNoSlider(actions)
+            : miniDesktopFull(actions);
         final showNext = wide || c.maxWidth >= _kNextMinInner;
         // Ancho que se reserva al bloque de texto antes de sumar la hora.
         final fixed = wide

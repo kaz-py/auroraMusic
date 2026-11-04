@@ -33,9 +33,6 @@ const double _kScrub = 12;
 /// margen, funda con vinilo, hueco, corazón, anterior, play y siguiente.
 const double _kWideFixed = 20 + 4 + 72 + 12 + 4 * 44;
 
-/// Ancho completo de `MiniPlayerDesktopControls` (4 botones + silencio + slider).
-const double _kDesktopFull = kMiniDesktopFull;
-
 /// Lado táctil de los botones.
 const double _kTouch = 44;
 
@@ -217,7 +214,10 @@ class _Dock extends StatelessWidget {
         // sobra su ancho además del título mínimo.
         final showTime =
             wide &&
-            box.maxWidth - _kWideFixed * scale - 150 - _kDesktopFull >=
+            box.maxWidth -
+                    _kWideFixed * scale -
+                    150 -
+                    miniDesktopFull(actions) >=
                 kMiniTimeWidth + 8;
         return Material(
           type: MaterialType.transparency,
@@ -308,7 +308,7 @@ class _Dock extends StatelessWidget {
                       if (wide)
                         SizedBox(
                           width: math.min(
-                            _kDesktopFull,
+                            miniDesktopFull(actions),
                             math.max(
                               kMiniControlTarget,
                               box.maxWidth - _kWideFixed * scale - 150,

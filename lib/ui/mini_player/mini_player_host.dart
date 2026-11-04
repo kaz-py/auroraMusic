@@ -206,6 +206,7 @@ class MiniPlayerHost extends StatelessWidget {
     openQueue: onOpenQueue,
     openLyrics: onOpenLyrics,
     openBlurred: onOpenBlurred,
+    openMini: onOpenMini,
     openMenu: openMenu,
     openEqualizer: equalizerOpener(context, c),
   );

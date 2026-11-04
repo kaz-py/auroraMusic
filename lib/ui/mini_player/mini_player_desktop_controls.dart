@@ -10,14 +10,16 @@ const double kMiniControlTarget = 44;
 const double kMiniVolumeSlider = 96;
 
 /// Botones de los controles de escritorio: silencio, cola, ecualizador, letras
-/// y modo difuminado.
+/// y modo difuminado (más «Mini reproductor» si hay ventana que reducir).
 const int kMiniDesktopButtons = 5;
 
 /// Ancho completo (botones + slider) y sin slider de los controles de
 /// escritorio: los temas reservan este ancho en su fila ancha.
-const double kMiniDesktopFull =
-    kMiniControlTarget * kMiniDesktopButtons + kMiniVolumeSlider;
-const double kMiniDesktopNoSlider = kMiniControlTarget * kMiniDesktopButtons;
+double miniDesktopNoSlider(MiniPlayerActions actions) =>
+    kMiniControlTarget *
+    (kMiniDesktopButtons + (actions.openMini != null ? 1 : 0));
+double miniDesktopFull(MiniPlayerActions actions) =>
+    miniDesktopNoSlider(actions) + kMiniVolumeSlider;
 
 /// Portada y título del mini en escritorio: el clic abre el menú de la canción
 /// ([MiniPlayerActions.openMenu]) anclado en la esquina de esta zona. Sin
@@ -86,9 +88,6 @@ class MiniPlayerDesktopControls extends StatelessWidget {
   final Color color;
   final double iconSize;
   final bool compact;
-
-  static const double _full = kMiniDesktopFull;
-  static const double _noSlider = kMiniDesktopNoSlider;
 
   IconData get _volumeIcon => state.muted
       ? Icons.volume_off_rounded
@@ -201,6 +200,13 @@ class MiniPlayerDesktopControls extends StatelessWidget {
           actions.openBlurred,
           true,
         ),
+        if (actions.openMini case final openMini?)
+          _item(
+            'Mini reproductor',
+            Icons.picture_in_picture_alt_rounded,
+            openMini,
+            true,
+          ),
       ],
     ),
   );
@@ -227,10 +233,10 @@ class MiniPlayerDesktopControls extends StatelessWidget {
     builder: (context, box) {
       final room = box.maxWidth;
       final Widget content;
-      if (room < _noSlider) {
+      if (room < miniDesktopNoSlider(actions)) {
         content = _menu();
       } else {
-        final slider = !compact && room >= _full;
+        final slider = !compact && room >= miniDesktopFull(actions);
         content = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -257,6 +263,12 @@ class MiniPlayerDesktopControls extends StatelessWidget {
               Icons.blur_on_rounded,
               actions.openBlurred,
             ),
+            if (actions.openMini case final openMini?)
+              _button(
+                'Mini reproductor',
+                Icons.picture_in_picture_alt_rounded,
+                openMini,
+              ),
           ],
         );
       }

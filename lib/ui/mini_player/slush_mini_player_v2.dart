@@ -62,8 +62,6 @@ const double _kSeekHit = 24;
 // Ancho fijo de la fila ancha (portada 52 + 14 + 6 + anterior 44 + play 52 +
 // siguiente 44 + corazón 44) y mínimo de título antes de plegar los controles.
 const double _kWideFixed = 256, _kTitleMin = 140;
-const double _kControlsFull = kMiniDesktopFull; // slider + 5 botones
-const double _kControlsNoSlider = kMiniDesktopNoSlider;
 
 /// Colores ya resueltos del aspecto de la barra.
 class _Look {
@@ -287,13 +285,15 @@ class _Body extends StatelessWidget {
           // Ancho que sobra para los controles de escritorio tras portada,
           // transporte y un mínimo de título; ellos se pliegan solos.
           final room = box.maxWidth - _kWideFixed - _kTitleMin;
-          final controls = room >= _kControlsFull
-              ? _kControlsFull
-              : room >= _kControlsNoSlider
-              ? _kControlsNoSlider
+          final full = miniDesktopFull(actions);
+          final noSlider = miniDesktopNoSlider(actions);
+          final controls = room >= full
+              ? full
+              : room >= noSlider
+              ? noSlider
               : kMiniControlTarget;
           // La hora solo si los controles caben enteros y sobra su ancho.
-          final showTime = wide && room >= _kControlsFull + kMiniTimeWidth + 8;
+          final showTime = wide && room >= full + kMiniTimeWidth + 8;
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -239,6 +239,7 @@ class MiniPlayerActions {
     this.openLyrics = _ignoreVoid,
     this.openMenu,
     this.openBlurred = _ignoreVoid,
+    this.openMini,
   });
 
   final VoidCallback openPlayer, togglePlay, next, previous, toggleLike;
@@ -265,6 +266,10 @@ class MiniPlayerActions {
   /// Apartado «Modo difuminado» (portada difuminada y letras).
   final VoidCallback openBlurred;
 
+  /// Modo mini (ventana compacta, solo Windows): botón de los controles de
+  /// escritorio. `null`: no hay ventana que reducir y el botón no existe.
+  final VoidCallback? openMini;
+
   /// Menú de la canción (compartir, añadir a una lista…) anclado en un punto
   /// de la pantalla; solo con carril. Los temas lo cablean a su portada y
   /// título con `MiniPlayerInfoTap`. `null`: esa zona no hace nada.
@@ -285,6 +290,7 @@ class MiniPlayerActions {
     VoidCallback? openLyrics,
     ValueChanged<Offset>? openMenu,
     VoidCallback? openBlurred,
+    VoidCallback? openMini,
     VoidCallback? openEqualizer,
   }) {
     final jamAudio = transportJamAudio(c, jam);
@@ -312,6 +318,7 @@ class MiniPlayerActions {
       openLyrics: openLyrics ?? _ignoreVoid,
       openMenu: openMenu,
       openBlurred: openBlurred ?? _ignoreVoid,
+      openMini: openMini,
       openEqualizer: openEqualizer ?? _ignoreVoid,
       seek: (fraction) {
         final duration = c.audio.duration > Duration.zero
