@@ -6,7 +6,7 @@ Base compartida por los cuatro temas (Atelier, Modern, Brasa, Slush). Código en
 ## Ajuste
 
 El fondo de portada difuminada ya no es un ajuste ni va en la barra: es el
-apartado «Modo difuminado» (ver abajo), igual para todos los temas.
+apartado «Modo artista» (ver abajo), igual para todos los temas.
 
 ## Piezas
 
@@ -77,10 +77,14 @@ typedef MiniPlayerBuilder = Widget Function(
 ```
 
 - `wide`: diseño con carril (≥ 600 px); el resto, móvil sobre la navegación.
-- Sin fondo de portada difuminada: el «Modo difuminado» es un apartado propio
-  (sección 15, `lib/ui/blurred_now_playing.dart`) al que se llega con el botón
-  «Modo difuminado» de los controles de escritorio de la barra; pone la portada
-  difuminada tras la página de letras.
+- Sin fondo de portada difuminada en la barra: el «Modo artista» es un apartado propio
+  (sección 15, `lib/ui/artist_mode.dart`) al que se llega con el botón
+  «Modo artista» de los controles de escritorio de la barra; pone la portada
+  difuminada a pantalla completa con la portada grande, el progreso, la letra
+  sincronizada (la línea activa resalta y se desplaza sola; tocar una línea
+  salta a ella) y los controles (aleatorio, anterior, play, siguiente,
+  repetir). Mientras está abierto la barra de abajo se oculta
+  (`MiniPlayerHost.isVisible`, sección 15). Respeta los permisos de la Jam.
 - El host ya aplica: oculto sin pista, en la sección 4 y en la página oficial de
   YouTube Music; `MiniPlayerGestures` y la altura mínima. El tema no repite
   gestos ni visibilidad: dibuja y cablea play, favorito y siguiente.

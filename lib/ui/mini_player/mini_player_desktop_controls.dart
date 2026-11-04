@@ -194,12 +194,7 @@ class MiniPlayerDesktopControls extends StatelessWidget {
           actions.openLyrics,
           state.lyricsAvailable,
         ),
-        _item(
-          'Modo difuminado',
-          Icons.blur_on_rounded,
-          actions.openBlurred,
-          true,
-        ),
+        _item('Modo artista', Icons.portrait_rounded, actions.openArtist, true),
         if (actions.openMini case final openMini?)
           _item(
             'Mini reproductor',
@@ -258,11 +253,7 @@ class MiniPlayerDesktopControls extends StatelessWidget {
               StudioSymbols.lyrics,
               state.lyricsAvailable ? actions.openLyrics : null,
             ),
-            _button(
-              'Modo difuminado',
-              Icons.blur_on_rounded,
-              actions.openBlurred,
-            ),
+            _button('Modo artista', Icons.portrait_rounded, actions.openArtist),
             if (actions.openMini case final openMini?)
               _button(
                 'Mini reproductor',

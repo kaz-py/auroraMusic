@@ -77,6 +77,7 @@ void main() {
         expect(v(true, 0), isTrue);
         expect(v(false, 0), isFalse);
         expect(v(true, 4), isFalse);
+        expect(v(true, 15), isFalse); // Modo artista: sus controles van dentro
         expect(v(true, 10, true), isFalse);
       },
     );

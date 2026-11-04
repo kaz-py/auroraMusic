@@ -43,7 +43,7 @@ import 'studio/downloads_studio_page.dart';
 import '../shortcuts/shortcut_host.dart';
 import '../shortcuts/shortcut_service.dart';
 import 'lyrics_panel.dart';
-import 'blurred_now_playing.dart';
+import 'artist_mode.dart';
 import 'mini_window.dart';
 import 'shortcuts_settings_panel.dart';
 import 'artwork.dart';
@@ -104,7 +104,7 @@ const _sections = [
   'Artistas',
   'Ecualizador',
   'Amigos',
-  'Modo difuminado',
+  'Modo artista',
 ];
 const _icons = [
   Icons.home_outlined,
@@ -122,7 +122,7 @@ const _icons = [
   Icons.mic_none_rounded,
   Icons.equalizer,
   Icons.people_outline,
-  Icons.blur_on_rounded,
+  Icons.portrait_rounded,
 ];
 const _primarySections = [0, 1, 8, 2, 3];
 const _slushPrimarySections = [0, 1, 2, 8, 9];
@@ -1521,8 +1521,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         )
       : child;
 
-  /// Página de letras (Slush estrecho lleva su propia tarjeta). La usan la
-  /// sección 6 y el «Modo difuminado» (15), que le pone la portada detrás.
+  /// Página de letras (Slush estrecho lleva su propia tarjeta).
   Widget _lyricsPage(AppController c, int section) {
     if (isSlush(context) && MediaQuery.sizeOf(context).width < 900) {
       return Column(
@@ -1623,7 +1622,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         );
       case 15:
-        return BlurredNowPlaying(controller: c, child: _lyricsPage(c, 15));
+        return ArtistModePage(
+          controller: c,
+          jam: _jam,
+          onTogglePlay: () => _togglePlay(c),
+          onClose: () => _navigate(0),
+        );
       case 9:
       case 10:
       case 11:
@@ -3132,7 +3136,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     onTogglePlay: () => _togglePlay(c),
     onOpenQueue: () => _navigate(5),
     onOpenLyrics: () => _showLyrics(c),
-    onOpenBlurred: () => _navigate(15),
+    onOpenArtist: () => _navigate(15),
     onOpenMini: WindowControls.supported
         ? () => unawaited(_setMiniWindow(true))
         : null,

@@ -238,7 +238,7 @@ class MiniPlayerActions {
     this.openEqualizer = _ignoreVoid,
     this.openLyrics = _ignoreVoid,
     this.openMenu,
-    this.openBlurred = _ignoreVoid,
+    this.openArtist = _ignoreVoid,
     this.openMini,
   });
 
@@ -263,8 +263,8 @@ class MiniPlayerActions {
   /// Letras (el diálogo que abre el transporte).
   final VoidCallback openLyrics;
 
-  /// Apartado «Modo difuminado» (portada difuminada y letras).
-  final VoidCallback openBlurred;
+  /// Apartado «Modo artista» (portada, letra sincronizada y controles a pantalla completa).
+  final VoidCallback openArtist;
 
   /// Modo mini (ventana compacta, solo Windows): botón de los controles de
   /// escritorio. `null`: no hay ventana que reducir y el botón no existe.
@@ -289,7 +289,7 @@ class MiniPlayerActions {
     VoidCallback? openQueue,
     VoidCallback? openLyrics,
     ValueChanged<Offset>? openMenu,
-    VoidCallback? openBlurred,
+    VoidCallback? openArtist,
     VoidCallback? openMini,
     VoidCallback? openEqualizer,
   }) {
@@ -317,7 +317,7 @@ class MiniPlayerActions {
       openQueue: openQueue ?? _ignoreVoid,
       openLyrics: openLyrics ?? _ignoreVoid,
       openMenu: openMenu,
-      openBlurred: openBlurred ?? _ignoreVoid,
+      openArtist: openArtist ?? _ignoreVoid,
       openMini: openMini,
       openEqualizer: openEqualizer ?? _ignoreVoid,
       seek: (fraction) {

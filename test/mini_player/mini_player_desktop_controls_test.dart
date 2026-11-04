@@ -30,7 +30,7 @@ class _Calls {
     openQueue: () => log.add('queue'),
     openEqualizer: () => log.add('eq'),
     openLyrics: () => log.add('lyrics'),
-    openBlurred: () => log.add('blurred'),
+    openArtist: () => log.add('artist'),
   );
 }
 
@@ -94,7 +94,7 @@ void main() {
       'Abrir cola (3)',
       'Ecualizador',
       'Letras',
-      'Modo difuminado',
+      'Modo artista',
     ]) {
       final box = find.byTooltip(tip);
       expect(box, findsOneWidget, reason: tip);
@@ -113,7 +113,7 @@ void main() {
       );
       await tester.tap(box);
     }
-    expect(calls.log, ['mute', 'queue', 'eq', 'lyrics', 'blurred']);
+    expect(calls.log, ['mute', 'queue', 'eq', 'lyrics', 'artist']);
     await tester.drag(find.byType(Slider), const Offset(20, 0));
     expect(calls.volume, isNotNull);
     expect(tester.takeException(), isNull);
@@ -270,7 +270,7 @@ void main() {
       },
     );
 
-    test('openQueue, openLyrics y openBlurred llegan tal cual', () async {
+    test('openQueue, openLyrics y openArtist llegan tal cual', () async {
       final c = await createTestController();
       addTearDown(() => closeTestController(c));
       final log = <String>[];
@@ -279,11 +279,11 @@ void main() {
         openPlayer: () {},
         openQueue: () => log.add('q'),
         openLyrics: () => log.add('l'),
-        openBlurred: () => log.add('b'),
+        openArtist: () => log.add('b'),
       );
       actions.openQueue();
       actions.openLyrics();
-      actions.openBlurred();
+      actions.openArtist();
       actions.openEqualizer(); // sin callback: no hace nada
       expect(log, ['q', 'l', 'b']);
     });

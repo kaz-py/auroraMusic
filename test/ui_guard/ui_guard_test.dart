@@ -84,7 +84,7 @@ const _allScreens = <String, int>{
   'Artistas': 12,
   'Amigos': 14,
   'Chat': 14,
-  'Difuminado': 15,
+  'Artista': 15,
   'Letras': 6,
   'Ecualizador': 13,
 };
@@ -97,7 +97,7 @@ const _quickScreens = <String>[
   'Vinilo',
   'Amigos',
   'Chat',
-  'Difuminado',
+  'Artista',
 ];
 
 /// Tras navegar, pantallas que piden abrir algo más (pestaña, hilo) antes de
