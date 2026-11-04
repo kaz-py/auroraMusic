@@ -462,7 +462,8 @@ class _RoundAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Opacity(
-    opacity: onTap == null ? .5 : 1,
+    // .6 (no .5): con menos el icono tinta sobre el naranja queda bajo 3:1.
+    opacity: onTap == null ? .6 : 1,
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [

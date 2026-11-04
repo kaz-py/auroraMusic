@@ -342,80 +342,112 @@ class _LyricsPanelState extends State<LyricsPanel> {
                     line.at.inMilliseconds <=
                     position.inMilliseconds + _offsetMs,
               );
-              return Column(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: isBrasa(context)
-                          ? const BoxDecoration()
-                          : isModern(context)
-                          ? modernLyricsBackdrop(context)
-                          : BoxDecoration(
-                              color: colors.surfaceContainerLowest,
-                              border: Border(
-                                left: BorderSide(color: colors.outlineVariant),
-                                right: BorderSide(color: colors.outlineVariant),
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black,
-                                  offset: Offset(3, 4),
+              return LayoutBuilder(
+                builder: (context, box) {
+                  final scale = MediaQuery.textScalerOf(context).scale(1);
+                  // Escritorio sin altura para letra + opciones + transporte
+                  // (ventana baja o texto grande): todo se desplaza y la letra
+                  // conserva 240 px. shortcut: umbral estimado, no medido.
+                  final scroll =
+                      desktop && box.maxHeight < 530 + 300 * (scale - 1);
+                  Widget place(Widget w) => scroll
+                      ? SizedBox(height: 240, child: w)
+                      : Expanded(child: w);
+                  final column = Column(
+                    mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
+                    children: [
+                      place(
+                        Container(
+                          decoration: isBrasa(context)
+                              ? const BoxDecoration()
+                              : isModern(context)
+                              ? modernLyricsBackdrop(context)
+                              : BoxDecoration(
+                                  color: colors.surfaceContainerLowest,
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: colors.outlineVariant,
+                                    ),
+                                    right: BorderSide(
+                                      color: colors.outlineVariant,
+                                    ),
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black,
+                                      offset: Offset(3, 4),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (desktop && !isBrasa(context))
-                            Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Wrap(
-                                alignment: WrapAlignment.spaceBetween,
-                                spacing: 16,
-                                runSpacing: 8,
-                                children: [
-                                  Text(
-                                    isBrasa(context)
-                                        ? (_result?.kind == LyricsKind.synced
-                                              ? 'Letras sincronizadas'
-                                              : 'Estudio de letras')
-                                        : _result?.kind == LyricsKind.synced
-                                        ? 'LETRAS SINCRONIZADAS'
-                                        : 'ESTUDIO DE LETRAS',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      letterSpacing: isBrasa(context) ? 0 : .8,
-                                      color: colors.onSurfaceVariant,
-                                    ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (desktop && !isBrasa(context))
+                                Padding(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Wrap(
+                                    alignment: WrapAlignment.spaceBetween,
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      Text(
+                                        isBrasa(context)
+                                            ? (_result?.kind ==
+                                                      LyricsKind.synced
+                                                  ? 'Letras sincronizadas'
+                                                  : 'Estudio de letras')
+                                            : _result?.kind == LyricsKind.synced
+                                            ? 'LETRAS SINCRONIZADAS'
+                                            : 'ESTUDIO DE LETRAS',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          letterSpacing: isBrasa(context)
+                                              ? 0
+                                              : .8,
+                                          // Modern: el degradado tinta el fondo con
+                                          // el acento; onSurface mantiene 3:1.
+                                          color: isModern(context)
+                                              ? colors.onSurface
+                                              : colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      Text(
+                                        isBrasa(context)
+                                            ? _sourceLabel()
+                                            : _sourceLabel().toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isBrasa(context)
+                                              ? Brasa.steel
+                                              : colors.primary,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    isBrasa(context)
-                                        ? _sourceLabel()
-                                        : _sourceLabel().toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isBrasa(context)
-                                          ? Brasa.steel
-                                          : colors.primary,
-                                    ),
-                                  ),
-                                ],
+                                ),
+                              Expanded(
+                                child: _body(
+                                  track,
+                                  lines,
+                                  active,
+                                  position,
+                                  media,
+                                ),
                               ),
-                            ),
-                          Expanded(
-                            child: _body(track, lines, active, position, media),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  if (desktop)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24),
-                      child: _options(),
-                    ),
-                  _playbackControls(),
-                ],
+                      if (desktop)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 24),
+                          child: _options(),
+                        ),
+                      _playbackControls(),
+                    ],
+                  );
+                  return scroll ? SingleChildScrollView(child: column) : column;
+                },
               );
             },
           ),

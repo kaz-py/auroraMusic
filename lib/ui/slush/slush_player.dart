@@ -127,7 +127,9 @@ class SlushPlayerTabs extends StatelessWidget {
                           onTap: () => onSection(section),
                           child: ConstrainedBox(
                             constraints: BoxConstraints(
-                              minHeight: minHeight - 6,
+                              // Móvil: la zona pulsable mide el mínimo táctil
+                              // entero (la píldora crece los 6 px del margen).
+                              minHeight: short ? minHeight : minHeight - 6,
                               minWidth: minHeight,
                             ),
                             child: Padding(
@@ -429,129 +431,141 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: SlushSpacing.s8,
-                runSpacing: SlushSpacing.s4,
-                children: [
-                  Text(
-                    'LETRAS',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleLarge?.copyWith(fontSize: 24),
-                  ),
-                  SlushPill(_chip),
-                ],
-              ),
-              const SizedBox(height: SlushSpacing.s12),
-              Expanded(
-                child: synced
-                    ? ListenableBuilder(
-                        listenable: c.audio,
-                        builder: (context, _) => _SyncedScroll(
-                          lines: r.lines,
-                          active: r.lines.lastIndexWhere(
-                            (l) => l.at <= c.audio.position,
-                          ),
-                        ),
-                      )
-                    : plain.isNotEmpty
-                    ? ListView(
-                        children: [
-                          for (final l in plain)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 5),
-                              child: Text(l, style: _lineStyle(false)),
-                            ),
-                        ],
-                      )
-                    : Center(
-                        child: Text(
-                          _loading
-                              ? 'Buscando letras…'
-                              : 'Esta pista no tiene letra.',
-                          textAlign: TextAlign.center,
-                          style: _lineStyle(true),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              // shortcut: umbral según la escala de texto, no medido.
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              final scroll = box.maxHeight < 120 + 160 * scale;
+              final body = synced
+                  ? ListenableBuilder(
+                      listenable: c.audio,
+                      builder: (context, _) => _SyncedScroll(
+                        lines: r.lines,
+                        active: r.lines.lastIndexWhere(
+                          (l) => l.at <= c.audio.position,
                         ),
                       ),
-              ),
-              const SizedBox(height: SlushSpacing.s12),
-              Wrap(
-                spacing: SlushSpacing.s8,
-                runSpacing: SlushSpacing.s8,
-                crossAxisAlignment: WrapCrossAlignment.center,
+                    )
+                  : plain.isNotEmpty
+                  ? ListView(
+                      children: [
+                        for (final l in plain)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: Text(l, style: _lineStyle(false)),
+                          ),
+                      ],
+                    )
+                  : Center(
+                      child: Text(
+                        _loading
+                            ? 'Buscando letras…'
+                            : 'Esta pista no tiene letra.',
+                        textAlign: TextAlign.center,
+                        style: _lineStyle(true),
+                      ),
+                    );
+              final column = Column(
+                mainAxisSize: scroll ? MainAxisSize.min : MainAxisSize.max,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SlushPressable(
-                    elevation: SlushElevation.none,
-                    onTap: c.nowTrack == null ? null : _import,
-                    child: Material(
-                      color: p.paper,
-                      shape: StadiumBorder(side: p.border),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.file_download_outlined,
-                              size: 18,
-                              color: p.ink,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: SlushSpacing.s8,
+                    runSpacing: SlushSpacing.s4,
+                    children: [
+                      Text(
+                        'LETRAS',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleLarge?.copyWith(fontSize: 24),
+                      ),
+                      SlushPill(_chip),
+                    ],
+                  ),
+                  const SizedBox(height: SlushSpacing.s12),
+                  scroll
+                      ? SizedBox(height: 120, child: body)
+                      : Expanded(child: body),
+                  const SizedBox(height: SlushSpacing.s12),
+                  Wrap(
+                    spacing: SlushSpacing.s8,
+                    runSpacing: SlushSpacing.s8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SlushPressable(
+                        elevation: SlushElevation.none,
+                        onTap: c.nowTrack == null ? null : _import,
+                        child: Material(
+                          color: p.paper,
+                          shape: StadiumBorder(side: p.border),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
                             ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                'IMPORTAR LRC',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _inkLabel(context),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.file_download_outlined,
+                                  size: 18,
+                                  color: p.ink,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    'IMPORTAR LRC',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _inkLabel(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Tooltip(
+                        message: muted ? 'Activar sonido' : 'Silenciar',
+                        child: SlushPressable(
+                          elevation: SlushElevation.none,
+                          onTap: () {
+                            if (muted) {
+                              c.setVolume(_lastVolume);
+                            } else {
+                              _lastVolume = c.audio.volume;
+                              c.setVolume(0);
+                            }
+                            setState(() {});
+                          },
+                          child: Material(
+                            color: p.paper,
+                            shape: CircleBorder(side: p.border),
+                            child: SizedBox.square(
+                              dimension: SlushControl.touch,
+                              child: Center(
+                                child: Icon(
+                                  muted
+                                      ? Icons.volume_off_rounded
+                                      : Icons.volume_up_rounded,
+                                  size: 20,
+                                  color: p.ink,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Tooltip(
-                    message: muted ? 'Activar sonido' : 'Silenciar',
-                    child: SlushPressable(
-                      elevation: SlushElevation.none,
-                      onTap: () {
-                        if (muted) {
-                          c.setVolume(_lastVolume);
-                        } else {
-                          _lastVolume = c.audio.volume;
-                          c.setVolume(0);
-                        }
-                        setState(() {});
-                      },
-                      child: Material(
-                        color: p.paper,
-                        shape: CircleBorder(side: p.border),
-                        child: SizedBox.square(
-                          dimension: SlushControl.touch,
-                          child: Center(
-                            child: Icon(
-                              muted
-                                  ? Icons.volume_off_rounded
-                                  : Icons.volume_up_rounded,
-                              size: 20,
-                              color: p.ink,
-                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+              // Sin altura para cabecera + letra + controles (móvil con texto
+              // grande): la tarjeta se desplaza en vez de desbordar.
+              return scroll ? SingleChildScrollView(child: column) : column;
+            },
           ),
         ),
       ),
