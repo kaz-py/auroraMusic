@@ -241,13 +241,20 @@ class AudioProxy {
             final sub = upstream
                 .timeout(stallTimeout)
                 .listen(null, cancelOnError: true);
+            // Sin pausar el flujo: con la suscripción pausada, el socket TLS de
+            // googlevideo hace que dart:io gire al 100 % de CPU mientras dura
+            // la descarga. La memoria queda acotada por [chunkBytes] y el
+            // vaciado se espera al final de cada tramo.
             sub.onData((data) {
               got += data.length;
-              sub.pause();
-              socket!.add(data);
+              try {
+                socket!.add(data);
+              } catch (error, stack) {
+                fail(error, stack);
+                return;
+              }
               // Mark before the flush: the player may hang up right after it.
               if (pos + got - 1 == total - 1) entry!.servedToEnd = true;
-              socket.flush().then((_) => sub.resume(), onError: fail);
             });
             sub.onError(fail);
             sub.onDone(() {
@@ -259,6 +266,7 @@ class AudioProxy {
             };
             await done.future;
             ctx.cancelBody = null;
+            await socket.flush();
             if (got != last - pos + 1) throw _Fail(null, 'premature EOF');
           } catch (_) {
             ctx.cancelBody?.call();
@@ -354,6 +362,9 @@ class AudioProxy {
           ctx.upstream = request;
           if (ctx.aborted) request.abort();
           request.followRedirects = false;
+          // El cuerpo se baja entero sin pausar; la conexión no debe quedar en
+          // el pool a la espera de que el reproductor termine de leer.
+          request.persistentConnection = false;
           request.headers
             ..set('range', 'bytes=$a-$b')
             ..set('accept-encoding', 'identity');
