@@ -151,37 +151,38 @@ class MiniPlayerHost extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final track = state.track!;
-        // Con carril (escritorio) el clic en la barra abre el menú de la
-        // canción (compartir, enviar a un amigo, añadir a una lista…) donde se
-        // pulsó; el modo Vinilo queda como entrada del menú. En móvil el toque
-        // sigue llevando al reproductor.
-        final pointer = _Pointer();
-        final open = rail
-            ? () => _openSongMenu(context, c, track, pointer.at, openVinyl)
-            : openVinyl;
-        final actions = _actions(context, c, open);
+        // Con carril (escritorio) solo la portada y el título abren el menú
+        // de la canción (compartir, enviar a un amigo, añadir a una lista…); el
+        // resto de la barra no responde al clic y el modo Vinilo queda como
+        // entrada del menú. En móvil el toque sobre la barra lleva al
+        // reproductor.
+        final actions = _actions(
+          context,
+          c,
+          openVinyl,
+          openMenu: rail
+              ? (at) => _openSongMenu(context, c, track, at, openVinyl)
+              : null,
+        );
         final blurred =
             c.blurredCoverMode &&
             (track.artworkUrl?.trim().isNotEmpty ?? false);
-        return Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (e) => pointer.at = e.position,
-          child: MiniPlayerGestures(
-            actions: actions,
-            hasNext: state.hasNext,
-            hasPrevious: state.hasPrevious,
-            semanticsLabel: 'Mini reproductor: ${track.title}, ${track.artist}',
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: heightFor(context, wide: rail),
-              ),
-              child: theme.build(
-                context,
-                state,
-                actions,
-                blurred: blurred,
-                wide: rail,
-              ),
+        return MiniPlayerGestures(
+          actions: actions,
+          hasNext: state.hasNext,
+          hasPrevious: state.hasPrevious,
+          tapOpens: !rail,
+          semanticsLabel: 'Mini reproductor: ${track.title}, ${track.artist}',
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: heightFor(context, wide: rail),
+            ),
+            child: theme.build(
+              context,
+              state,
+              actions,
+              blurred: blurred,
+              wide: rail,
             ),
           ),
         );
@@ -192,8 +193,9 @@ class MiniPlayerHost extends StatelessWidget {
   MiniPlayerActions _actions(
     BuildContext context,
     AppController c,
-    VoidCallback openPlayer,
-  ) => MiniPlayerActions.forController(
+    VoidCallback openPlayer, {
+    ValueChanged<Offset>? openMenu,
+  }) => MiniPlayerActions.forController(
     c,
     jam: jam,
     openPlayer: openPlayer,
@@ -201,13 +203,9 @@ class MiniPlayerHost extends StatelessWidget {
     mute: mute,
     openQueue: onOpenQueue,
     openLyrics: onOpenLyrics,
+    openMenu: openMenu,
     openEqualizer: equalizerOpener(context, c),
   );
-}
-
-/// Último punto pulsado sobre la barra (para abrir el menú donde se hizo clic).
-class _Pointer {
-  Offset at = Offset.zero;
 }
 
 void _openSongMenu(

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart' show BuildContext;
+import 'package:flutter/widgets.dart' show BuildContext, Offset;
 
 import '../../app_controller.dart';
 import '../../core/models.dart';
@@ -239,6 +239,7 @@ class MiniPlayerActions {
     this.openQueue = _ignoreVoid,
     this.openEqualizer = _ignoreVoid,
     this.openLyrics = _ignoreVoid,
+    this.openMenu,
   });
 
   final VoidCallback openPlayer, togglePlay, next, previous, toggleLike;
@@ -262,6 +263,11 @@ class MiniPlayerActions {
   /// Letras (el diálogo que abre el transporte).
   final VoidCallback openLyrics;
 
+  /// Menú de la canción (compartir, añadir a una lista…) anclado en un punto
+  /// de la pantalla; solo con carril. Los temas lo cablean a su portada y
+  /// título con `MiniPlayerInfoTap`. `null`: esa zona no hace nada.
+  final ValueChanged<Offset>? openMenu;
+
   static void _ignoreSeek(double _) {}
   static void _ignoreVoid() {}
 
@@ -275,6 +281,7 @@ class MiniPlayerActions {
     MuteMemory? mute,
     VoidCallback? openQueue,
     VoidCallback? openLyrics,
+    ValueChanged<Offset>? openMenu,
     VoidCallback? openEqualizer,
   }) {
     final jamAudio = transportJamAudio(c, jam);
@@ -300,6 +307,7 @@ class MiniPlayerActions {
       toggleMute: () => (mute ?? MuteMemory()).toggle(c),
       openQueue: openQueue ?? _ignoreVoid,
       openLyrics: openLyrics ?? _ignoreVoid,
+      openMenu: openMenu,
       openEqualizer: openEqualizer ?? _ignoreVoid,
       seek: (fraction) {
         final duration = c.audio.duration > Duration.zero

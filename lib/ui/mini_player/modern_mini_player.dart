@@ -338,9 +338,22 @@ class _Body extends StatelessWidget {
                 constraints: const BoxConstraints(minHeight: _target),
                 child: Row(
                   children: [
-                    SizedBox.square(dimension: cover, child: art),
-                    const SizedBox(width: 12),
-                    Expanded(child: text),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: MiniPlayerInfoTap(
+                          actions: actions,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox.square(dimension: cover, child: art),
+                              const SizedBox(width: 12),
+                              Flexible(child: text),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     if (showTime) ...[
                       const SizedBox(width: 8),
                       MiniPlayerTime(state: state, color: inkSoft),

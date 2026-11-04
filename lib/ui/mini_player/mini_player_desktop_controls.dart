@@ -9,6 +9,42 @@ const double kMiniControlTarget = 44;
 /// Ancho del slider de volumen.
 const double kMiniVolumeSlider = 96;
 
+/// Portada y título del mini en escritorio: el clic abre el menú de la canción
+/// ([MiniPlayerActions.openMenu]) anclado en la esquina de esta zona. Sin
+/// `openMenu` (móvil) no envuelve nada y el toque lo recoge la barra entera.
+class MiniPlayerInfoTap extends StatelessWidget {
+  const MiniPlayerInfoTap({
+    super.key,
+    required this.actions,
+    required this.child,
+  });
+
+  final MiniPlayerActions actions;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = actions.openMenu;
+    if (open == null) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          final box = context.findRenderObject() as RenderBox;
+          open(box.localToGlobal(Offset.zero));
+        },
+        child: Semantics(
+          button: true,
+          label: 'Opciones de la canción',
+          excludeSemantics: false,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// Controles de escritorio del mini reproductor (carril ancho): volumen
 /// (silencio + slider corto), cola, ecualizador y letras. Los 4 temas lo
 /// colocan en su fila ancha y solo le pasan su color.

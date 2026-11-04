@@ -299,22 +299,32 @@ class _Dock extends StatelessWidget {
                   padding: EdgeInsets.fromLTRB(edge, _kStrip, 4, _kStrip),
                   child: Row(
                     children: [
-                      _Sleeve(
-                        track: track,
-                        size: cover,
-                        spinning: playing,
-                        accent: ink.accent,
-                        onAccent: ink.onAccent,
-                      ),
-                      const SizedBox(width: 12),
                       Expanded(
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: wide ? 460 : double.infinity,
+                          child: MiniPlayerInfoTap(
+                            actions: actions,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _Sleeve(
+                                  track: track,
+                                  size: cover,
+                                  spinning: playing,
+                                  accent: ink.accent,
+                                  onAccent: ink.onAccent,
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: wide ? 460 : double.infinity,
+                                    ),
+                                    child: text,
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: text,
                           ),
                         ),
                       ),

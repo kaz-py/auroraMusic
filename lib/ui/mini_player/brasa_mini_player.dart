@@ -294,7 +294,9 @@ class _Row extends StatelessWidget {
           padding: const EdgeInsets.only(left: 14, right: 8),
           child: Row(
             children: [
-              Expanded(child: info),
+              Expanded(
+                child: MiniPlayerInfoTap(actions: actions, child: info),
+              ),
               if (showTime) ...[const SizedBox(width: 8), time],
               const SizedBox(width: 4),
               heart,

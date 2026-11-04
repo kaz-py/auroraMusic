@@ -349,15 +349,34 @@ class _Body extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  swap(_Cover(track: track, size: cover, stroke: look.stroke)),
-                  SizedBox(width: wide ? 14 : 10),
                   Expanded(
-                    child: swap(
-                      _Titles(
-                        state: state,
-                        track: track,
-                        look: look,
-                        wide: wide,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: MiniPlayerInfoTap(
+                        actions: actions,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            swap(
+                              _Cover(
+                                track: track,
+                                size: cover,
+                                stroke: look.stroke,
+                              ),
+                            ),
+                            SizedBox(width: wide ? 14 : 10),
+                            Flexible(
+                              child: swap(
+                                _Titles(
+                                  state: state,
+                                  track: track,
+                                  look: look,
+                                  wide: wide,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

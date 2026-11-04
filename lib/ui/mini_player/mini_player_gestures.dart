@@ -38,12 +38,17 @@ class MiniPlayerGestures extends StatefulWidget {
     this.hasNext = true,
     this.hasPrevious = true,
     this.semanticsLabel = 'Mini reproductor',
+    this.tapOpens = true,
   });
 
   final Widget child;
   final MiniPlayerActions actions;
   final bool hasNext, hasPrevious;
   final String semanticsLabel;
+
+  /// Con false, tocar la barra no hace nada (en escritorio el clic va solo a
+  /// la portada y el título, `MiniPlayerInfoTap`); los arrastres siguen.
+  final bool tapOpens;
 
   @override
   State<MiniPlayerGestures> createState() => _MiniPlayerGesturesState();
@@ -156,8 +161,8 @@ class _MiniPlayerGesturesState extends State<MiniPlayerGestures>
       container: true,
       explicitChildNodes: true,
       label: widget.semanticsLabel,
-      hint: 'Toca para abrir el reproductor',
-      onTap: a.openPlayer,
+      hint: widget.tapOpens ? 'Toca para abrir el reproductor' : null,
+      onTap: widget.tapOpens ? a.openPlayer : null,
       customSemanticsActions: {
         const CustomSemanticsAction(label: 'Abrir reproductor'): a.openPlayer,
         if (widget.hasNext)
@@ -170,7 +175,7 @@ class _MiniPlayerGesturesState extends State<MiniPlayerGestures>
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           excludeFromSemantics: true,
-          onTap: a.openPlayer,
+          onTap: widget.tapOpens ? a.openPlayer : null,
           onTapDown: (_) => _setPressed(true),
           onTapUp: (_) => _setPressed(false),
           onTapCancel: () => _setPressed(false),
