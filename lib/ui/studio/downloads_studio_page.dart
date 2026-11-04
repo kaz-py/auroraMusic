@@ -388,9 +388,9 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                   size: 10,
                   color: isSlush(context)
                       ? Slush.orange
-                      : isModern(context)
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.primaryContainer,
+                      : isBrasa(context)
+                      ? Brasa.accent
+                      : Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 const Expanded(
