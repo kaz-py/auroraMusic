@@ -1685,16 +1685,46 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     ],
   );
 
-  /// ChoiceChip; en Modern: 8 px de radio, activo en azul marino.
-  Widget _chip(String label, bool selected, VoidCallback onSelected) {
+  /// Punto de color de un chip de acento (el color real) o, en «Automático»,
+  /// una estrella: así cada opción se reconoce sin leer su nombre.
+  Widget? _swatch(Color? color, bool auto, Color ring) {
+    if (color == null && !auto) return null;
+    if (auto) return Icon(Icons.auto_awesome, size: 16, color: ring);
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: ring, width: 1.5),
+      ),
+    );
+  }
+
+  /// ChoiceChip; en Modern: 8 px de radio, activo en azul marino. [swatch] /
+  /// [auto]: chip de acento con su color a la vista.
+  Widget _chip(
+    String label,
+    bool selected,
+    VoidCallback onSelected, {
+    Color? swatch,
+    bool auto = false,
+  }) {
     if (isBrasa(context)) {
+      final dot = _swatch(swatch, auto, selected ? Brasa.void_ : Brasa.cloud);
       return ChoiceChip(
+        avatar: dot,
         label: Text(label),
         selected: selected,
         showCheckmark: false,
         selectedColor: Brasa.cream,
         backgroundColor: Brasa.graphite,
-        side: BorderSide.none,
+        // Contorno visible también sin seleccionar (si no, el chip se funde
+        // con la tarjeta); seleccionado, grueso y del color del acento.
+        side: BorderSide(
+          color: selected ? (swatch ?? Brasa.accent) : Brasa.steel,
+          width: selected ? 2.5 : 1,
+        ),
         shape: const StadiumBorder(),
         labelStyle: TextStyle(
           fontSize: 14,
@@ -1704,24 +1734,33 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         onSelected: (_) => onSelected(),
       );
     }
-    // Slush: chip propio de 44; el tema base usa el chip del tema.
+    // Slush: chip propio de 44; el tema base usa el chip del tema. Los de
+    // acento van rellenos de su color.
     if (isSlush(context)) {
       return SlushChip(
         label,
         selected: selected,
-        color: Slush.yellow,
+        color: swatch ?? Slush.yellow,
+        icon: auto ? Icons.auto_awesome : null,
         onTap: onSelected,
       );
     }
+    final colors = Theme.of(context).colorScheme;
+    final dot = _swatch(
+      swatch,
+      auto,
+      selected && isModern(context) ? colors.onPrimary : colors.onSurface,
+    );
     if (!isModern(context)) {
       return ChoiceChip(
+        avatar: dot,
         label: Text(label),
         selected: selected,
         onSelected: (_) => onSelected(),
       );
     }
-    final colors = Theme.of(context).colorScheme;
     return ChoiceChip(
+      avatar: dot,
       label: Text(label),
       selected: selected,
       showCheckmark: false,
@@ -2833,6 +2872,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   entry.value,
                   c.accentPalette == entry.key,
                   () => c.setAccentPalette(entry.key),
+                  swatch: AppController.accentPaletteColors[entry.key],
+                  auto: entry.key == 'automatic',
                 ),
             ],
           ),

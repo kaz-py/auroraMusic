@@ -9,7 +9,7 @@ abstract final class Brasa {
   static const obsidian = Color(0xff17110e);
   static const graphite = Color(0xff231b16);
   static const ash = Color(0xff3a2e26);
-  static const steel = Color(0xff8a7b6e);
+  static const steel = Color(0xffb3a598);
   static const cloud = Color(0xffc8b8aa);
   static const cream = Color(0xfffff4e8);
   static const amber = Color(0xffffb04a);
