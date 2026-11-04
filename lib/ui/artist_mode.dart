@@ -633,14 +633,22 @@ class _ArtistModePageState extends State<ArtistModePage> {
                       line.at.inMilliseconds / state.duration.inMilliseconds,
                     )
                   : null,
-              child: Text(
-                line.text.isEmpty ? '♪' : line.text,
+              // La línea activa va en blanco, grande y en negrita; el resto se
+              // atenúa y se encoge, para que se vea de un vistazo por dónde va.
+              child: AnimatedDefaultTextStyle(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
                 style: TextStyle(
-                  color: on ? tone.foreground : tone.secondary,
-                  fontSize: size,
+                  color: on
+                      ? tone.foreground
+                      : tone.secondary.withValues(alpha: .55),
+                  fontSize: on ? size * 1.12 : size * .88,
                   height: 1.25,
-                  fontWeight: on ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: on ? FontWeight.w800 : FontWeight.w500,
                 ),
+                child: Text(line.text.isEmpty ? '♪' : line.text),
               ),
             ),
           );

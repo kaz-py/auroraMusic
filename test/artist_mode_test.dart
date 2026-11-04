@@ -143,6 +143,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('la línea activa se resalta y sigue a la reproducción', (
+    tester,
+  ) async {
+    final c = await mountPage(tester);
+    // El estilo animado más cercano al texto de la línea.
+    AnimatedDefaultTextStyle lineStyle(String text) =>
+        tester.widget<AnimatedDefaultTextStyle>(
+          find
+              .ancestor(
+                of: find.text(text),
+                matching: find.byType(AnimatedDefaultTextStyle),
+              )
+              .first,
+        );
+    double sizeOf(String text) => lineStyle(text).style.fontSize!;
+    Color colorOf(String text) => lineStyle(text).style.color!;
+
+    // Al principio manda la primera línea: más grande y más opaca.
+    expect(sizeOf('Primera línea'), greaterThan(sizeOf('Segunda línea')));
+    expect(colorOf('Primera línea').a, greaterThan(colorOf('Segunda línea').a));
+
+    // A los 31 s manda la segunda.
+    (c.audio as FakeAudio).advanceTo(const Duration(seconds: 31));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(sizeOf('Segunda línea'), greaterThan(sizeOf('Primera línea')));
+    expect(colorOf('Segunda línea').a, greaterThan(colorOf('Primera línea').a));
+  });
+
   testWidgets('letra sin sincronizar: se reparte por la pista y se avisa', (
     tester,
   ) async {
