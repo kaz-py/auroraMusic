@@ -194,8 +194,8 @@ ThemeData modernTheme(Brightness brightness, Color accent) {
         color: scheme.onPrimary,
         fontWeight: FontWeight.w500,
       ),
-      // Alto >= 40 para el toque en móvil.
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      // Alto >= 40 para el toque en móvil (el texto mide 14: 14 + 2 * 13 = 40).
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
       side: BorderSide(color: scheme.outline, width: 1.5),
       shape: shape(8),
     ),

@@ -883,23 +883,30 @@ extension on _VinylPlayerState {
             onTap: track == null
                 ? null
                 : () => widget.controller.openArtist(track.artist),
-            child: Text(
-              track?.artist ?? 'Elige una canci\u00f3n de tu biblioteca',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: brasa
-                  ? const TextStyle(
-                      fontFamily: 'Inter',
-                      color: Brasa.cloud,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    )
-                  : const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -.16,
-                    ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                widthFactor: 1,
+                child: Text(
+                  track?.artist ?? 'Elige una canci\u00f3n de tu biblioteca',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: brasa
+                      ? const TextStyle(
+                          fontFamily: 'Inter',
+                          color: Brasa.cloud,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        )
+                      : const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -.16,
+                        ),
+                ),
+              ),
             ),
           ),
         ),

@@ -238,8 +238,9 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
             selected: selected,
           ),
           const SizedBox(height: 4),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: 4,
             children: [
               StudioStamp('20 Hz'),
               StudioStamp('1 kHz'),
@@ -446,10 +447,12 @@ class _BandColumn extends StatelessWidget {
       children: [
         FittedBox(
           fit: BoxFit.scaleDown,
-          // La ganancia va sobre papel (no sobre la banda menta): tinta del tema.
+          // La ganancia va sobre el panel (no sobre la banda menta): tinta del tema.
           child: Text(
             eqGainLabel(band.gainDb),
-            style: slush ? style.copyWith(color: colors.onSurface) : style,
+            style: slush || (modern && !brasa && selected)
+                ? style.copyWith(color: colors.onSurface)
+                : style,
           ),
         ),
         GestureDetector(
