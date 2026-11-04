@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../theme/brasa_theme.dart';
 import '../artwork.dart';
-import 'blurred_cover_backdrop.dart';
 import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
@@ -14,22 +13,14 @@ import 'mini_player_theme.dart';
 /// a la vez el progreso (se enciende de izquierda a derecha hasta la posición);
 /// el artista va en versalitas con la pista debajo, la hora en monoespaciada y
 /// el botón de reproducir es un cuadrado de borde ámbar que se rellena al sonar.
-/// Con el fondo de portada difuminada, el artista pasa a mayúsculas grandes y
-/// condensadas sobre la portada oscurecida.
 const MiniPlayerTheme brasaMiniPlayer = MiniPlayerTheme(build: _build);
 
 Widget _build(
   BuildContext context,
   MiniPlayerState state,
   MiniPlayerActions actions, {
-  required bool blurred,
   required bool wide,
-}) => BrasaMiniPlayer(
-  state: state,
-  actions: actions,
-  blurred: blurred,
-  wide: wide,
-);
+}) => BrasaMiniPlayer(state: state, actions: actions, wide: wide);
 
 const _hairline = 2.0;
 
@@ -58,17 +49,12 @@ class BrasaMiniPlayer extends StatefulWidget {
     super.key,
     required this.state,
     required this.actions,
-    required this.blurred,
     required this.wide,
-    @visibleForTesting this.covers,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final bool blurred, wide;
-
-  /// Origen de portadas difuminadas; por defecto la caché compartida.
-  final CoverBackdropSource? covers;
+  final bool wide;
 
   @override
   State<BrasaMiniPlayer> createState() => _BrasaMiniPlayerState();
@@ -85,21 +71,16 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final minHeight = (widget.wide ? 64.0 : 60.0) * textScale.clamp(1.0, 1.5);
     final ember = Brasa.accent;
-    final blurred = widget.blurred;
 
     Widget content(BuildContext context) {
-      final tone = BlurredCoverTheme.of(context);
       return Stack(
         children: [
-          if (blurred) const Positioned.fill(child: _Vignette()),
           ConstrainedBox(
             constraints: BoxConstraints(minHeight: minHeight),
             child: _Row(
               state: s,
               actions: widget.actions,
               wide: widget.wide,
-              blurred: blurred,
-              tone: tone,
               textScale: textScale,
             ),
           ),
@@ -113,7 +94,7 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
               canSeek: s.canSeek,
               hover: _hover,
               ember: ember,
-              blurred: blurred,
+
               reduce: reduce,
               onSeek: widget.actions.seek,
             ),
@@ -125,14 +106,7 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
     final body = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: blurred
-          ? BlurredCoverBackdrop(
-              track: track,
-              source: widget.covers,
-              matchTheme: true,
-              child: Builder(builder: content),
-            )
-          : Builder(builder: content),
+      child: Builder(builder: content),
     );
     if (!widget.wide) {
       return Material(
@@ -176,43 +150,17 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
   }
 }
 
-/// Bordes oscurecidos de la portada difuminada: solo restan luz, así que no
-/// tocan el contraste del texto que garantiza el velo.
-class _Vignette extends StatelessWidget {
-  const _Vignette();
-
-  @override
-  Widget build(BuildContext context) => const IgnorePointer(
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0x80000000),
-            Color(0x00000000),
-            Color(0x00000000),
-            Color(0x80000000),
-          ],
-          stops: [0, .14, .86, 1],
-        ),
-      ),
-    ),
-  );
-}
-
 class _Row extends StatelessWidget {
   const _Row({
     required this.state,
     required this.actions,
     required this.wide,
-    required this.blurred,
-    required this.tone,
     required this.textScale,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final bool wide, blurred;
-  final CoverTone tone;
+  final bool wide;
   final double textScale;
 
   @override
@@ -224,7 +172,9 @@ class _Row extends StatelessWidget {
         // Controles de escritorio: completos desde 700 px de tarjeta (la de
         // 900 px de ventana mide 760), sin slider por debajo.
         final compactControls = c.maxWidth < 700;
-        final controlsWidth = compactControls ? 176.0 : 272.0;
+        final controlsWidth = compactControls
+            ? kMiniDesktopNoSlider
+            : kMiniDesktopFull;
         final showNext = wide || c.maxWidth >= _kNextMinInner;
         // Ancho que se reserva al bloque de texto antes de sumar la hora.
         final fixed = wide
@@ -235,42 +185,36 @@ class _Row extends StatelessWidget {
             : 156.0;
         final showTime = c.maxWidth - fixed - timeWidth >= (wide ? 150 : 132);
 
-        final info = _Info(
-          state: state,
-          blurred: blurred,
-          tone: tone,
-          cover: wide ? 48 : 40,
-          ember: ember,
-        );
+        final info = _Info(state: state, cover: wide ? 48 : 40, ember: ember);
         final heart = _Key(
           label: state.liked ? 'Quitar de favoritos' : 'Añadir a favoritos',
           onTap: actions.toggleLike,
-          backing: blurred,
+
           icon: Icon(
             state.liked
                 ? Icons.favorite_rounded
                 : Icons.favorite_border_rounded,
             size: 19,
-            color: state.liked ? ember : tone.secondary,
+            color: state.liked ? ember : Brasa.cloud,
           ),
         );
         final play = _PlayKey(
           state: state,
           onTap: state.canTogglePlay ? actions.togglePlay : null,
-          blurred: blurred,
+
           ember: ember,
         );
-        final time = _Time(state: state, tone: tone);
+        final time = _Time(state: state);
         final next = _Key(
           label: state.nextLabel('Pista siguiente'),
           onTap: state.hasNext ? actions.next : null,
-          backing: blurred,
+
           icon: Icon(
             state.jamVoteSkip
                 ? Icons.how_to_vote_outlined
                 : Icons.skip_next_rounded,
             size: 22,
-            color: tone.foreground,
+            color: Brasa.cream,
           ),
         );
 
@@ -304,11 +248,11 @@ class _Row extends StatelessWidget {
               _Key(
                 label: state.previousLabel('Pista anterior'),
                 onTap: state.hasPrevious ? actions.previous : null,
-                backing: blurred,
+
                 icon: Icon(
                   Icons.skip_previous_rounded,
                   size: 22,
-                  color: tone.foreground,
+                  color: Brasa.cream,
                 ),
               ),
               const SizedBox(width: 4),
@@ -320,7 +264,6 @@ class _Row extends StatelessWidget {
                 width: controlsWidth,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: blurred ? Colors.black.withValues(alpha: .55) : null,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: MiniPlayerDesktopControls(
@@ -341,17 +284,9 @@ class _Row extends StatelessWidget {
 
 /// Portada cuadrada, artista en versalitas y pista debajo.
 class _Info extends StatelessWidget {
-  const _Info({
-    required this.state,
-    required this.blurred,
-    required this.tone,
-    required this.cover,
-    required this.ember,
-  });
+  const _Info({required this.state, required this.cover, required this.ember});
 
   final MiniPlayerState state;
-  final bool blurred;
-  final CoverTone tone;
   final double cover;
   final Color ember;
 
@@ -392,11 +327,11 @@ class _Info extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontWeight: blurred ? FontWeight.w800 : FontWeight.w700,
-                    fontSize: blurred ? 19 : 11.5,
-                    height: blurred ? 1.02 : 1.25,
-                    letterSpacing: blurred ? -.2 : 1.4,
-                    color: blurred ? tone.foreground : ember,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    height: 1.25,
+                    letterSpacing: 1.4,
+                    color: ember,
                   ),
                 ),
                 const SizedBox(height: 1),
@@ -404,11 +339,11 @@ class _Info extends StatelessWidget {
                   state.adShowing ? miniAdNotice : track.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.w500,
-                    fontSize: blurred ? 12 : 13,
+                    fontSize: 13,
                     height: 1.3,
-                    color: blurred ? tone.secondary : tone.foreground,
+                    color: Brasa.cream,
                   ),
                 ),
               ],
@@ -422,10 +357,9 @@ class _Info extends StatelessWidget {
 
 /// `1:23 / 3:45` en monoespaciada; con fallo del motor, `ERR`.
 class _Time extends StatelessWidget {
-  const _Time({required this.state, required this.tone});
+  const _Time({required this.state});
 
   final MiniPlayerState state;
-  final CoverTone tone;
 
   @override
   Widget build(BuildContext context) {
@@ -448,11 +382,11 @@ class _Time extends StatelessWidget {
         children: [
           TextSpan(
             text: brasaClock(elapsed),
-            style: TextStyle(color: tone.foreground),
+            style: const TextStyle(color: Brasa.cream),
           ),
           TextSpan(
             text: ' / ${total > Duration.zero ? brasaClock(total) : '--:--'}',
-            style: TextStyle(color: tone.secondary),
+            style: const TextStyle(color: Brasa.cloud),
           ),
         ],
       ),
@@ -478,7 +412,6 @@ class _Key extends StatefulWidget {
     this.chip = 36,
     this.fill,
     this.border,
-    this.backing = false,
   });
 
   final String label;
@@ -486,9 +419,6 @@ class _Key extends StatefulWidget {
   final Widget icon;
   final double chip;
   final Color? fill, border;
-
-  /// Fondo oscuro tras el glifo para que el ámbar resista sobre la portada.
-  final bool backing;
 
   @override
   State<_Key> createState() => _KeyState();
@@ -501,9 +431,7 @@ class _KeyState extends State<_Key> {
   Widget build(BuildContext context) {
     final reduce = MediaQuery.disableAnimationsOf(context);
     final enabled = widget.onTap != null;
-    final fill =
-        widget.fill ??
-        (widget.backing ? Colors.black.withValues(alpha: .55) : null);
+    final fill = widget.fill;
     return Semantics(
       button: true,
       enabled: enabled,
@@ -572,13 +500,13 @@ class _PlayKey extends StatelessWidget {
   const _PlayKey({
     required this.state,
     required this.onTap,
-    required this.blurred,
+
     required this.ember,
   });
 
   final MiniPlayerState state;
   final VoidCallback? onTap;
-  final bool blurred;
+
   final Color ember;
 
   @override
@@ -614,11 +542,7 @@ class _PlayKey extends StatelessWidget {
       label: label,
       onTap: onTap,
       chip: 40,
-      fill: playing
-          ? accent
-          : blurred
-          ? Colors.black.withValues(alpha: .55)
-          : Colors.transparent,
+      fill: playing ? accent : Colors.transparent,
       border: accent,
       icon: icon,
     );
@@ -636,13 +560,13 @@ class _Scrub extends StatefulWidget {
     required this.canSeek,
     required this.hover,
     required this.ember,
-    required this.blurred,
+
     required this.reduce,
     required this.onSeek,
   });
 
   final double progress;
-  final bool canSeek, hover, blurred, reduce;
+  final bool canSeek, hover, reduce;
   final Color ember;
   final ValueChanged<double> onSeek;
 
@@ -682,7 +606,6 @@ class _ScrubState extends State<_Scrub> {
               progress: value,
               ember: widget.ember,
               knob: knob,
-              blurred: widget.blurred,
             ),
           ),
         ),
@@ -725,33 +648,15 @@ class _HairlinePainter extends CustomPainter {
     required this.progress,
     required this.ember,
     required this.knob,
-    required this.blurred,
   });
 
   final double progress, knob;
   final Color ember;
-  final bool blurred;
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final track = Rect.fromLTWH(0, 0, w, _hairline);
-    if (blurred) {
-      // Fondo oscuro bajo la línea: el ámbar mantiene ≥ 3 sobre cualquier portada.
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, w, _hairline + 1),
-        Paint()..color = Colors.black.withValues(alpha: .6),
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, w, 10),
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [ember.withValues(alpha: .22), ember.withValues(alpha: 0)],
-          ).createShader(Rect.fromLTWH(0, 0, w, 10)),
-      );
-    }
     canvas.drawRect(track, Paint()..color = ember.withValues(alpha: .24));
     final x = (w * progress.clamp(0.0, 1.0)).toDouble();
     if (x > 0) {
@@ -790,8 +695,5 @@ class _HairlinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HairlinePainter old) =>
-      old.progress != progress ||
-      old.knob != knob ||
-      old.ember != ember ||
-      old.blurred != blurred;
+      old.progress != progress || old.knob != knob || old.ember != ember;
 }

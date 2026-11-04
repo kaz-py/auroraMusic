@@ -6,7 +6,6 @@ import '../../core/models.dart';
 import '../artwork.dart';
 import '../studio/studio_components.dart';
 import '../studio/studio_symbols.dart';
-import 'blurred_cover_backdrop.dart';
 import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
@@ -21,14 +20,8 @@ Widget _build(
   BuildContext context,
   MiniPlayerState state,
   MiniPlayerActions actions, {
-  required bool blurred,
   required bool wide,
-}) => AtelierMiniPlayer(
-  state: state,
-  actions: actions,
-  blurred: blurred,
-  wide: wide,
-);
+}) => AtelierMiniPlayer(state: state, actions: actions, wide: wide);
 
 /// Alto de la zona de la regla/nudo (también el aire sobre y bajo el contenido).
 const double _kStrip = 5;
@@ -40,8 +33,8 @@ const double _kScrub = 12;
 /// margen, funda con vinilo, hueco, corazón, anterior, play y siguiente.
 const double _kWideFixed = 20 + 4 + 72 + 12 + 4 * 44;
 
-/// Ancho completo de `MiniPlayerDesktopControls` (3 botones + silencio + slider).
-const double _kDesktopFull = kMiniControlTarget * 4 + kMiniVolumeSlider;
+/// Ancho completo de `MiniPlayerDesktopControls` (4 botones + silencio + slider).
+const double _kDesktopFull = kMiniDesktopFull;
 
 /// Lado táctil de los botones.
 const double _kTouch = 44;
@@ -51,20 +44,13 @@ class AtelierMiniPlayer extends StatelessWidget {
     super.key,
     required this.state,
     required this.actions,
-    required this.blurred,
     required this.wide,
-    this.source,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
 
-  /// Ajuste activo y la pista tiene portada: fondo difuminado + artista grande.
-  final bool blurred;
   final bool wide;
-
-  /// Origen de portadas del fondo; por defecto la caché compartida.
-  final CoverBackdropSource? source;
 
   @override
   Widget build(BuildContext context) {
@@ -82,20 +68,11 @@ class AtelierMiniPlayer extends StatelessWidget {
             state: state,
             actions: actions,
             track: track,
-            blurred: blurred,
             wide: wide,
             minHeight: (wide ? 64.0 : 56.0) * scale,
             scale: scale,
           );
-          final backdrop = blurred
-              ? BlurredCoverBackdrop(
-                  track: track,
-                  source: source,
-                  matchTheme: true,
-                  child: dock,
-                )
-              : dock;
-          if (!wide) return ColoredBox(color: paper, child: backdrop);
+          if (!wide) return ColoredBox(color: paper, child: dock);
           // Escritorio: tarjeta flotante y centrada (como la de Modern) con la
           // forma de funda del tema, en vez de una barra de borde a borde.
           final scheme = Theme.of(context).colorScheme;
@@ -120,7 +97,7 @@ class AtelierMiniPlayer extends StatelessWidget {
                 borderRadius: radius,
                 border: Border.all(color: scheme.outlineVariant),
               ),
-              child: ClipRRect(borderRadius: radius, child: backdrop),
+              child: ClipRRect(borderRadius: radius, child: dock),
             ),
           );
           return Padding(
@@ -144,7 +121,7 @@ class AtelierMiniPlayer extends StatelessWidget {
   }
 }
 
-/// Colores resueltos: los del tema, o los garantizados sobre la portada.
+/// Colores resueltos del tema.
 class _Ink {
   _Ink._({
     required this.fg,
@@ -155,29 +132,15 @@ class _Ink {
     required this.error,
   });
 
-  factory _Ink.of(BuildContext context, {required bool over}) {
+  factory _Ink.of(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    if (!over) {
-      return _Ink._(
-        fg: scheme.onSurface,
-        sub: scheme.onSurfaceVariant,
-        accent: scheme.primary,
-        onAccent: scheme.onPrimary,
-        track: scheme.outlineVariant,
-        error: scheme.error,
-      );
-    }
-    // Sobre la portada solo el texto del tono tiene contraste garantizado: el
-    // acento cálido cede su sitio al color del texto (relleno y nudo incluidos).
-    final tone = BlurredCoverTheme.of(context);
-    final light = tone.foreground.computeLuminance() > .5;
     return _Ink._(
-      fg: tone.foreground,
-      sub: tone.secondary,
-      accent: tone.foreground,
-      onAccent: light ? const Color(0xff151312) : const Color(0xfffffaf5),
-      track: tone.foreground.withValues(alpha: .32),
-      error: tone.foreground,
+      fg: scheme.onSurface,
+      sub: scheme.onSurfaceVariant,
+      accent: scheme.primary,
+      onAccent: scheme.onPrimary,
+      track: scheme.outlineVariant,
+      error: scheme.error,
     );
   }
 
@@ -189,7 +152,6 @@ class _Dock extends StatelessWidget {
     required this.state,
     required this.actions,
     required this.track,
-    required this.blurred,
     required this.wide,
     required this.minHeight,
     required this.scale,
@@ -198,44 +160,29 @@ class _Dock extends StatelessWidget {
   final MiniPlayerState state;
   final MiniPlayerActions actions;
   final Track track;
-  final bool blurred, wide;
+  final bool wide;
   final double minHeight, scale;
 
   @override
   Widget build(BuildContext context) {
-    final ink = _Ink.of(
-      context,
-      over: blurred && BlurredCoverTheme.isActive(context),
-    );
+    final ink = _Ink.of(context);
     final base = Theme.of(context).textTheme.titleLarge!;
     final cover = (wide ? 54.0 : 46.0) * math.min(scale, 1.25);
     final edge = wide ? 20.0 : 12.0;
 
     Text line(String s, TextStyle style) =>
         Text(s, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
-    // Barra normal: título en la cara de display, artista en cursiva pequeña.
-    // Sello (difuminado): el artista manda; el título pasa a cursiva pequeña.
-    final headline = blurred
-        ? line(
-            track.artist,
-            base.copyWith(
-              fontSize: wide ? 26 : 22,
-              height: 1.05,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -.4,
-              color: ink.fg,
-            ),
-          )
-        : line(
-            track.title,
-            base.copyWith(
-              fontSize: wide ? 18 : 16.5,
-              height: 1.15,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -.1,
-              color: ink.fg,
-            ),
-          );
+    // Título en la cara de display, artista en cursiva pequeña.
+    final headline = line(
+      track.title,
+      base.copyWith(
+        fontSize: wide ? 18 : 16.5,
+        height: 1.15,
+        fontWeight: FontWeight.w500,
+        letterSpacing: -.1,
+        color: ink.fg,
+      ),
+    );
     final small = TextStyle(
       fontSize: wide ? 14.5 : 14,
       height: 1.2,
@@ -255,10 +202,7 @@ class _Dock extends StatelessWidget {
               ),
             ],
           )
-        : line(
-            miniSubtitle(state, artistProminent: blurred),
-            base.merge(small).copyWith(color: ink.sub),
-          );
+        : line(miniSubtitle(state), base.merge(small).copyWith(color: ink.sub));
     final text = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,

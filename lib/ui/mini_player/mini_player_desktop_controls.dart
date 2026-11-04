@@ -9,6 +9,16 @@ const double kMiniControlTarget = 44;
 /// Ancho del slider de volumen.
 const double kMiniVolumeSlider = 96;
 
+/// Botones de los controles de escritorio: silencio, cola, ecualizador, letras
+/// y modo difuminado.
+const int kMiniDesktopButtons = 5;
+
+/// Ancho completo (botones + slider) y sin slider de los controles de
+/// escritorio: los temas reservan este ancho en su fila ancha.
+const double kMiniDesktopFull =
+    kMiniControlTarget * kMiniDesktopButtons + kMiniVolumeSlider;
+const double kMiniDesktopNoSlider = kMiniControlTarget * kMiniDesktopButtons;
+
 /// Portada y título del mini en escritorio: el clic abre el menú de la canción
 /// ([MiniPlayerActions.openMenu]) anclado en la esquina de esta zona. Sin
 /// `openMenu` (móvil) no envuelve nada y el toque lo recoge la barra entera.
@@ -77,10 +87,8 @@ class MiniPlayerDesktopControls extends StatelessWidget {
   final double iconSize;
   final bool compact;
 
-  static const _buttons = 3;
-  static const double _full =
-      kMiniControlTarget * (_buttons + 1) + kMiniVolumeSlider;
-  static const double _noSlider = kMiniControlTarget * (_buttons + 1);
+  static const double _full = kMiniDesktopFull;
+  static const double _noSlider = kMiniDesktopNoSlider;
 
   IconData get _volumeIcon => state.muted
       ? Icons.volume_off_rounded
@@ -187,6 +195,12 @@ class MiniPlayerDesktopControls extends StatelessWidget {
           actions.openLyrics,
           state.lyricsAvailable,
         ),
+        _item(
+          'Modo difuminado',
+          Icons.blur_on_rounded,
+          actions.openBlurred,
+          true,
+        ),
       ],
     ),
   );
@@ -237,6 +251,11 @@ class MiniPlayerDesktopControls extends StatelessWidget {
               'Letras',
               StudioSymbols.lyrics,
               state.lyricsAvailable ? actions.openLyrics : null,
+            ),
+            _button(
+              'Modo difuminado',
+              Icons.blur_on_rounded,
+              actions.openBlurred,
             ),
           ],
         );

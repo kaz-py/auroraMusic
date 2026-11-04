@@ -1,12 +1,7 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:ui' as ui;
-
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/theme/accent_transition.dart';
 import 'package:aurora_music/theme/slush_theme.dart';
-import 'package:aurora_music/ui/mini_player/blurred_cover_backdrop.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/ui/mini_player/slush_mini_player_v2.dart';
 import 'package:flutter/material.dart';
@@ -14,9 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
-
-const _png =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const _track = Track(
   id: 'a',
@@ -86,25 +78,11 @@ class _Calls {
   );
 }
 
-class _FakeCovers implements CoverBackdropSource {
-  _FakeCovers(this.image, this.color);
-  final ui.Image image;
-  final Color color;
-
-  late final _data = CoverBackdropData(
-    image: image,
-    samples: List.filled(64, color),
-  );
-
-  @override
-  String? keyOf(Track track) => track.id;
-  @override
-  CoverBackdropData? peek(Track track) => _data;
-  @override
-  Future<CoverBackdropData?> load(Track track) => Future.value(_data);
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance(), lb = b.computeLuminance();
+  final hi = la > lb ? la : lb, lo = la > lb ? lb : la;
+  return (hi + .05) / (lo + .05);
 }
-
-double _contrast(Color a, Color b) => coverContrast(a, b);
 
 Color fillBehind(WidgetTester tester, Finder child) => tester
     .widgetList<DecoratedBox>(
@@ -138,13 +116,11 @@ void main() {
   Future<void> mount(
     WidgetTester tester, {
     MiniPlayerState? state,
-    bool blurred = false,
     bool wide = false,
     Size size = const Size(390, 800),
     double scale = 1,
     Brightness brightness = Brightness.light,
     Color accent = const Color(0xff00aa55),
-    CoverBackdropSource? source,
     bool reduce = false,
     bool settle = true,
   }) async {
@@ -182,9 +158,7 @@ void main() {
                         child: SlushMiniPlayer(
                           state: s,
                           actions: calls.actions,
-                          blurred: blurred,
                           wide: wide,
-                          coverSource: source,
                         ),
                       ),
                     ),
@@ -347,48 +321,37 @@ void main() {
             '${dark ? 'oscuro' : 'claro'}: sin desborde y táctil ≥ 44', (
           tester,
         ) async {
-          final image = await tester.runAsync(_image);
-          for (final blurred in [false, true]) {
-            await mount(
-              tester,
-              state: _state(track: _track, isPlaying: true, liked: true),
-              size: size,
-              scale: scale,
-              wide: wide,
-              brightness: dark ? Brightness.dark : Brightness.light,
-              blurred: blurred,
-              source: blurred
-                  ? _FakeCovers(image!, const Color(0xff808080))
-                  : null,
+          await mount(
+            tester,
+            state: _state(track: _track, isPlaying: true, liked: true),
+            size: size,
+            scale: scale,
+            wide: wide,
+            brightness: dark ? Brightness.dark : Brightness.light,
+          );
+          expect(tester.takeException(), isNull);
+          final rect = tester.getRect(pill());
+          expect(rect.left, greaterThanOrEqualTo(0));
+          expect(rect.right, lessThanOrEqualTo(size.width));
+          expect(rect.bottom, lessThanOrEqualTo(size.height));
+          expect(rect.height, greaterThanOrEqualTo(56 * scale.clamp(1, 1.5)));
+          if (wide) {
+            expect(
+              rect.width,
+              lessThanOrEqualTo(slushMiniMaxWidthFor(size.width) + 64),
             );
-            expect(tester.takeException(), isNull, reason: 'blurred=$blurred');
-            final rect = tester.getRect(pill());
-            expect(rect.left, greaterThanOrEqualTo(0));
-            expect(rect.right, lessThanOrEqualTo(size.width));
-            expect(rect.bottom, lessThanOrEqualTo(size.height));
-            expect(rect.height, greaterThanOrEqualTo(56 * scale.clamp(1, 1.5)));
-            if (wide) {
-              expect(
-                rect.width,
-                lessThanOrEqualTo(slushMiniMaxWidthFor(size.width) + 64),
-              );
-            }
-            for (final tip in [
-              'Pausar',
-              'Quitar de favoritos',
-              if (wide) 'Anterior',
-              if (wide || size.width >= 412) 'Siguiente',
-            ]) {
-              final box = tester.getSize(find.byTooltip(tip));
-              expect(
-                box.shortestSide,
-                greaterThanOrEqualTo(44),
-                reason: '$tip blurred=$blurred',
-              );
-            }
-            if (!wide && size.width < 412) {
-              expect(find.byTooltip('Siguiente'), findsNothing);
-            }
+          }
+          for (final tip in [
+            'Pausar',
+            'Quitar de favoritos',
+            if (wide) 'Anterior',
+            if (wide || size.width >= 412) 'Siguiente',
+          ]) {
+            final box = tester.getSize(find.byTooltip(tip));
+            expect(box.shortestSide, greaterThanOrEqualTo(44), reason: tip);
+          }
+          if (!wide && size.width < 412) {
+            expect(find.byTooltip('Siguiente'), findsNothing);
           }
         });
       }
@@ -624,50 +587,33 @@ void main() {
         testWidgets('${size.width.toInt()} px ×$scale '
             '${dark ? 'oscuro' : 'claro'}: sin desborde, controles ≥ 44 y '
             'contraste ≥ 3', (tester) async {
-          final image = await tester.runAsync(_image);
-          for (final blurred in [false, true]) {
-            await mount(
-              tester,
-              wide: true,
-              size: size,
-              scale: scale,
-              brightness: dark ? Brightness.dark : Brightness.light,
-              blurred: blurred,
-              source: blurred
-                  ? _FakeCovers(image!, const Color(0xff808080))
-                  : null,
-              state: _state(
-                track: _track,
-                canSeek: true,
-                equalizerActive: true,
-              ),
-            );
-            expect(tester.takeException(), isNull, reason: 'blurred=$blurred');
-            final rect = tester.getRect(pill());
-            expect(rect.right, lessThanOrEqualTo(size.width));
-            final controls = tester.getRect(
-              find.byType(MiniPlayerDesktopControls),
-            );
-            expect(controls.right, lessThanOrEqualTo(rect.right));
-            final play = tester.getRect(find.byTooltip('Reproducir'));
-            expect(controls.right, lessThanOrEqualTo(play.left + 1));
-            final glyph = find.descendant(
-              of: find.byType(MiniPlayerDesktopControls),
-              matching: find.byType(Icon),
-            );
-            final color = tester.widget<Icon>(glyph.first).color!;
-            final bg = blurred
-                ? Color.alphaBlend(
-                    BlurredCoverTheme.of(tester.element(glyph.first)).scrim,
-                    const Color(0xff808080),
-                  )
-                : fillBehind(tester, glyph.first);
-            expect(
-              _contrast(color, bg),
-              greaterThanOrEqualTo(3),
-              reason: 'iconos blurred=$blurred',
-            );
-          }
+          await mount(
+            tester,
+            wide: true,
+            size: size,
+            scale: scale,
+            brightness: dark ? Brightness.dark : Brightness.light,
+            state: _state(track: _track, canSeek: true, equalizerActive: true),
+          );
+          expect(tester.takeException(), isNull);
+          final rect = tester.getRect(pill());
+          expect(rect.right, lessThanOrEqualTo(size.width));
+          final controls = tester.getRect(
+            find.byType(MiniPlayerDesktopControls),
+          );
+          expect(controls.right, lessThanOrEqualTo(rect.right));
+          final play = tester.getRect(find.byTooltip('Reproducir'));
+          expect(controls.right, lessThanOrEqualTo(play.left + 1));
+          final glyph = find.descendant(
+            of: find.byType(MiniPlayerDesktopControls),
+            matching: find.byType(Icon),
+          );
+          final color = tester.widget<Icon>(glyph.first).color!;
+          expect(
+            _contrast(color, fillBehind(tester, glyph.first)),
+            greaterThanOrEqualTo(3),
+            reason: 'iconos',
+          );
         });
       }
     }
@@ -796,140 +742,26 @@ void main() {
         });
       }
     }
-
-    for (final (name, cover) in [
-      ('blanca', const Color(0xffffffff)),
-      ('negra', const Color(0xff000000)),
-      ('gris', const Color(0xff808080)),
-      ('roja', const Color(0xffff0000)),
-    ]) {
-      for (final wide in [false, true]) {
-        testWidgets('fondo difuminado sobre portada $name, '
-            '${wide ? 'ancho' : 'móvil'}', (tester) async {
-          final image = await tester.runAsync(_image);
-          await mount(
-            tester,
-            blurred: true,
-            wide: wide,
-            size: wide ? const Size(1000, 800) : const Size(390, 800),
-            source: _FakeCovers(image!, cover),
-            state: _state(isPlaying: true),
-          );
-          final artist = find.text('MARE SOL'),
-              title = find.text('Luz de luna');
-          expect(artist, findsOneWidget);
-          final ctx = tester.element(artist);
-          expect(BlurredCoverTheme.isActive(ctx), isTrue);
-          final tone = BlurredCoverTheme.of(ctx);
-          final bg = Color.alphaBlend(tone.scrim, cover);
-          expect(
-            _contrast(textColor(tester, artist), bg),
-            greaterThanOrEqualTo(4.5),
-            reason: 'artista',
-          );
-          expect(
-            _contrast(textColor(tester, title), bg),
-            greaterThanOrEqualTo(4.5),
-            reason: 'título',
-          );
-          for (final icon in [Icons.favorite_border, Icons.skip_next_rounded]) {
-            expect(
-              _contrast(tester.widget<Icon>(find.byIcon(icon)).color!, bg),
-              greaterThanOrEqualTo(4.5),
-              reason: '$icon',
-            );
-          }
-        });
-      }
-    }
-
-    testWidgets('el artista manda en el modo difuminado y no en el normal', (
-      tester,
-    ) async {
-      final image = await tester.runAsync(_image);
-      await mount(
-        tester,
-        blurred: true,
-        source: _FakeCovers(image!, const Color(0xff808080)),
-      );
-      final artist = tester.widget<Text>(find.text('MARE SOL'));
-      final title = tester.widget<Text>(find.text('Luz de luna'));
-      expect(artist.style!.fontFamily, 'Bagel Fat One');
-      expect(artist.style!.fontSize!, greaterThan(title.style!.fontSize!));
-      await mount(tester);
-      expect(find.text('MARE SOL'), findsNothing);
-      expect(
-        tester.widget<Text>(find.text('Mare Sol')).style!.fontFamily,
-        isNull,
-      );
-    });
-
-    testWidgets('mientras la portada no carga se ve el aspecto normal', (
-      tester,
-    ) async {
-      final pending = _Pending();
-      await mount(tester, blurred: true, source: pending, settle: false);
-      await tester.pump();
-      expect(find.text('Mare Sol'), findsOneWidget);
-      expect(find.text('MARE SOL'), findsNothing);
-    });
   });
 
   group('anuncio y Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
-      for (final blurred in const [false, true]) {
-        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
-        Future<void> pump(WidgetTester tester, MiniPlayerState state) async {
-          final image = await tester.runAsync(_image);
-          await mount(
-            tester,
-            size: const Size(360, 640),
-            scale: scale,
-            blurred: blurred,
-            source: blurred ? _FakeCovers(image!, Colors.white) : null,
-            state: state,
-          );
-        }
+      final tag = '360 · ×${scale.toInt()}';
+      Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
+          mount(tester, size: const Size(360, 640), scale: scale, state: state);
 
-        testWidgets('anuncio · $tag', (tester) async {
-          await pump(tester, _state(ad: true, isPlaying: true));
-          expect(tester.takeException(), isNull);
-          expect(
-            find.text('Anuncio · tu canción sigue después'),
-            findsOneWidget,
-          );
-          // Difuminado: el artista sigue de titular (en mayúsculas).
-          expect(
-            find.text('MARE SOL'),
-            blurred ? findsOneWidget : findsNothing,
-          );
-          expect(find.text('Mare Sol'), findsNothing);
-        });
+      testWidgets('anuncio · $tag', (tester) async {
+        await pump(tester, _state(ad: true, isPlaying: true));
+        expect(tester.takeException(), isNull);
+        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
+        expect(find.text('Mare Sol'), findsNothing);
+      });
 
-        testWidgets('Jam · $tag', (tester) async {
-          await pump(tester, _state(jam: true, isPlaying: true));
-          expect(tester.takeException(), isNull);
-          expect(
-            find.text(blurred ? 'Luz de luna · Jam' : 'Mare Sol · Jam'),
-            findsOneWidget,
-          );
-        });
-      }
+      testWidgets('Jam · $tag', (tester) async {
+        await pump(tester, _state(jam: true, isPlaying: true));
+        expect(tester.takeException(), isNull);
+        expect(find.text('Mare Sol · Jam'), findsOneWidget);
+      });
     }
   });
-}
-
-class _Pending implements CoverBackdropSource {
-  final _c = Completer<CoverBackdropData?>();
-  @override
-  String? keyOf(Track track) => track.id;
-  @override
-  CoverBackdropData? peek(Track track) => null;
-  @override
-  Future<CoverBackdropData?> load(Track track) => _c.future;
-}
-
-Future<ui.Image> _image() async {
-  final codec = await ui.instantiateImageCodec(base64Decode(_png));
-  return (await codec.getNextFrame()).image;
 }

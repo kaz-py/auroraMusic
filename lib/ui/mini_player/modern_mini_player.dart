@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../../theme/accent_transition.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
+import 'cover_tone.dart' show coverContrast;
 import '../artwork.dart';
-import 'blurred_cover_backdrop.dart';
 import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
@@ -19,14 +19,8 @@ Widget _build(
   BuildContext context,
   MiniPlayerState state,
   MiniPlayerActions actions, {
-  required bool blurred,
   required bool wide,
-}) => ModernMiniPlayer(
-  state: state,
-  actions: actions,
-  blurred: blurred,
-  wide: wide,
-);
+}) => ModernMiniPlayer(state: state, actions: actions, wide: wide);
 
 const double _radius = 18;
 const double _coverRadius = 11;
@@ -42,17 +36,12 @@ class ModernMiniPlayer extends StatelessWidget {
     super.key,
     required this.state,
     required this.actions,
-    required this.blurred,
     required this.wide,
-    this.source,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final bool blurred, wide;
-
-  /// Origen de portadas del fondo difuminado (pruebas); por defecto el compartido.
-  final CoverBackdropSource? source;
+  final bool wide;
 
   @override
   Widget build(BuildContext context) {
@@ -66,24 +55,10 @@ class ModernMiniPlayer extends StatelessWidget {
       scheme.outlineVariant,
       accent,
       .35,
-    )!.withValues(alpha: blurred ? .5 : .28);
+    )!.withValues(alpha: .28);
     const radius = BorderRadius.all(Radius.circular(_radius));
 
-    Widget body = _Body(
-      state: state,
-      actions: actions,
-      blurred: blurred,
-      wide: wide,
-      fill: fill,
-    );
-    if (blurred) {
-      body = BlurredCoverBackdrop(
-        track: track,
-        radius: radius,
-        source: source,
-        child: body,
-      );
-    }
+    final body = _Body(state: state, actions: actions, wide: wide, fill: fill);
     final card = DecoratedBox(
       decoration: BoxDecoration(
         color: fill,
@@ -131,14 +106,13 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.state,
     required this.actions,
-    required this.blurred,
     required this.wide,
     required this.fill,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final bool blurred, wide;
+  final bool wide;
 
   /// Color opaco de la tarjeta (contra el que se ajusta el acento).
   final Color fill;
@@ -147,32 +121,26 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final tone = BlurredCoverTheme.of(context);
-    final onCover = BlurredCoverTheme.isActive(context);
     final track = state.track!;
     final cover = wide ? 48.0 : 44.0;
+    final inkOn = scheme.onSurface;
+    final inkSoft = scheme.onSurfaceVariant;
 
-    final inkOn = onCover ? tone.foreground : scheme.onSurface;
-    final inkSoft = onCover ? tone.secondary : scheme.onSurfaceVariant;
-    // Con fondo claro u oscuro el acento del tema se ajusta contra el color de
-    // la tarjeta (más clara que el lienzo), no contra el lienzo.
+    // El acento del tema se ajusta contra el color de la tarjeta (más clara
+    // que el lienzo), no contra el lienzo.
     final accent = _legible(scheme.tertiary, fill, isDarkTheme(context));
-    final playFill = onCover ? tone.foreground : accent;
-    final playInk = onCover
-        ? (tone.foreground.computeLuminance() > .5 ? Tracky.navy : Colors.white)
-        : (coverContrast(Colors.white, accent) >
-                  coverContrast(Tracky.navy, accent)
-              ? Colors.white
-              : Tracky.navy);
+    final playInk =
+        coverContrast(Colors.white, accent) > coverContrast(Tracky.navy, accent)
+        ? Colors.white
+        : Tracky.navy;
     final liked = isDarkTheme(context) ? Tracky.coral : const Color(0xffd32f2f);
-    final likedInk = onCover ? tone.foreground : liked;
 
     final primaryStyle = theme.textTheme.titleMedium!.copyWith(
-      fontSize: blurred ? 17 : 14.5,
+      fontSize: 14.5,
       height: 1.2,
       fontWeight: FontWeight.w600,
-      letterSpacing: blurred ? -.34 : -.2,
-      color: inkOn,
+      letterSpacing: -.2,
+      color: scheme.onSurface,
     );
     final secondaryStyle = theme.textTheme.bodySmall!.copyWith(
       fontSize: 12.5,
@@ -186,14 +154,12 @@ class _Body extends StatelessWidget {
         : state.jamHostName != null
         ? 'Lo controla ${state.jamHostName}'
         : null;
-    final errorInk = onCover ? tone.foreground : scheme.error;
-
     final text = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          blurred ? track.artist : track.title,
+          track.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: primaryStyle,
@@ -203,7 +169,11 @@ class _Body extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (miniSubtitleIsError(state)) ...[
-                Icon(Icons.error_outline_rounded, size: 14, color: errorInk),
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 14,
+                  color: scheme.error,
+                ),
                 const SizedBox(width: 4),
               ],
               Flexible(
@@ -212,7 +182,9 @@ class _Body extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: secondaryStyle.copyWith(
-                    color: miniSubtitleIsError(state) ? errorInk : inkSoft,
+                    color: miniSubtitleIsError(state)
+                        ? scheme.error
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -220,7 +192,7 @@ class _Body extends StatelessWidget {
           )
         else
           Text(
-            miniSubtitle(state, artistProminent: blurred),
+            miniSubtitle(state),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: secondaryStyle,
@@ -236,9 +208,9 @@ class _Body extends StatelessWidget {
         onPressed: actions.toggleLike,
         style: _iconStyle(),
         isSelected: state.liked,
-        color: inkSoft,
+        color: scheme.onSurfaceVariant,
         icon: const Icon(Icons.favorite_border_rounded, size: 22),
-        selectedIcon: Icon(Icons.favorite_rounded, size: 22, color: likedInk),
+        selectedIcon: Icon(Icons.favorite_rounded, size: 22, color: liked),
       ),
     );
 
@@ -252,9 +224,9 @@ class _Body extends StatelessWidget {
             : 'Reproducir',
         onPressed: state.canTogglePlay ? actions.togglePlay : null,
         style: IconButton.styleFrom(
-          backgroundColor: playFill,
+          backgroundColor: accent,
           foregroundColor: playInk,
-          disabledBackgroundColor: playFill.withValues(alpha: .38),
+          disabledBackgroundColor: accent.withValues(alpha: .38),
           disabledForegroundColor: playInk,
           fixedSize: const Size.square(_target),
           minimumSize: const Size.square(_target),
@@ -322,8 +294,7 @@ class _Body extends StatelessWidget {
         final showNext = wide || box.maxWidth >= _kNextMinInner;
         // Fijo de la fila ancha: relleno, portada, huecos, 4 botones y los
         // controles de escritorio; la hora solo si el título conserva 150.
-        final controls =
-            kMiniControlTarget * 4 + (compact ? 0 : kMiniVolumeSlider);
+        final controls = compact ? kMiniDesktopNoSlider : kMiniDesktopFull;
         final showTime =
             wide &&
             box.maxWidth -
@@ -381,9 +352,9 @@ class _Body extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: SizedBox(
-                          width:
-                              kMiniControlTarget * 4 +
-                              (compact ? 0 : kMiniVolumeSlider),
+                          width: compact
+                              ? kMiniDesktopNoSlider
+                              : kMiniDesktopFull,
                           child: MiniPlayerDesktopControls(
                             state: state,
                             actions: actions,
@@ -405,8 +376,8 @@ class _Body extends StatelessWidget {
                 progress: state.progress,
                 canSeek: state.canSeek,
                 onSeek: actions.seek,
-                color: onCover ? tone.foreground : accent,
-                trackColor: inkOn.withValues(alpha: .14),
+                color: accent,
+                trackColor: scheme.onSurface.withValues(alpha: .14),
               ),
             ),
           ],

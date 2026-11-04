@@ -43,6 +43,7 @@ import 'studio/downloads_studio_page.dart';
 import '../shortcuts/shortcut_host.dart';
 import '../shortcuts/shortcut_service.dart';
 import 'lyrics_panel.dart';
+import 'blurred_now_playing.dart';
 import 'shortcuts_settings_panel.dart';
 import 'artwork.dart';
 import 'dj_discovery_page.dart';
@@ -102,6 +103,7 @@ const _sections = [
   'Artistas',
   'Ecualizador',
   'Amigos',
+  'Modo difuminado',
 ];
 const _icons = [
   Icons.home_outlined,
@@ -119,6 +121,7 @@ const _icons = [
   Icons.mic_none_rounded,
   Icons.equalizer,
   Icons.people_outline,
+  Icons.blur_on_rounded,
 ];
 const _primarySections = [0, 1, 8, 2, 3];
 const _slushPrimarySections = [0, 1, 2, 8, 9];
@@ -1495,6 +1498,38 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         )
       : child;
 
+  /// Página de letras (Slush estrecho lleva su propia tarjeta). La usan la
+  /// sección 6 y el «Modo difuminado» (15), que le pone la portada detrás.
+  Widget _lyricsPage(AppController c, int section) {
+    if (isSlush(context) && MediaQuery.sizeOf(context).width < 900) {
+      return Column(
+        children: [
+          SlushPlayerHeader(
+            controller: c,
+            current: section,
+            onSection: _navigate,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: SlushLyricsCard(controller: c),
+            ),
+          ),
+        ],
+      );
+    }
+    return _slushTabs(
+      c,
+      section,
+      LyricsPanel(
+        controller: c,
+        jam: _jam,
+        shortcuts: ref.read(shortcutServiceProvider),
+        onClose: () => _navigate(0),
+      ),
+    );
+  }
+
   Widget _page(AppController c) {
     switch (_section) {
       case 1:
@@ -1521,33 +1556,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         }
         return _slushTabs(c, 5, QueuePanel(controller: c));
       case 6:
-        if (isSlush(context) && MediaQuery.sizeOf(context).width < 900) {
-          return Column(
-            children: [
-              SlushPlayerHeader(
-                controller: c,
-                current: 6,
-                onSection: _navigate,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                  child: SlushLyricsCard(controller: c),
-                ),
-              ),
-            ],
-          );
-        }
-        return _slushTabs(
-          c,
-          6,
-          LyricsPanel(
-            controller: c,
-            jam: _jam,
-            shortcuts: ref.read(shortcutServiceProvider),
-            onClose: () => _navigate(0),
-          ),
-        );
+        return _lyricsPage(c, 6);
       case 7:
         return _slushPage(c, _settings(c));
       case 8:
@@ -1590,6 +1599,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             onJoinJam: (code) => _joinJamLink('aurora://jam/$code'),
           ),
         );
+      case 15:
+        return BlurredNowPlaying(controller: c, child: _lyricsPage(c, 15));
       case 9:
       case 10:
       case 11:
@@ -2813,21 +2824,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ],
         ),
       (
-        title: 'Fondo de portada',
-        subtitle: 'Mini reproductor y reproductor',
-        children: [
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Fondo difuminado de la portada'),
-            subtitle: const Text(
-              'El mini reproductor y el reproductor usan la portada difuminada de fondo, con el artista en grande.',
-            ),
-            value: c.blurredCoverMode,
-            onChanged: c.setBlurredCoverMode,
-          ),
-        ],
-      ),
-      (
         title: 'Movimiento',
         subtitle: 'Animaciones de la interfaz',
         children: [
@@ -3097,6 +3093,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     onTogglePlay: () => _togglePlay(c),
     onOpenQueue: () => _navigate(5),
     onOpenLyrics: () => _showLyrics(c),
+    onOpenBlurred: () => _navigate(15),
     mute: _mute,
   );
 

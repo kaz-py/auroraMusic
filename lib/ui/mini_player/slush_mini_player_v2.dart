@@ -7,7 +7,6 @@ import '../../theme/accent_transition.dart';
 import '../../theme/slush_theme.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
-import 'blurred_cover_backdrop.dart';
 import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
@@ -19,21 +18,14 @@ import 'mini_player_theme.dart';
 /// - Oscuro: losa `raised` con contorno crema; el color vivo queda en el play y
 ///   en el progreso.
 /// - Progreso: barra de segmentos de 5 px con mando cuadrado.
-/// - Fondo difuminado: el artista pasa a Bagel Fat One en mayúsculas.
 const MiniPlayerTheme slushMiniPlayerV2 = MiniPlayerTheme(build: _build);
 
 Widget _build(
   BuildContext context,
   MiniPlayerState state,
   MiniPlayerActions actions, {
-  required bool blurred,
   required bool wide,
-}) => SlushMiniPlayer(
-  state: state,
-  actions: actions,
-  blurred: blurred,
-  wide: wide,
-);
+}) => SlushMiniPlayer(state: state, actions: actions, wide: wide);
 
 /// Color vivo de Slush más cercano al tono de [accent].
 Color slushVividFor(Color accent) {
@@ -70,11 +62,10 @@ const double _kSeekHit = 24;
 // Ancho fijo de la fila ancha (portada 52 + 14 + 6 + anterior 44 + play 52 +
 // siguiente 44 + corazón 44) y mínimo de título antes de plegar los controles.
 const double _kWideFixed = 256, _kTitleMin = 140;
-const double _kControlsFull =
-    kMiniControlTarget * 4 + kMiniVolumeSlider; // slider + 4 botones
-const double _kControlsNoSlider = kMiniControlTarget * 4;
+const double _kControlsFull = kMiniDesktopFull; // slider + 5 botones
+const double _kControlsNoSlider = kMiniDesktopNoSlider;
 
-/// Colores ya resueltos de una de las dos caras (normal / sobre portada).
+/// Colores ya resueltos del aspecto de la barra.
 class _Look {
   const _Look({
     required this.fill,
@@ -88,34 +79,16 @@ class _Look {
     required this.knobFill,
     required this.knobStroke,
     required this.heartFill,
-    required this.onCover,
   });
 
   final Color fill, stroke, fg, sub;
   final Color playFill, playIcon;
   final Color barFilled, barEmpty, knobFill, knobStroke;
   final Color? heartFill;
-  final bool onCover;
 
-  factory _Look.of(BuildContext context, Color vivid, CoverTone? tone) {
+  factory _Look.of(BuildContext context, Color vivid) {
     final p = context.slush;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    if (tone != null) {
-      return _Look(
-        fill: dark ? p.raised : vivid,
-        stroke: tone.foreground,
-        fg: tone.foreground,
-        sub: tone.secondary,
-        playFill: vivid,
-        playIcon: Slush.ink,
-        barFilled: tone.foreground,
-        barEmpty: tone.foreground.withAlpha(90),
-        knobFill: vivid,
-        knobStroke: tone.foreground,
-        heartFill: null,
-        onCover: true,
-      );
-    }
     final fill = dark ? p.raised : vivid;
     final fg = dark ? p.ink : slushOnColor(context, vivid);
     return _Look(
@@ -134,7 +107,6 @@ class _Look {
       knobFill: dark ? p.ink : p.paper,
       knobStroke: Slush.ink,
       heartFill: dark ? null : p.paper,
-      onCover: false,
     );
   }
 }
@@ -144,17 +116,12 @@ class SlushMiniPlayer extends StatefulWidget {
     super.key,
     required this.state,
     required this.actions,
-    required this.blurred,
     required this.wide,
-    @visibleForTesting this.coverSource,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final bool blurred, wide;
-
-  /// Origen de la portada difuminada (por defecto la caché de la app).
-  final CoverBackdropSource? coverSource;
+  final bool wide;
 
   @override
   State<SlushMiniPlayer> createState() => _SlushMiniPlayerState();
@@ -198,30 +165,14 @@ class _SlushMiniPlayerState extends State<SlushMiniPlayer>
     final vivid = slushVividFor(AccentScope.of(context, Slush.mint));
     final radius = BorderRadius.circular(wide ? 32 : 28);
 
-    Widget body(CoverTone? tone) => _Body(
+    final base = _Look.of(context, vivid);
+    final content = _Body(
       state: widget.state,
       actions: widget.actions,
       wide: wide,
-      look: _Look.of(context, vivid, tone),
+      look: base,
       vivid: vivid,
     );
-
-    Widget content = widget.blurred
-        ? BlurredCoverBackdrop(
-            track: track,
-            radius: radius,
-            source: widget.coverSource,
-            child: Builder(
-              builder: (context) => body(
-                BlurredCoverTheme.isActive(context)
-                    ? BlurredCoverTheme.of(context)
-                    : null,
-              ),
-            ),
-          )
-        : body(null);
-
-    final base = _Look.of(context, vivid, null);
     final face = DecoratedBox(
       position: DecorationPosition.foreground,
       decoration: ShapeDecoration(
@@ -558,7 +509,6 @@ class _Titles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final error = miniSubtitleIsError(state);
-    final onCover = look.onCover;
     final titleSize = wide ? 15.0 : 14.0, subSize = wide ? 13.0 : 12.0;
     final line = Text(
       track.title,
@@ -572,7 +522,7 @@ class _Titles extends StatelessWidget {
       ),
     );
     final artist = Text(
-      miniSubtitle(state, artistProminent: onCover),
+      miniSubtitle(state),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -602,45 +552,6 @@ class _Titles extends StatelessWidget {
       ],
     );
 
-    if (onCover) {
-      // Artista como protagonista: Bagel Fat One en mayúsculas.
-      final size = wide ? 26.0 : 20.0;
-      final scaler = MediaQuery.textScalerOf(
-        context,
-      ).clamp(maxScaleFactor: 1.5);
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            track.artist.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textScaler: scaler,
-            style: TextStyle(
-              fontFamily: 'Bagel Fat One',
-              fontSize: size,
-              height: 1.1,
-              letterSpacing: -size * .01,
-              color: look.fg,
-            ),
-          ),
-          error
-              ? problem
-              : Text(
-                  miniSubtitle(state, artistProminent: true),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: subSize,
-                    height: 1.25,
-                    fontWeight: FontWeight.w700,
-                    color: look.sub,
-                  ),
-                ),
-        ],
-      );
-    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,

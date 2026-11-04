@@ -176,23 +176,16 @@ void main() {
       canTogglePlay: true,
     );
 
-    test('artista por defecto; con artista de titular, la pista', () {
+    test('el subtítulo es el artista', () {
       expect(miniSubtitle(state()), 'Aurora');
-      expect(miniSubtitle(state(), artistProminent: true), 'Uno');
     });
 
     test('anuncio, Jam y fallo con su prioridad', () {
       expect(miniSubtitle(state(ad: true, error: true)), miniAdNotice);
-      expect(
-        miniSubtitle(state(ad: true), artistProminent: true),
-        miniAdNotice,
-      );
+      expect(miniSubtitle(state(ad: true)), miniAdNotice);
       // El anuncio no cuenta con audio de Jam.
       expect(miniSubtitle(state(ad: true, jam: true)), 'Aurora · Jam');
-      expect(
-        miniSubtitle(state(jam: true), artistProminent: true),
-        'Uno · Jam',
-      );
+      expect(miniSubtitle(state(jam: true)), 'Aurora · Jam');
       expect(miniSubtitle(state(error: true)), miniErrorNotice);
       expect(miniSubtitleIsError(state(error: true)), isTrue);
       expect(miniSubtitleIsError(state(ad: true, error: true)), isFalse);

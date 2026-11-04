@@ -5,10 +5,8 @@ Base compartida por los cuatro temas (Atelier, Modern, Brasa, Slush). Código en
 
 ## Ajuste
 
-`AppController.blurredCoverMode` (`bool`, clave `blurredCoverMode`, apagado por
-defecto) y `setBlurredCoverMode(bool)` (guarda y avisa). Interruptor «Fondo
-difuminado de la portada» en Ajustes > Apariencia (sección «Fondo de portada»).
-Igual para todos los temas.
+El fondo de portada difuminada ya no es un ajuste ni va en la barra: es el
+apartado «Modo difuminado» (ver abajo), igual para todos los temas.
 
 ## Piezas
 
@@ -75,11 +73,14 @@ Un tema nuevo se registra en `miniPlayerThemes` con `MiniPlayerTheme(build: ...)
 ```dart
 typedef MiniPlayerBuilder = Widget Function(
   BuildContext context, MiniPlayerState state, MiniPlayerActions actions,
-  {required bool blurred, required bool wide});
+  {required bool wide});
 ```
 
 - `wide`: diseño con carril (≥ 600 px); el resto, móvil sobre la navegación.
-- `blurred`: ajuste activo **y** la pista tiene portada.
+- Sin fondo de portada difuminada: el «Modo difuminado» es un apartado propio
+  (sección 15, `lib/ui/blurred_now_playing.dart`) al que se llega con el botón
+  «Modo difuminado» de los controles de escritorio de la barra; pone la portada
+  difuminada tras la página de letras.
 - El host ya aplica: oculto sin pista, en la sección 4 y en la página oficial de
   YouTube Music; `MiniPlayerGestures` y la altura mínima. El tema no repite
   gestos ni visibilidad: dibuja y cablea play, favorito y siguiente.
@@ -102,8 +103,6 @@ Los cuatro temas pintan la misma línea con `miniSubtitle(state)`; prioridad:
 anuncio («Anuncio · tu canción sigue después», solo si no hay audio de Jam,
 `state.adShowing`), audio de Jam («Artista · Jam»), fallo («No se pudo
 reproducir», `miniSubtitleIsError` para el icono/color) y, si no, el artista.
-Con el fondo difuminado el artista ya es el titular: se pasa
-`artistProminent: true` y el artista de reserva es la pista («Pista · Jam»).
 Brasa, donde el artista va arriba en versalitas y la pista debajo, mantiene su
 maquetación: con anuncio el aviso sustituye a la pista; con Jam el titular es
 «ARTISTA · JAM». Todo va en una línea con elipsis. El seek sigue la regla de
@@ -143,10 +142,6 @@ hora, corazón, transporte y controles de escritorio. Siempre oscura
   borde ámbar que se rellena al sonar (anillo en búfer, reintento en rojo con
   fallo). Favorito es un glifo ámbar. Con carril (≥ 600 px) se añaden
   anterior/siguiente y la barra se divide en tres columnas con filetes.
-- **Difuminado**: `BlurredCoverBackdrop(matchTheme: true)` (velo del tema, texto
-  crema), viñeta oscura en los bordes y brillo de brasa sobre la línea; el artista
-  pasa a 19 px, peso 800, tracking negativo. Las teclas y la línea llevan un
-  fondo negro (55–60 %) para que el ámbar mantenga contraste ≥ 3.
 - **Movimiento**: pulsar encoge a 0,92 al bajar el dedo (100 ms); con movimiento
   reducido solo baja la opacidad. La marca de la cabeza usa 120 ms.
 - Pruebas: `test/mini_player/brasa_mini_player_test.dart`.
@@ -173,11 +168,6 @@ máximo, 960 desde 1100 px de ventana) con la forma de funda del tema y borde
 - **Botones** (44 × 44): favorito y siguiente sin relleno; reproducir es un
   círculo de acento (en búfer, anillo; con movimiento reducido, reloj quieto).
   Con carril se añade «anterior». Bajo 330 px se omite el favorito.
-- **Difuminado**: `BlurredCoverBackdrop(matchTheme: true)`: portada bajo el velo
-  cálido del tema. El artista pasa arriba, en display de 22 px (26 con carril),
-  tracking negativo, como la etiqueta de un disco; el título baja a cursiva
-  pequeña. Sobre la portada el acento cede su sitio al color del texto garantizado
-  (línea, nudo, play y favorito).
 - **Movimiento**: pulsar hunde el botón a 0,93 (100 ms, ease-out); con
   movimiento reducido no hay hundimiento ni giro.
 - Pruebas: `test/mini_player/atelier_mini_player_test.dart`.
@@ -207,11 +197,6 @@ altura para que el mini y la barra no la desborden.
   anillo; con movimiento reducido, puntos quietos) y, desde 330 px de ancho
   interior, siguiente. Con carril se añade anterior. Sin permiso en Jam el play
   se desactiva y avisa «Lo controla X».
-- **Difuminado**: `BlurredCoverBackdrop` bajo el contorno. El artista pasa a
-  Bagel Fat One en mayúsculas (20; 26 con carril, escala ≤ 1,5) y el título a
-  pequeño debajo; contornos, iconos y progreso toman el color de texto garantizado
-  y el play y el mando conservan el color vivo. Si la portada aún no carga, se ve
-  el aspecto normal.
 - **Movimiento**: entra con opacidad y 8 px de recorrido (240 ms); al cambiar de
   pista el cover y el texto cruzan con `SlushMotion.fadeSlide`; el play cambia de
   icono con escala. Con movimiento reducido solo opacidad.

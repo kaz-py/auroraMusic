@@ -1,10 +1,6 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:ui' as ui;
-
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/theme/modern_theme.dart';
-import 'package:aurora_music/ui/mini_player/blurred_cover_backdrop.dart';
+import 'package:aurora_music/ui/mini_player/cover_tone.dart' show coverContrast;
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/ui/mini_player/modern_mini_player.dart';
 import 'package:flutter/material.dart';
@@ -12,9 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
-
-const _png =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 const _track = Track(
   id: 'a',
@@ -88,24 +81,6 @@ MiniPlayerState _state({
   lyricsAvailable: lyricsAvailable,
 );
 
-class _Covers implements CoverBackdropSource {
-  _Covers(this.image, this.color);
-  final ui.Image image;
-  final Color color;
-
-  CoverBackdropData get data =>
-      CoverBackdropData(image: image, samples: List.filled(64, color));
-
-  @override
-  String? keyOf(Track track) => track.id;
-
-  @override
-  CoverBackdropData? peek(Track track) => data;
-
-  @override
-  Future<CoverBackdropData?> load(Track track) => Future.value(data);
-}
-
 const _accents = [
   Color(0xffff5858),
   Color(0xff86e0c1),
@@ -133,12 +108,10 @@ void main() {
     MiniPlayerState? state,
     double width = 390,
     double scale = 1,
-    bool blurred = false,
     bool? wide,
     bool dark = false,
     bool reduced = false,
     Color accent = const Color(0xffff5858),
-    CoverBackdropSource? source,
     _Calls? calls,
   }) async {
     final c = calls ?? _Calls();
@@ -177,9 +150,7 @@ void main() {
                       child: ModernMiniPlayer(
                         state: s,
                         actions: c.actions,
-                        blurred: blurred,
                         wide: isWide,
-                        source: source,
                       ),
                     ),
                   );
@@ -258,37 +229,30 @@ void main() {
     for (final width in [360.0, 412.0, 600.0, 900.0, 1440.0, 1920.0]) {
       for (final scale in [1.0, 2.0]) {
         for (final dark in [false, true]) {
-          for (final blurred in [false, true]) {
-            testWidgets(
-              'sin desbordes ni toques < 44: ${width.toInt()} px x$scale '
-              '${dark ? 'oscuro' : 'claro'}${blurred ? ' difuminado' : ''}',
-              (tester) async {
-                final image = (await tester.runAsync(
-                  () => decodeImageFromList(base64Decode(_png)),
-                ))!;
-                await mount(
-                  tester,
-                  state: _state(track: _long, error: scale == 2, liked: dark),
-                  width: width,
-                  scale: scale,
-                  dark: dark,
-                  blurred: blurred,
-                  source: _Covers(image, dark ? Colors.black : Colors.white),
-                );
-                expect(tester.takeException(), isNull);
-                for (final element in find.byType(IconButton).evaluate()) {
-                  final size = element.size!;
-                  expect(size.width, greaterThanOrEqualTo(44));
-                  expect(size.height, greaterThanOrEqualTo(44));
-                }
-                // Cabe en el ancho.
-                expect(
-                  tester.getRect(find.byType(ModernMiniPlayer)).right,
-                  lessThanOrEqualTo(width),
-                );
-              },
-            );
-          }
+          testWidgets(
+            'sin desbordes ni toques < 44: ${width.toInt()} px x$scale '
+            '${dark ? 'oscuro' : 'claro'}',
+            (tester) async {
+              await mount(
+                tester,
+                state: _state(track: _long, error: scale == 2, liked: dark),
+                width: width,
+                scale: scale,
+                dark: dark,
+              );
+              expect(tester.takeException(), isNull);
+              for (final element in find.byType(IconButton).evaluate()) {
+                final size = element.size!;
+                expect(size.width, greaterThanOrEqualTo(44));
+                expect(size.height, greaterThanOrEqualTo(44));
+              }
+              // Cabe en el ancho.
+              expect(
+                tester.getRect(find.byType(ModernMiniPlayer)).right,
+                lessThanOrEqualTo(width),
+              );
+            },
+          );
         }
       }
     }
@@ -558,38 +522,6 @@ void main() {
       }
     }
 
-    for (final (name, cover) in [
-      ('blanca', Colors.white),
-      ('negra', Colors.black),
-    ]) {
-      testWidgets('difuminado sobre portada $name: artista grande y legible', (
-        tester,
-      ) async {
-        final image = (await tester.runAsync(
-          () => decodeImageFromList(base64Decode(_png)),
-        ))!;
-        final covers = _Covers(image, cover);
-        await mount(tester, blurred: true, source: covers);
-        expect(find.byType(RawImage), findsWidgets);
-        final tone = covers.data.adaptiveTone;
-        final bg = Color.alphaBlend(tone.scrim, cover);
-        final artist = tester.widget<Text>(find.text('Aurora Boreal'));
-        final title = tester.widget<Text>(find.text('Noches de neón'));
-        expect(artist.style!.color, tone.foreground);
-        expect(title.style!.color, tone.secondary);
-        expect(ratio(artist.style!.color!, bg), greaterThanOrEqualTo(4.5));
-        expect(ratio(title.style!.color!, bg), greaterThanOrEqualTo(4.5));
-        // El artista manda: más grande, semi-negrita y arriba.
-        expect(artist.style!.fontSize, greaterThan(title.style!.fontSize!));
-        expect(artist.style!.fontWeight, FontWeight.w600);
-        expect(artist.style!.letterSpacing, lessThan(0));
-        expect(
-          tester.getTopLeft(find.text('Aurora Boreal')).dy,
-          lessThan(tester.getTopLeft(find.text('Noches de neón')).dy),
-        );
-      });
-    }
-
     for (final dark in [false, true]) {
       testWidgets('controles de escritorio con contraste >= 3 '
           '${dark ? 'oscuro' : 'claro'}', (tester) async {
@@ -616,44 +548,6 @@ void main() {
         expect(ratio(icon.color!, card), greaterThanOrEqualTo(3));
       });
     }
-
-    for (final (name, cover) in [
-      ('blanca', Colors.white),
-      ('negra', Colors.black),
-    ]) {
-      testWidgets('difuminado $name: controles de escritorio >= 3', (
-        tester,
-      ) async {
-        final image = (await tester.runAsync(
-          () => decodeImageFromList(base64Decode(_png)),
-        ))!;
-        final covers = _Covers(image, cover);
-        await mount(tester, width: 1440, blurred: true, source: covers);
-        final tone = covers.data.adaptiveTone;
-        final bg = Color.alphaBlend(tone.scrim, cover);
-        final icon = tester.widget<Icon>(
-          find.descendant(
-            of: find.byTooltip('Letras'),
-            matching: find.byType(Icon),
-          ),
-        );
-        expect(icon.color, tone.secondary);
-        expect(ratio(icon.color!, bg), greaterThanOrEqualTo(3));
-      });
-    }
-
-    testWidgets('difuminado activo pero portada sin cargar: aspecto normal', (
-      tester,
-    ) async {
-      await mount(tester, blurred: true, source: _Never());
-      expect(find.byType(RawImage), findsNothing);
-      expect(tester.takeException(), isNull);
-      final artist = tester.widget<Text>(find.text('Aurora Boreal'));
-      final scheme = Theme.of(
-        tester.element(find.byType(ModernMiniPlayer)),
-      ).colorScheme;
-      expect(artist.style!.color, scheme.onSurface);
-    });
   });
 
   group('Registro en el host', () {
@@ -712,55 +606,22 @@ void main() {
 
   group('anuncio y Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
-      for (final blurred in const [false, true]) {
-        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
-        Future<void> pump(WidgetTester tester, MiniPlayerState state) async {
-          final image = (await tester.runAsync(
-            () => decodeImageFromList(base64Decode(_png)),
-          ))!;
-          await mount(
-            tester,
-            width: 360,
-            scale: scale,
-            blurred: blurred,
-            source: blurred ? _Covers(image, Colors.white) : null,
-            state: state,
-          );
-        }
+      final tag = '360 · ×${scale.toInt()}';
+      Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
+          mount(tester, width: 360, scale: scale, state: state);
 
-        testWidgets('anuncio · $tag', (tester) async {
-          await pump(tester, _state(ad: true, playing: true));
-          expect(tester.takeException(), isNull);
-          expect(
-            find.text('Anuncio · tu canción sigue después'),
-            findsOneWidget,
-          );
-          // Difuminado: el artista sigue de titular.
-          expect(
-            find.text('Aurora Boreal'),
-            blurred ? findsOneWidget : findsNothing,
-          );
-        });
+      testWidgets('anuncio · $tag', (tester) async {
+        await pump(tester, _state(ad: true, playing: true));
+        expect(tester.takeException(), isNull);
+        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
+        expect(find.text('Aurora Boreal'), findsNothing);
+      });
 
-        testWidgets('Jam · $tag', (tester) async {
-          await pump(tester, _state(jam: true, playing: true));
-          expect(tester.takeException(), isNull);
-          expect(
-            find.text(blurred ? 'Noches de neón · Jam' : 'Aurora Boreal · Jam'),
-            findsOneWidget,
-          );
-        });
-      }
+      testWidgets('Jam · $tag', (tester) async {
+        await pump(tester, _state(jam: true, playing: true));
+        expect(tester.takeException(), isNull);
+        expect(find.text('Aurora Boreal · Jam'), findsOneWidget);
+      });
     }
   });
-}
-
-class _Never implements CoverBackdropSource {
-  final _c = Completer<CoverBackdropData?>();
-  @override
-  String? keyOf(Track track) => track.id;
-  @override
-  CoverBackdropData? peek(Track track) => null;
-  @override
-  Future<CoverBackdropData?> load(Track track) => _c.future;
 }

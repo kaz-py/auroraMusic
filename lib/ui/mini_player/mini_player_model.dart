@@ -209,15 +209,13 @@ bool miniSubtitleIsError(MiniPlayerState s) =>
     s.hasError && !s.adShowing && !s.jamAudio;
 
 /// Línea secundaria única de los cuatro temas. Prioridad: anuncio, Jam,
-/// fallo, artista. Con [artistProminent] (fondo de portada difuminada) el
-/// artista ya es el titular, así que la línea de reserva es la pista.
-String miniSubtitle(MiniPlayerState s, {bool artistProminent = false}) {
-  final track = s.track!;
-  final lead = artistProminent ? track.title : track.artist;
+/// fallo, artista.
+String miniSubtitle(MiniPlayerState s) {
+  final artist = s.track!.artist;
   if (s.adShowing) return miniAdNotice;
-  if (s.jamAudio) return '$lead · Jam';
+  if (s.jamAudio) return '$artist · Jam';
   if (s.hasError) return miniErrorNotice;
-  return lead;
+  return artist;
 }
 
 /// Acciones del mini reproductor. Los temas las invocan; no contienen lógica.
@@ -240,6 +238,7 @@ class MiniPlayerActions {
     this.openEqualizer = _ignoreVoid,
     this.openLyrics = _ignoreVoid,
     this.openMenu,
+    this.openBlurred = _ignoreVoid,
   });
 
   final VoidCallback openPlayer, togglePlay, next, previous, toggleLike;
@@ -263,6 +262,9 @@ class MiniPlayerActions {
   /// Letras (el diálogo que abre el transporte).
   final VoidCallback openLyrics;
 
+  /// Apartado «Modo difuminado» (portada difuminada y letras).
+  final VoidCallback openBlurred;
+
   /// Menú de la canción (compartir, añadir a una lista…) anclado en un punto
   /// de la pantalla; solo con carril. Los temas lo cablean a su portada y
   /// título con `MiniPlayerInfoTap`. `null`: esa zona no hace nada.
@@ -282,6 +284,7 @@ class MiniPlayerActions {
     VoidCallback? openQueue,
     VoidCallback? openLyrics,
     ValueChanged<Offset>? openMenu,
+    VoidCallback? openBlurred,
     VoidCallback? openEqualizer,
   }) {
     final jamAudio = transportJamAudio(c, jam);
@@ -308,6 +311,7 @@ class MiniPlayerActions {
       openQueue: openQueue ?? _ignoreVoid,
       openLyrics: openLyrics ?? _ignoreVoid,
       openMenu: openMenu,
+      openBlurred: openBlurred ?? _ignoreVoid,
       openEqualizer: openEqualizer ?? _ignoreVoid,
       seek: (fraction) {
         final duration = c.audio.duration > Duration.zero

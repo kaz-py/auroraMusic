@@ -681,10 +681,6 @@ class AppController extends ChangeNotifier {
   };
   bool reducedMotion = false;
 
-  /// Mini reproductor y cabecera del reproductor con la portada difuminada de
-  /// fondo (ver `lib/ui/mini_player/blurred_cover_backdrop.dart`). Apagado por
-  /// defecto; vale igual para todos los temas.
-  bool blurredCoverMode = false;
   ThemeMode themeMode = ThemeMode.dark;
 
   /// 'atelier' (por defecto), 'modern', 'brasa' o 'slush'.
@@ -1476,7 +1472,6 @@ class AppController extends ChangeNotifier {
       adaptiveColors = accentPalette == 'automatic';
       accentColor = accentPaletteColors[accentPalette] ?? accentColor;
       reducedMotion = preferences.getBool('reducedMotion') ?? false;
-      blurredCoverMode = preferences.getBool('blurredCoverMode') ?? false;
       experimentalProgressivePlayback =
           source.supportsExperimentalProgressivePlayback &&
           (preferences.getBool('experimentalProgressivePlayback') ?? false);
@@ -3983,13 +3978,6 @@ class AppController extends ChangeNotifier {
       accentColor = accentPaletteColors[value] ?? const Color(0xffe86927);
       _notify();
     }
-  }
-
-  void setBlurredCoverMode(bool value) {
-    if (blurredCoverMode == value) return;
-    blurredCoverMode = value;
-    unawaited(preferences.setBool('blurredCoverMode', value));
-    _notify();
   }
 
   void setReducedMotion(bool value) {

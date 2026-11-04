@@ -64,6 +64,7 @@ class MiniPlayerHost extends StatelessWidget {
     this.jam,
     this.onOpenQueue,
     this.onOpenLyrics,
+    this.onOpenBlurred,
     this.mute,
     this.themes = miniPlayerThemes,
   });
@@ -87,6 +88,9 @@ class MiniPlayerHost extends StatelessWidget {
   /// Sección de cola (5) y letras (el diálogo del transporte); el shell los
   /// pasa. Sin ellos las acciones no hacen nada.
   final VoidCallback? onOpenQueue, onOpenLyrics;
+
+  /// Apartado «Modo difuminado» (sección 15 del shell).
+  final VoidCallback? onOpenBlurred;
 
   /// Memoria de silencio compartida con el atajo del shell.
   final MuteMemory? mute;
@@ -164,9 +168,7 @@ class MiniPlayerHost extends StatelessWidget {
               ? (at) => _openSongMenu(context, c, track, at, openVinyl)
               : null,
         );
-        final blurred =
-            c.blurredCoverMode &&
-            (track.artworkUrl?.trim().isNotEmpty ?? false);
+
         return MiniPlayerGestures(
           actions: actions,
           hasNext: state.hasNext,
@@ -177,13 +179,7 @@ class MiniPlayerHost extends StatelessWidget {
             constraints: BoxConstraints(
               minHeight: heightFor(context, wide: rail),
             ),
-            child: theme.build(
-              context,
-              state,
-              actions,
-              blurred: blurred,
-              wide: rail,
-            ),
+            child: theme.build(context, state, actions, wide: rail),
           ),
         );
       },
@@ -203,6 +199,7 @@ class MiniPlayerHost extends StatelessWidget {
     mute: mute,
     openQueue: onOpenQueue,
     openLyrics: onOpenLyrics,
+    openBlurred: onOpenBlurred,
     openMenu: openMenu,
     openEqualizer: equalizerOpener(context, c),
   );

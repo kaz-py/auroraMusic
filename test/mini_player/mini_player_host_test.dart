@@ -19,7 +19,7 @@ const _track = Track(
 
 class _Seen {
   final kinds = <String>[];
-  bool? blurred, wide;
+  bool? wide;
   MiniPlayerState? state;
   MiniPlayerActions? actions;
   int builds = 0;
@@ -28,10 +28,9 @@ class _Seen {
 Map<String, MiniPlayerTheme> _themes(_Seen seen) => {
   for (final kind in const ['atelier', 'modern', 'brasa', 'slush'])
     kind: MiniPlayerTheme(
-      build: (context, state, actions, {required blurred, required wide}) {
+      build: (context, state, actions, {required wide}) {
         seen
           ..kinds.add(kind)
-          ..blurred = blurred
           ..wide = wide
           ..state = state
           ..actions = actions
@@ -186,13 +185,11 @@ void main() {
       expect(find.byKey(const ValueKey('mini')), findsNothing);
     });
 
-    testWidgets('elige el tema por themeKind y pasa wide y blurred', (
-      tester,
-    ) async {
+    testWidgets('elige el tema por themeKind y pasa wide', (tester) async {
       await setup(tester);
       await mount(tester);
       expect(seen.kinds.last, 'atelier');
-      expect((seen.wide, seen.blurred), (false, false));
+      expect(seen.wide, isFalse);
       await mount(tester, theme: brasaTheme(Brightness.dark, Colors.orange));
       expect(seen.kinds.last, 'brasa');
       await mount(tester, theme: modernTheme(Brightness.light, Colors.teal));
@@ -205,23 +202,19 @@ void main() {
       expect(seen.kinds.last, 'slush');
       expect(find.byKey(const ValueKey('mini')), findsOneWidget);
 
-      controller.setBlurredCoverMode(true);
       await mount(tester, rail: true);
       await tester.pump();
-      expect(seen.blurred, isTrue);
       expect(seen.wide, isTrue);
     });
 
-    testWidgets('con el ajuste activo pero sin portada, blurred es falso', (
+    testWidgets('con carril solo el tema recibe openMenu; en móvil no', (
       tester,
     ) async {
       await setup(tester);
-      controller.queue = [
-        const Track(id: 'a', title: 'Sin portada', artist: 'Aurora'),
-      ];
-      controller.setBlurredCoverMode(true);
       await mount(tester);
-      expect(seen.blurred, isFalse);
+      expect(seen.actions!.openMenu, isNull);
+      await mount(tester, rail: true);
+      expect(seen.actions!.openMenu, isNotNull);
     });
 
     testWidgets('el host envuelve en gestos: toque abre, botón no', (

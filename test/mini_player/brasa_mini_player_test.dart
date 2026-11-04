@@ -1,12 +1,9 @@
-import 'dart:convert';
-import 'dart:ui' as ui;
-
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/theme/brasa_theme.dart';
 import 'package:aurora_music/ui/artwork.dart';
-import 'package:aurora_music/ui/mini_player/blurred_cover_backdrop.dart';
 import 'package:aurora_music/ui/mini_player/brasa_mini_player.dart';
+import 'package:aurora_music/ui/mini_player/cover_tone.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,23 +12,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
 
-const _png =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-
 const _plain = Track(
   id: 'a',
   title: 'Cenizas',
   artist: 'Los Rescoldos',
-  duration: Duration(minutes: 3),
-);
-
-// Portada «con imagen» que no sale a la red: el asset no existe y Artwork
-// cae al marcador.
-const _withCover = Track(
-  id: 'c',
-  title: 'Cenizas',
-  artist: 'Los Rescoldos',
-  artworkUrl: 'asset:none.png',
   duration: Duration(minutes: 3),
 );
 
@@ -87,36 +71,14 @@ MiniPlayerState _state({
   lyricsAvailable: true,
 );
 
-List<Color> _flat(Color c) => List.filled(64, c);
-
-class _Covers implements CoverBackdropSource {
-  _Covers(this.image, this.color);
-  final ui.Image image;
-  final Color color;
-
-  CoverBackdropData get _data =>
-      CoverBackdropData(image: image, samples: _flat(color));
-
-  @override
-  String? keyOf(Track track) => track.artworkUrl == null ? null : track.id;
-
-  @override
-  CoverBackdropData? peek(Track track) => _data;
-
-  @override
-  Future<CoverBackdropData?> load(Track track) async => _data;
-}
-
 Future<void> _mount(
   WidgetTester tester,
   _Calls calls, {
   MiniPlayerState? state,
   double width = 412,
   double scale = 1,
-  bool blurred = false,
   bool? wide,
   bool reduced = false,
-  CoverBackdropSource? covers,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1;
@@ -149,9 +111,7 @@ Future<void> _mount(
                 child: BrasaMiniPlayer(
                   state: s,
                   actions: calls.actions,
-                  blurred: blurred,
                   wide: wide ?? width >= 600,
-                  covers: covers,
                 ),
               ),
             ),
@@ -239,7 +199,7 @@ void main() {
       tester,
     ) async {
       final calls = _Calls();
-      await _mount(tester, calls, width: 900);
+      await _mount(tester, calls, width: 1440);
       expect(find.byTooltip('Pista anterior'), findsOneWidget);
       expect(find.byTooltip('Pista siguiente'), findsOneWidget);
       expect(find.textContaining('1:30'), findsOneWidget);
@@ -346,7 +306,7 @@ void main() {
       await _mount(
         tester,
         calls,
-        width: 900,
+        width: 1440,
         state: _state(hasError: true, isPlaying: true),
       );
       expect(find.byIcon(Icons.replay_rounded), findsOneWidget);
@@ -609,115 +569,6 @@ void main() {
         greaterThanOrEqualTo(4.5),
       );
     });
-
-    group('difuminado', () {
-      late ui.Image image;
-
-      for (final (name, cover) in [
-        ('blanca', Colors.white),
-        ('negra', Colors.black),
-        ('gris medio', const Color(0xff808080)),
-        ('ámbar', const Color(0xffffb04a)),
-      ]) {
-        testWidgets('portada $name: texto ≥ 4,5 y ámbar ≥ 3 sobre su fondo', (
-          tester,
-        ) async {
-          image = (await tester.runAsync(
-            () => decodeImageFromList(base64Decode(_png)),
-          ))!;
-          final calls = _Calls();
-          await _mount(
-            tester,
-            calls,
-            width: 900,
-            blurred: true,
-            state: _state(track: _withCover, isPlaying: true),
-            covers: _Covers(image, cover),
-          );
-          expect(find.byType(RawImage), findsWidgets);
-          final context = tester.element(find.text('LOS RESCOLDOS'));
-          final tone = BlurredCoverTheme.of(context);
-          expect(BlurredCoverTheme.isActive(context), isTrue);
-          final bg = Color.alphaBlend(tone.scrim, cover);
-          final artist = tester.widget<Text>(find.text('LOS RESCOLDOS'));
-          final title = tester.widget<Text>(find.text('Cenizas'));
-          expect(artist.style!.color, tone.foreground);
-          expect(title.style!.color, tone.secondary);
-          expect(
-            coverContrast(artist.style!.color!, bg),
-            greaterThanOrEqualTo(4.5),
-          );
-          expect(
-            coverContrast(title.style!.color!, bg),
-            greaterThanOrEqualTo(4.5),
-          );
-          // Tiempo: ambas partes.
-          expect(coverContrast(tone.secondary, bg), greaterThanOrEqualTo(4.5));
-          // Teclas y línea de brasa llevan un fondo negro al 55-60 %.
-          final backed = Color.alphaBlend(
-            Colors.black.withValues(alpha: .55),
-            bg,
-          );
-          expect(coverContrast(Brasa.accent, backed), greaterThanOrEqualTo(3));
-          // Controles de escritorio: mismo ámbar sobre el mismo fondo negro.
-          final controlsBacking = tester
-              .widgetList<DecoratedBox>(
-                find.ancestor(
-                  of: find.byType(MiniPlayerDesktopControls),
-                  matching: find.byType(DecoratedBox),
-                ),
-              )
-              .map((d) => (d.decoration as BoxDecoration).color)
-              .whereType<Color>()
-              .first;
-          expect(controlsBacking.a, closeTo(.55, .01));
-          expect(tester.takeException(), isNull);
-        });
-      }
-
-      testWidgets('el artista crece y se pone en mayúsculas condensadas', (
-        tester,
-      ) async {
-        image = (await tester.runAsync(
-          () => decodeImageFromList(base64Decode(_png)),
-        ))!;
-        final calls = _Calls();
-        await _mount(tester, calls, state: _state(track: _withCover));
-        final normal = tester.widget<Text>(find.text('LOS RESCOLDOS')).style!;
-        expect(find.byType(RawImage), findsNothing);
-        await _mount(
-          tester,
-          calls,
-          blurred: true,
-          state: _state(track: _withCover),
-          covers: _Covers(image, Colors.black),
-        );
-        final big = tester.widget<Text>(find.text('LOS RESCOLDOS')).style!;
-        expect(big.fontSize! / normal.fontSize!, greaterThan(1.5));
-        expect(big.letterSpacing!, lessThan(0));
-        expect(big.fontWeight, FontWeight.w800);
-        expect(find.byType(RawImage), findsWidgets);
-      });
-
-      testWidgets('difuminado sin desbordes a 360 y texto ×2', (tester) async {
-        image = (await tester.runAsync(
-          () => decodeImageFromList(base64Decode(_png)),
-        ))!;
-        final calls = _Calls();
-        for (final scale in [1.0, 2.0]) {
-          await _mount(
-            tester,
-            calls,
-            width: 360,
-            scale: scale,
-            blurred: true,
-            state: _state(track: _withCover, isPlaying: true),
-            covers: _Covers(image, Colors.white),
-          );
-          expect(tester.takeException(), isNull);
-        }
-      });
-    });
   });
 
   group('con el host', () {
@@ -773,44 +624,25 @@ void main() {
 
   group('anuncio y Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
-      for (final blurred in const [false, true]) {
-        final tag = '360 · ×${scale.toInt()}${blurred ? ' · difuminado' : ''}';
-        Future<void> pump(WidgetTester tester, MiniPlayerState state) async {
-          final image = (await tester.runAsync(
-            () => decodeImageFromList(base64Decode(_png)),
-          ))!;
-          await _mount(
-            tester,
-            _Calls(),
-            width: 360,
-            scale: scale,
-            blurred: blurred,
-            covers: blurred ? _Covers(image, Colors.black) : null,
-            state: state,
-          );
-        }
+      final tag = '360 · ×${scale.toInt()}';
+      Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
+          _mount(tester, _Calls(), width: 360, scale: scale, state: state);
 
-        final track = blurred ? _withCover : _plain;
+      testWidgets('anuncio · $tag', (tester) async {
+        await pump(tester, _state(track: _plain, ad: true, isPlaying: true));
+        expect(tester.takeException(), isNull);
+        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
+        // El artista sigue arriba; el aviso reemplaza a la pista.
+        expect(find.text('LOS RESCOLDOS'), findsOneWidget);
+        expect(find.text('Cenizas'), findsNothing);
+      });
 
-        testWidgets('anuncio · $tag', (tester) async {
-          await pump(tester, _state(track: track, ad: true, isPlaying: true));
-          expect(tester.takeException(), isNull);
-          expect(
-            find.text('Anuncio · tu canción sigue después'),
-            findsOneWidget,
-          );
-          // El artista sigue arriba; el aviso reemplaza a la pista.
-          expect(find.text('LOS RESCOLDOS'), findsOneWidget);
-          expect(find.text('Cenizas'), findsNothing);
-        });
-
-        testWidgets('Jam · $tag', (tester) async {
-          await pump(tester, _state(track: track, jam: true, isPlaying: true));
-          expect(tester.takeException(), isNull);
-          expect(find.text('LOS RESCOLDOS · JAM'), findsOneWidget);
-          expect(find.text('Cenizas'), findsOneWidget);
-        });
-      }
+      testWidgets('Jam · $tag', (tester) async {
+        await pump(tester, _state(track: _plain, jam: true, isPlaying: true));
+        expect(tester.takeException(), isNull);
+        expect(find.text('LOS RESCOLDOS · JAM'), findsOneWidget);
+        expect(find.text('Cenizas'), findsOneWidget);
+      });
     }
   });
 }
