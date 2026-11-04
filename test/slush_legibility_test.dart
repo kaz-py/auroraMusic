@@ -101,14 +101,15 @@ void main() {
             await go(find.text('BIBLIOTECA'), 'Biblioteca');
             await go(find.text('DJ'), 'DJ');
             await go(find.text('JAM'), 'Jam');
-            // Sin barra de transporte: el mini abre Vinilo y de ahí se llega al EQ.
-            await go(
+            // El mini abre el menú de la canción y de ahí se entra a Vinilo y al EQ.
+            await tester.tap(
               find.descendant(
                 of: find.byType(SlushMiniPlayer),
                 matching: find.text('Luz de luna'),
               ),
-              'Vinilo',
             );
+            await tester.pumpAndSettle();
+            await go(find.text('Abrir Modo Vinilo'), 'Vinilo');
             await go(find.text('ECUALIZADOR'), 'EQ+Cola');
             await go(find.byTooltip('Ajustes'), 'Ajustes');
             await go(find.text('DESCARGAS'), 'Descargas');

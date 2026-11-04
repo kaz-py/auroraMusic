@@ -658,8 +658,9 @@ void main() {
         width: 900,
         state: _state(seek: true),
       );
+      // La tarjeta (760 px a 900) empieza en x = 70; un cuarto son 190 px.
       final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
-      await tester.tapAt(top + const Offset(225, 6));
+      await tester.tapAt(top + const Offset(70 + 190, 6 + 6));
       expect(calls.seeks.single, closeTo(.25, .01));
       expect(
         tester.getSemantics(find.bySemanticsLabel('Posición')),

@@ -65,6 +65,11 @@ corresponde a `MiniPlayerHost.placementFor`. Va en flujo, así que el shell
 reserva su altura sin medirla. `MiniPlayerHost.heightFor(context, wide:)` es la
 altura mínima (56 móvil, 64 con carril, hasta ×1,5 con el texto).
 
+Con carril, `onOpenPlayer` ya no se llama al pulsar la barra: el host abre el
+menú de la canción (`TrackActions.showAt`: compartir, enviar a un amigo,
+añadir a una lista…) donde se hizo clic, y `onOpenPlayer` queda como la entrada
+«Abrir Modo Vinilo» del menú. En móvil el toque sigue abriendo el reproductor.
+
 Un tema nuevo se registra en `miniPlayerThemes` con `MiniPlayerTheme(build: ...)`:
 
 ```dart
@@ -118,8 +123,11 @@ conservan el suyo.
 
 ## Brasa (`brasa_mini_player.dart`)
 
-Barra acoplada al borde inferior (esquinas superiores de 6 px, sin flotar),
-60 px en móvil y 64 con carril (×1,5 como máximo con el texto). Siempre oscura
+En móvil, barra acoplada al borde inferior (esquinas superiores de 6 px, sin
+flotar), 60 px y 64 con carril (×1,5 como máximo con el texto). Con carril es una
+tarjeta flotante y centrada como la de Modern (760 px como máximo, 960 desde
+1100 px de ventana) de esquina seca (6 px), con la misma fila compacta: texto,
+hora, corazón, transporte y controles de escritorio. Siempre oscura
 (`Brasa.obsidian`, acento `Brasa.accent`).
 
 - **Progreso**: línea de brasa de 2 px en el borde superior: pista tenue, tramo
@@ -145,9 +153,12 @@ Barra acoplada al borde inferior (esquinas superiores de 6 px, sin flotar),
 
 ## Atelier (`atelier_mini_player.dart`)
 
-Funda de disco acoplada al borde inferior, sin esquinas ni sombra: papel cálido
-(`surfaceContainerLow`; oscuro, carbón cálido). 56 px en móvil y 64 con carril
-(×1,5 como máximo con el texto, que el widget también recorta a ×1,5).
+En móvil, funda de disco acoplada al borde inferior, sin esquinas ni sombra:
+papel cálido (`surfaceContainerLow`; oscuro, carbón cálido). 56 px en móvil y 64
+con carril (×1,5 como máximo con el texto, que el widget también recorta a ×1,5).
+Con carril es una tarjeta flotante y centrada como la de Modern (760 px como
+máximo, 960 desde 1100 px de ventana) con la forma de funda del tema y borde
+`outlineVariant`.
 
 - **Funda**: portada cuadrada (46 px, 54 con carril, radio 6) con un vinilo que
   asoma por la derecha (disco negro, surcos, dos reflejos y etiqueta de acento).

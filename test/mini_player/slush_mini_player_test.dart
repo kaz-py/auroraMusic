@@ -314,7 +314,14 @@ void main() {
         // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
         await tester.tapAt(const Offset(20, 790));
         expect(calls.count('open'), 0);
+        // Con carril el clic abre el menú de la canción; el Vinilo es una
+        // entrada del menú.
         await tester.tap(find.text('Luz de luna'));
+        await tester.pumpAndSettle();
+        expect(calls.count('open'), 0);
+        expect(find.text('Compartir'), findsOneWidget);
+        await tester.tap(find.text('Abrir Modo Vinilo'));
+        await tester.pumpAndSettle();
         expect(calls.count('open'), 1);
       },
     );

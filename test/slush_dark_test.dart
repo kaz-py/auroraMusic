@@ -92,14 +92,15 @@ void main() {
         await go(find.text('BUSCAR'), SlushPage);
         await go(find.text('DJ'), SlushDj);
         await go(find.text('JAM'), SlushJamIdle);
-        // Sin barra de transporte: el mini abre Vinilo y de ahí se llega al EQ.
-        await go(
+        // El mini abre el menú de la canción y de ahí se entra a Vinilo y al EQ.
+        await tester.tap(
           find.descendant(
             of: find.byType(SlushMiniPlayer),
             matching: find.text('Luz de luna'),
           ),
-          SlushPlayerScreen,
         );
+        await tester.pumpAndSettle();
+        await go(find.text('Abrir Modo Vinilo'), SlushPlayerScreen);
         await go(find.text('ECUALIZADOR'), SlushEqQueue);
         double lum(Color a, Color b) {
           final l1 = a.computeLuminance(), l2 = b.computeLuminance();

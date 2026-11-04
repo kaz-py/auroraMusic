@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app_controller.dart';
+import '../../core/models.dart';
 import '../../jam/jam_controller.dart';
 import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/slush_theme.dart';
+import '../track_actions.dart';
 import 'atelier_mini_player.dart';
 import 'brasa_mini_player.dart';
 import 'mini_player_gestures.dart';
@@ -147,25 +151,37 @@ class MiniPlayerHost extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final track = state.track!;
-        final actions = _actions(context, c, openVinyl);
+        // Con carril (escritorio) el clic en la barra abre el menú de la
+        // canción (compartir, enviar a un amigo, añadir a una lista…) donde se
+        // pulsó; el modo Vinilo queda como entrada del menú. En móvil el toque
+        // sigue llevando al reproductor.
+        final pointer = _Pointer();
+        final open = rail
+            ? () => _openSongMenu(context, c, track, pointer.at, openVinyl)
+            : openVinyl;
+        final actions = _actions(context, c, open);
         final blurred =
             c.blurredCoverMode &&
             (track.artworkUrl?.trim().isNotEmpty ?? false);
-        return MiniPlayerGestures(
-          actions: actions,
-          hasNext: state.hasNext,
-          hasPrevious: state.hasPrevious,
-          semanticsLabel: 'Mini reproductor: ${track.title}, ${track.artist}',
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: heightFor(context, wide: rail),
-            ),
-            child: theme.build(
-              context,
-              state,
-              actions,
-              blurred: blurred,
-              wide: rail,
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (e) => pointer.at = e.position,
+          child: MiniPlayerGestures(
+            actions: actions,
+            hasNext: state.hasNext,
+            hasPrevious: state.hasPrevious,
+            semanticsLabel: 'Mini reproductor: ${track.title}, ${track.artist}',
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: heightFor(context, wide: rail),
+              ),
+              child: theme.build(
+                context,
+                state,
+                actions,
+                blurred: blurred,
+                wide: rail,
+              ),
             ),
           ),
         );
@@ -188,3 +204,21 @@ class MiniPlayerHost extends StatelessWidget {
     openEqualizer: equalizerOpener(context, c),
   );
 }
+
+/// Último punto pulsado sobre la barra (para abrir el menú donde se hizo clic).
+class _Pointer {
+  Offset at = Offset.zero;
+}
+
+void _openSongMenu(
+  BuildContext context,
+  AppController c,
+  Track track,
+  Offset at,
+  VoidCallback openVinyl,
+) => unawaited(
+  TrackActions(
+    context,
+    c,
+  ).showAt(at, track, extras: [(label: 'Abrir Modo Vinilo', run: openVinyl)]),
+);

@@ -122,23 +122,55 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
       );
     }
 
-    return Material(
-      color: Brasa.obsidian,
-      clipBehavior: Clip.antiAlias,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(_corner)),
-      ),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: blurred
-            ? BlurredCoverBackdrop(
-                track: track,
-                source: widget.covers,
-                matchTheme: true,
-                child: Builder(builder: content),
-              )
-            : Builder(builder: content),
+    final body = MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: blurred
+          ? BlurredCoverBackdrop(
+              track: track,
+              source: widget.covers,
+              matchTheme: true,
+              child: Builder(builder: content),
+            )
+          : Builder(builder: content),
+    );
+    if (!widget.wide) {
+      return Material(
+        color: Brasa.obsidian,
+        clipBehavior: Clip.antiAlias,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(_corner)),
+        ),
+        child: body,
+      );
+    }
+    // Escritorio: tarjeta flotante y centrada (como la de Modern), de esquina
+    // seca (6 px) y con la línea de brasa arriba.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width >= 1100 ? 960 : 760,
+          ),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(_corner)),
+              boxShadow: Brasa.cardShadow,
+            ),
+            child: Material(
+              color: Brasa.obsidian,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(_corner),
+                side: BorderSide(color: Colors.white.withValues(alpha: .08)),
+              ),
+              child: body,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -189,13 +221,15 @@ class _Row extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final timeWidth = 80.0 * textScale + 8;
-        // Controles de escritorio: completos desde 900 px, sin slider debajo.
-        final compactControls = c.maxWidth < 900;
+        // Controles de escritorio: completos desde 700 px de tarjeta (la de
+        // 900 px de ventana mide 760), sin slider por debajo.
+        final compactControls = c.maxWidth < 700;
         final controlsWidth = compactControls ? 176.0 : 272.0;
         final showNext = wide || c.maxWidth >= _kNextMinInner;
         // Ancho que se reserva al bloque de texto antes de sumar la hora.
         final fixed = wide
-            ? 300.0 + controlsWidth + 1
+            // Relleno, portada, corazón, 3 botones de transporte y huecos.
+            ? 222.0 + controlsWidth
             : showNext
             ? 200.0
             : 156.0;
@@ -254,58 +288,32 @@ class _Row extends StatelessWidget {
             ),
           );
         }
-        final divider = Container(
-          width: 1,
-          height: 32,
-          color: Colors.white.withValues(alpha: blurred ? .22 : .10),
-        );
+        // Escritorio: misma fila compacta que Modern (texto, hora, corazón,
+        // transporte y controles), sin columnas separadas por divisores.
         return Padding(
           padding: const EdgeInsets.only(left: 14, right: 8),
           child: Row(
             children: [
-              Expanded(
-                flex: 3,
-                child: Row(
-                  children: [
-                    Expanded(child: info),
-                    heart,
-                    const SizedBox(width: 6),
-                  ],
+              Expanded(child: info),
+              if (showTime) ...[const SizedBox(width: 8), time],
+              const SizedBox(width: 4),
+              heart,
+              const SizedBox(width: 4),
+              _Key(
+                label: state.previousLabel('Pista anterior'),
+                onTap: state.hasPrevious ? actions.previous : null,
+                backing: blurred,
+                icon: Icon(
+                  Icons.skip_previous_rounded,
+                  size: 22,
+                  color: tone.foreground,
                 ),
               ),
-              divider,
-              Expanded(
-                flex: 2,
-                child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _Key(
-                        label: state.previousLabel('Pista anterior'),
-                        onTap: state.hasPrevious ? actions.previous : null,
-                        backing: blurred,
-                        icon: Icon(
-                          Icons.skip_previous_rounded,
-                          size: 22,
-                          color: tone.foreground,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      play,
-                      const SizedBox(width: 4),
-                      next,
-                    ],
-                  ),
-                ),
-              ),
-              if (showTime) ...[
-                divider,
-                SizedBox(
-                  width: timeWidth + 16,
-                  child: Align(alignment: Alignment.centerRight, child: time),
-                ),
-              ],
-              divider,
+              const SizedBox(width: 4),
+              play,
+              const SizedBox(width: 4),
+              next,
+              const SizedBox(width: 8),
               SizedBox(
                 width: controlsWidth,
                 child: DecoratedBox(

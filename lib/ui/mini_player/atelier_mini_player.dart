@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../artwork.dart';
+import '../studio/studio_components.dart';
 import '../studio/studio_symbols.dart';
 import 'blurred_cover_backdrop.dart';
 import 'mini_player_desktop_controls.dart';
@@ -86,16 +87,56 @@ class AtelierMiniPlayer extends StatelessWidget {
             minHeight: (wide ? 64.0 : 56.0) * scale,
             scale: scale,
           );
-          return ColoredBox(
-            color: paper,
-            child: blurred
-                ? BlurredCoverBackdrop(
-                    track: track,
-                    source: source,
-                    matchTheme: true,
-                    child: dock,
-                  )
-                : dock,
+          final backdrop = blurred
+              ? BlurredCoverBackdrop(
+                  track: track,
+                  source: source,
+                  matchTheme: true,
+                  child: dock,
+                )
+              : dock;
+          if (!wide) return ColoredBox(color: paper, child: backdrop);
+          // Escritorio: tarjeta flotante y centrada (como la de Modern) con la
+          // forma de funda del tema, en vez de una barra de borde a borde.
+          final scheme = Theme.of(context).colorScheme;
+          const radius = StudioPalette.sleeve;
+          final card = DecoratedBox(
+            decoration: BoxDecoration(
+              color: paper,
+              borderRadius: radius,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: scheme.brightness == Brightness.dark ? .38 : .10,
+                  ),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: ClipRRect(borderRadius: radius, child: backdrop),
+            ),
+          );
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width >= 1100
+                      ? 960
+                      : 760,
+                ),
+                child: card,
+              ),
+            ),
           );
         },
       ),
