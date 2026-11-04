@@ -35,7 +35,7 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 - **Temas** Modern (por defecto), Atelier, Brasa y Slush, con logo propio.
 - **Aleatorio** que no gasta las canciones saltadas: siguen en la cola y pueden volver a salir (nunca dos veces seguidas).
 - **Cuenta Aurora** (Supabase, gratis): correo, contraseña y nombre de usuario, foto de perfil (genérica hasta que subas una; la anterior se borra del almacenamiento). Sincroniza me gusta, playlists, historial y perfil de gustos del DJ entre dispositivos.
-- **Amigos**: solicitudes por nombre de usuario; envía canciones y playlists o invita a tu Jam en línea. Llegan a una bandeja en tiempo real con aviso en la app.
+- **Amigos**: solicitudes por nombre de usuario; envía canciones y playlists o invita a tu Jam en línea (con una nota opcional de 200 caracteres). La pestaña «Chats» guarda el historial de envíos con cada amigo, en los dos sentidos, con un diseño propio por tema; las invitaciones a Jam desaparecen a las 2 h. Llegan en tiempo real con aviso en la app.
 - **Last.fm**: cada usuario conecta su cuenta para registrar lo que escucha (scrobbling), ver sus estadísticas en Perfil y alimentar el DJ. La contraseña solo se usa para iniciar sesión y no se guarda.
 - **Discord y Duvet**: muestran «Escuchando Aurora Music» con canción, artista, tiempo y portada (Windows y Linux); en una Jam indica que escuchas en grupo.
 

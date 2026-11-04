@@ -16,13 +16,14 @@ otro tema, otra anchura o el texto grande sin que nadie lo note.
 Matriz completa: Atelier, Modern y Slush en claro y oscuro, Brasa solo oscuro ·
 360×740, 412×915, 600×960, 900×700, 1440×900, 1920×1080 · escala de texto 1.0 y
 2.0 · Inicio, Búsqueda, Biblioteca, DJ, Jam, Cola/EQ, Vinilo, Ajustes,
-Descargas, Artistas, Amigos, Letras y Ecualizador.
+Descargas, Artistas, Amigos, Chat (hilo abierto con un amigo de prueba),
+Letras y Ecualizador.
 
 ## Niveles
 
 * **quick** (por defecto; lo ejecuta `flutter test`): 360/900/1440 × escala 1 y 2
   × Slush claro/oscuro + Atelier claro × Inicio, Búsqueda, DJ, Jam, Cola/EQ,
-  Vinilo. Unos 15-30 s.
+  Vinilo, Amigos y Chat. Unos 15-30 s.
 * **full**: todo lo anterior. Bajo demanda:
 
 ```
@@ -76,8 +77,8 @@ por otro `flutter test`) `build/native_assets/windows/sqlite3.dll`.
 
 ## Estado del nivel full
 
-El nivel full no está inventariado: solo quick es el gate del hook y el único
-que se ha ejecutado completo y está en verde. Full es lento (84 casos × 13
-pantallas) y puede destapar fallos de Modern, Brasa y de otras anchuras que aún
-no figuran en `known_issues.dart`; trátalos como pendientes, no como regresión.
-Las pantallas con animación infinita se miden tras 3 s sin estabilizarse.
+El nivel full está inventariado y en verde en los 4 temas y 42 rebanadas
+(`--plain-name "guarda full: <tema>/<modo> <ancho>x<alto>"`, una por variante y
+tamaño, en serie: varios `flutter test` a la vez en el mismo worktree se pelean
+por `build/` y `sqlite3.dll`). `known_issues.dart` está vacío. Las pantallas con
+animación infinita se miden tras 3 s sin estabilizarse.
