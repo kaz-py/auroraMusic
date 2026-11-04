@@ -8,7 +8,7 @@ import '../../jam/jam_controller.dart';
 import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/slush_theme.dart';
-import '../track_actions.dart';
+import 'song_card.dart';
 import 'atelier_mini_player.dart';
 import 'brasa_mini_player.dart';
 import 'mini_player_gestures.dart';
@@ -220,12 +220,19 @@ void _openSongMenu(
   VoidCallback openVinyl,
   VoidCallback? openMini,
 ) => unawaited(
-  TrackActions(context, c).showAt(
-    at,
+  showSongCard(
+    context,
+    c,
     track,
+    at,
     extras: [
-      (label: 'Abrir Modo Vinilo', run: openVinyl),
-      if (openMini != null) (label: 'Abrir el mini reproductor', run: openMini),
+      (label: 'Abrir Modo Vinilo', icon: Icons.album_outlined, run: openVinyl),
+      if (openMini != null)
+        (
+          label: 'Abrir el mini reproductor',
+          icon: Icons.picture_in_picture_alt_rounded,
+          run: openMini,
+        ),
     ],
   ),
 );
