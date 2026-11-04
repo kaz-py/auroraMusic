@@ -226,3 +226,24 @@ lleva lo que ese transporte ofrecía:
   slider (también con `compact: true`) y a un menú «⋯»; nunca desborda. Colóquelo
   en un `SizedBox`/`Flexible`. `color` lo da el tema (contraste ≥ 3 con su
   fondo; los botones desactivados se atenúan).
+
+## Modo mini (ventana compacta, solo Windows)
+
+Como el «Miniplayer» de Spotify: reduce la ventana a una tarjeta de 380×150
+(mínimo 300×120) siempre visible (`HWND_TOPMOST`) abajo a la derecha del
+monitor, con portada, título, artista, progreso arrastrable y favorito /
+anterior / play / siguiente (`lib/ui/mini_window.dart`, `MiniWindowView`).
+
+- Se activa con el interruptor «Mini reproductor» de Ajustes o con «Abrir el
+  mini reproductor» en el menú de la canción (clic en la portada/título de la
+  barra). Se sale con el botón de la tarjeta («Salir del mini reproductor») o
+  con el interruptor. No se recuerda: al abrir la app la ventana es la normal.
+- Nativo: canal `aurora/window`, método `setMini` (`enabled`, `width`,
+  `height` en px lógicos). Al entrar guarda `WINDOWPLACEMENT` y al salir lo
+  restaura; en modo mini no se actualiza la geometría guardada y
+  `FillMinMaxInfo` usa el mínimo del mini (`SetMiniMode`).
+- Los permisos de la Jam y los errores salen de `MiniPlayerState` y
+  `MiniPlayerActions`, igual que la barra. Arrastrar el fondo mueve la ventana.
+- Pruebas: `test/mini_window_test.dart` (vista, tamaños y flujo con el canal
+  falso). El comportamiento nativo (ventana siempre visible, restauración) solo
+  se comprueba a mano.

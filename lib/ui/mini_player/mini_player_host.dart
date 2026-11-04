@@ -65,6 +65,7 @@ class MiniPlayerHost extends StatelessWidget {
     this.onOpenQueue,
     this.onOpenLyrics,
     this.onOpenBlurred,
+    this.onOpenMini,
     this.mute,
     this.themes = miniPlayerThemes,
   });
@@ -91,6 +92,10 @@ class MiniPlayerHost extends StatelessWidget {
 
   /// Apartado «Modo difuminado» (sección 15 del shell).
   final VoidCallback? onOpenBlurred;
+
+  /// Modo mini (ventana compacta, solo Windows): entrada del menú de la
+  /// canción. `null`: no hay ventana que reducir.
+  final VoidCallback? onOpenMini;
 
   /// Memoria de silencio compartida con el atajo del shell.
   final MuteMemory? mute;
@@ -165,7 +170,8 @@ class MiniPlayerHost extends StatelessWidget {
           c,
           openVinyl,
           openMenu: rail
-              ? (at) => _openSongMenu(context, c, track, at, openVinyl)
+              ? (at) =>
+                    _openSongMenu(context, c, track, at, openVinyl, onOpenMini)
               : null,
         );
 
@@ -211,9 +217,14 @@ void _openSongMenu(
   Track track,
   Offset at,
   VoidCallback openVinyl,
+  VoidCallback? openMini,
 ) => unawaited(
-  TrackActions(
-    context,
-    c,
-  ).showAt(at, track, extras: [(label: 'Abrir Modo Vinilo', run: openVinyl)]),
+  TrackActions(context, c).showAt(
+    at,
+    track,
+    extras: [
+      (label: 'Abrir Modo Vinilo', run: openVinyl),
+      if (openMini != null) (label: 'Abrir el mini reproductor', run: openMini),
+    ],
+  ),
 );

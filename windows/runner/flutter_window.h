@@ -51,6 +51,9 @@ class FlutterWindow : public Win32Window {
   RECT normal_rect_ = {};
   bool saved_maximized_ = false;
   bool has_saved_geometry_ = false;
+  // Modo mini (ventana compacta): guarda la colocacion para restaurarla.
+  bool mini_active_ = false;
+  WINDOWPLACEMENT mini_restore_ = {};
 
   void AddTray();
   void UpdateTrayTip();

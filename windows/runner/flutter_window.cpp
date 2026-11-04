@@ -180,6 +180,50 @@ bool FlutterWindow::OnCreate() {
             result->Error("autostart", "No se pudo cambiar el inicio con Windows");
             return;
           }
+        } else if (name == "setMini") {
+          // Modo mini: ventana compacta siempre visible, abajo a la derecha del
+          // monitor; al salir se restaura la posicion y el tamano previos.
+          const auto* map =
+              args ? std::get_if<flutter::EncodableMap>(args) : nullptr;
+          auto number = [map](const char* key, int fallback) {
+            if (!map) return fallback;
+            auto it = map->find(flutter::EncodableValue(key));
+            const auto* v =
+                it == map->end() ? nullptr : std::get_if<int32_t>(&it->second);
+            return v ? static_cast<int>(*v) : fallback;
+          };
+          const bool enabled = [map] {
+            if (!map) return false;
+            auto it = map->find(flutter::EncodableValue("enabled"));
+            const auto* b =
+                it == map->end() ? nullptr : std::get_if<bool>(&it->second);
+            return b && *b;
+          }();
+          if (enabled) {
+            if (!mini_active_) {
+              mini_restore_.length = sizeof(mini_restore_);
+              GetWindowPlacement(host, &mini_restore_);
+              mini_active_ = true;
+              SetMiniMode(true);
+              if (IsZoomed(host) || IsIconic(host)) ShowWindow(host, SW_RESTORE);
+              UINT dpi = GetDpiForWindow(host);
+              if (dpi < 96) dpi = 96;
+              const int w = MulDiv(number("width", 380), dpi, 96);
+              const int h = MulDiv(number("height", 150), dpi, 96);
+              MONITORINFO mi{sizeof(mi)};
+              GetMonitorInfoW(MonitorFromWindow(host, MONITOR_DEFAULTTONEAREST),
+                              &mi);
+              const int margin = MulDiv(16, dpi, 96);
+              SetWindowPos(host, HWND_TOPMOST, mi.rcWork.right - w - margin,
+                           mi.rcWork.bottom - h - margin, w, h, SWP_SHOWWINDOW);
+            }
+          } else if (mini_active_) {
+            mini_active_ = false;
+            SetMiniMode(false);
+            SetWindowPos(host, HWND_NOTOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            SetWindowPlacement(host, &mini_restore_);
+          }
         } else {
           result->NotImplemented();
           return;
@@ -468,7 +512,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     // (ni arriba ni a los lados) que DWM pinte al activar o redimensionar.
     return 0;
   } else if ((message == WM_MOVE || message == WM_SIZE) && IsWindowVisible(hwnd) &&
-             !IsZoomed(hwnd) && !IsIconic(hwnd)) {
+             !IsZoomed(hwnd) && !IsIconic(hwnd) && !mini_active_) {
     GetWindowRect(hwnd, &normal_rect_);
   }
 

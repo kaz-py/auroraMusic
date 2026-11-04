@@ -34,6 +34,8 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 - Paletas Automático, Morado, Terracota, Ámbar y Verde bosque para toda la interfaz.
 - **Temas** Modern (por defecto), Atelier, Brasa y Slush, con logo propio.
 - **Aleatorio** que no gasta las canciones saltadas: siguen en la cola y pueden volver a salir (nunca dos veces seguidas).
+- **Mini reproductor** (Windows): ventana compacta siempre visible con portada, progreso y controles, como el Miniplayer de Spotify; se activa en Ajustes o desde el menú de la canción (clic en la portada o el título de la barra de abajo).
+- **Modo difuminado**: apartado con la portada difuminada de fondo y las letras, desde el botón de la barra de abajo.
 - **Cuenta Aurora** (Supabase, gratis): correo, contraseña y nombre de usuario, foto de perfil (genérica hasta que subas una; la anterior se borra del almacenamiento). Sincroniza me gusta, playlists, historial y perfil de gustos del DJ entre dispositivos.
 - **Amigos**: solicitudes por nombre de usuario; envía canciones y playlists o invita a tu Jam en línea (con una nota opcional de 200 caracteres). La pestaña «Chats» guarda el historial de envíos con cada amigo, en los dos sentidos, con un diseño propio por tema; las invitaciones a Jam desaparecen a las 2 h. Llegan en tiempo real con aviso en la app.
 - **Last.fm**: cada usuario conecta su cuenta para registrar lo que escucha (scrobbling), ver sus estadísticas en Perfil y alimentar el DJ. La contraseña solo se usa para iniciar sesión y no se guarda.

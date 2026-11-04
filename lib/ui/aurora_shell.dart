@@ -44,6 +44,7 @@ import '../shortcuts/shortcut_host.dart';
 import '../shortcuts/shortcut_service.dart';
 import 'lyrics_panel.dart';
 import 'blurred_now_playing.dart';
+import 'mini_window.dart';
 import 'shortcuts_settings_panel.dart';
 import 'artwork.dart';
 import 'dj_discovery_page.dart';
@@ -146,6 +147,18 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   /// Amigo con el chat abierto en Amigos (`null`: la lista). Lo comparten
   /// los avisos y «atrás».
   final _friendsChat = ValueNotifier<String?>(null);
+
+  /// Modo mini (ventana compacta, solo Windows): `MiniWindowView` sustituye al
+  /// shell mientras está activo.
+  bool _miniWindow = false;
+
+  Future<void> _setMiniWindow(bool on) async {
+    if (_miniWindow == on) return;
+    final done = await WindowControls.setMiniWindow(on);
+    // Al salir se vuelve aunque falle la ventana nativa: no atrapa al usuario.
+    if (!mounted || (on && !done)) return;
+    setState(() => _miniWindow = on);
+  }
 
   /// Un único controlador de Jam para chip, barra inferior, panel y página.
   JamController _ensureJam() {
@@ -864,12 +877,22 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       },
       child: shell,
     );
-    if (web == null) return guarded;
+    // Modo mini: la ventana compacta sustituye al shell (que conserva su
+    // estado) mientras está activo.
+    final content = _miniWindow
+        ? MiniWindowView(
+            controller: c,
+            jam: _jam,
+            onTogglePlay: () => _togglePlay(c),
+            onExit: () => unawaited(_setMiniWindow(false)),
+          )
+        : guarded;
+    if (web == null) return content;
     return ListenableBuilder(
       listenable: web,
       builder: (context, _) => Stack(
         fit: StackFit.expand,
-        children: [guarded, ..._webEngineLayers(web)],
+        children: [content, ..._webEngineLayers(web)],
       ),
     );
   }
@@ -2836,6 +2859,22 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         ],
       ),
+      if (WindowControls.supported)
+        (
+          title: 'Mini reproductor',
+          subtitle: 'Ventana compacta siempre visible',
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Mini reproductor'),
+              subtitle: const Text(
+                'Reduce la ventana a una tarjeta siempre visible con la portada, el progreso y los controles. Se sale con el botón de la tarjeta.',
+              ),
+              value: _miniWindow,
+              onChanged: (on) => unawaited(_setMiniWindow(on)),
+            ),
+          ],
+        ),
       if (WindowControls.supported || DuvetPresence.platformSupported)
         (
           title: WindowControls.supported ? 'Ventana y bandeja' : 'Duvet',
@@ -3094,6 +3133,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     onOpenQueue: () => _navigate(5),
     onOpenLyrics: () => _showLyrics(c),
     onOpenBlurred: () => _navigate(15),
+    onOpenMini: WindowControls.supported
+        ? () => unawaited(_setMiniWindow(true))
+        : null,
     mute: _mute,
   );
 
