@@ -149,7 +149,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
 
   /// Barra superior: zona de arrastre (la ventana no tiene marco), salir del
   /// modo y, en Windows, minimizar / maximizar / cerrar la ventana.
-  Widget _topBar() {
+  Widget _topBar(BuildContext context, CoverTone tone, bool compact) {
     ButtonStyle style() => IconButton.styleFrom(
       minimumSize: const Size.square(44),
       fixedSize: const Size.square(44),
@@ -157,6 +157,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
     );
     return Row(
       children: [
+        _exit(context, tone, compact),
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
@@ -164,12 +165,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
             onDoubleTap: () => WindowControls.invoke('maximize'),
             child: const SizedBox(height: 44),
           ),
-        ),
-        IconButton(
-          tooltip: 'Salir del modo artista',
-          onPressed: widget.onClose,
-          icon: const Icon(Icons.fullscreen_exit_rounded),
-          style: style(),
         ),
         if (WindowControls.supported) ...[
           IconButton(
@@ -194,6 +189,49 @@ class _ArtistModePageState extends State<ArtistModePage> {
       ],
     );
   }
+
+  /// Botón de salir: con texto y flecha, arriba a la izquierda, donde se busca
+  /// el «volver» (un icono suelto no se entiende). Esc hace lo mismo.
+  Widget _exit(BuildContext context, CoverTone tone, bool compact) => Tooltip(
+    message: 'Salir del modo artista',
+    child: Semantics(
+      button: true,
+      label: 'Salir del modo artista',
+      excludeSemantics: true,
+      child: Material(
+        color: tone.foreground.withValues(alpha: .16),
+        shape: const StadiumBorder(),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: widget.onClose,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: tone.foreground,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    compact ? 'Salir' : 'Salir del modo artista',
+                    style: TextStyle(
+                      color: tone.foreground,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _frame(
     BuildContext context,
@@ -220,7 +258,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
                 ),
                 child: Column(
                   children: [
-                    _topBar(),
+                    _topBar(context, tone, compact),
                     Expanded(
                       child: track == null
                           ? Center(
