@@ -234,6 +234,8 @@ class StudioHomeIntroduction extends StatelessWidget {
 
   Widget _modern(BuildContext context, Track? track) {
     final width = MediaQuery.sizeOf(context).width;
+    // Android/estrecho: sin saludo ni titular, solo el botón y los ánimos.
+    final compactModern = !isSlush(context) && width < 600;
     final moods = <(IconData, String, VoidCallback)>[
       (
         StudioSymbols.waterDrop,
@@ -264,34 +266,36 @@ class StudioHomeIntroduction extends StatelessWidget {
     final left = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isSlush(context))
-          Row(
-            children: [
-              SlushPill(studioGreeting(studioClock())),
-              const SizedBox(width: 12),
-              const SlushSticker('NUEVO', size: 64),
-            ],
-          )
-        else
-          ModernBadge(studioGreeting(studioClock()), tone: ModernTone.mint),
-        const SizedBox(height: 20),
-        ModernHeadline(
-          before: 'Tu ',
-          emphasis: 'música',
-          after: ', siempre',
-          size: width < 600 ? 40 : 60,
-        ),
-        const SizedBox(height: 16),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Text(
-            'Escucha lo que amas, descubre lo que viene y deja que el DJ siga por ti.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+        if (!compactModern) ...[
+          if (isSlush(context))
+            Row(
+              children: [
+                SlushPill(studioGreeting(studioClock())),
+                const SizedBox(width: 12),
+                const SlushSticker('NUEVO', size: 64),
+              ],
+            )
+          else
+            ModernBadge(studioGreeting(studioClock()), tone: ModernTone.mint),
+          const SizedBox(height: 20),
+          ModernHeadline(
+            before: 'Tu ',
+            emphasis: 'música',
+            after: ', siempre',
+            size: width < 600 ? 40 : 60,
+          ),
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Text(
+              'Escucha lo que amas, descubre lo que viene y deja que el DJ siga por ti.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
+          const SizedBox(height: 24),
+        ],
         FilledButton.icon(
           onPressed: onSearch,
           icon: const Icon(StudioSymbols.search),

@@ -13,6 +13,7 @@ import '../../theme/accent_transition.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import '../mini_player/mini_player_model.dart';
+import '../mini_player/song_card.dart';
 import '../studio/studio_transport.dart' show transportJamAudio;
 
 /// Reproductor Vinilo + Letras del tema Slush (escritorio y móvil).
@@ -1534,6 +1535,26 @@ class SlushPlayerScreen extends StatelessWidget {
                                 icon: Icons.nightlight_round,
                                 size: SlushControl.touch,
                                 onTap: null,
+                              ),
+                            ),
+                            Builder(
+                              builder: (b) => circle(
+                                Icons.more_horiz_rounded,
+                                track == null
+                                    ? null
+                                    : () {
+                                        final box =
+                                            b.findRenderObject() as RenderBox;
+                                        showSongCard(
+                                          context,
+                                          c,
+                                          track!,
+                                          box.localToGlobal(
+                                            box.size.bottomLeft(Offset.zero),
+                                          ),
+                                        );
+                                      },
+                                'Más acciones',
                               ),
                             ),
                           ],

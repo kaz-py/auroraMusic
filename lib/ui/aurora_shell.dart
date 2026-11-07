@@ -79,6 +79,7 @@ import 'artists_page.dart';
 import 'follow_widgets.dart';
 import '../follow/follow_providers.dart';
 import 'track_actions.dart';
+import 'mini_player/song_card.dart';
 import 'friends_page.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
@@ -517,9 +518,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     await jam.togglePlayback();
     final message = jam.error;
     if (message != null && mounted) {
-      ScaffoldMessenger.maybeOf(
-        context,
-      )?.showSnackBar(SnackBar(content: Text(message)));
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(message));
     }
   }
 
@@ -1160,7 +1159,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     return !rail &&
             isSlush(context) &&
             ((_section == 0 && _playlist == null) || _slushOwned)
-        ? SlushMobileTopBar(onSettings: () => _navigate(7), onMore: _navigate)
+        ? SlushMobileTopBar(
+            onSettings: () => _navigate(7),
+            onMore: _navigate,
+            friendsBadge: _friendsBadge,
+          )
         : _headerBar(c, rail);
   }
 
@@ -1254,7 +1257,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       children: [
         if (!rail) ...[const AuroraLogo(size: 28), const SizedBox(width: 10)],
         Expanded(
-          child: isModern(context)
+          child: !rail && isModern(context)
+              ? const SizedBox.shrink()
+              : isModern(context)
               ? _modernTitle(
                   (_playlist == null
                           ? null
@@ -1298,13 +1303,33 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             onPressed: () => _navigate(7),
             icon: const Icon(Icons.tune),
           ),
+        if (!rail && _section == 4 && !isSlush(context) && c.nowTrack != null)
+          Builder(
+            builder: (b) => IconButton(
+              tooltip: 'Más acciones',
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: () {
+                final box = b.findRenderObject() as RenderBox;
+                showSongCard(
+                  context,
+                  c,
+                  c.nowTrack!,
+                  box.localToGlobal(box.size.bottomLeft(Offset.zero)),
+                );
+              },
+            ),
+          ),
         if (!rail)
           PopupMenuButton<int>(
             tooltip: 'Más vistas',
-            icon: const Icon(Icons.more_horiz),
+            icon: Badge(
+              isLabelVisible: _friendsBadge > 0,
+              label: Text('$_friendsBadge'),
+              child: const Icon(Icons.more_horiz),
+            ),
             onSelected: (v) =>
                 v == -1 ? (c.ready ? c.importFiles() : null) : _navigate(v),
-            itemBuilder: (_) => const [
+            itemBuilder: (_) => [
               PopupMenuItem(
                 value: -1,
                 child: ListTile(
@@ -1335,6 +1360,18 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.groups_outlined),
                   title: Text('Jam'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 14,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Badge(
+                    isLabelVisible: _friendsBadge > 0,
+                    label: Text('$_friendsBadge'),
+                    child: const Icon(Icons.people_outline),
+                  ),
+                  title: const Text('Amigos'),
                 ),
               ),
               PopupMenuItem(
@@ -3238,15 +3275,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     final created = c.playlists.where((p) => p.name == name.trim()).lastOrNull;
     if (created == null || !mounted) return;
     // Paso opcional: ofrecer la foto justo al crear.
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Lista «${created.name}» creada'),
-        action: SnackBarAction(
-          label: 'Añadir foto',
-          onPressed: () => changePlaylistPhoto(context, c, created),
-        ),
-      ),
+    showUndoSnackBar(
+      ScaffoldMessenger.of(context),
+      Text('Lista «${created.name}» creada'),
+      label: 'Añadir foto',
+      onAction: () => changePlaylistPhoto(context, c, created),
+      duration: const Duration(seconds: 6),
     );
   }
 
@@ -3334,9 +3368,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     if (!mounted) return;
     if (result == null) {
       if (c.error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(c.error!)));
+        showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(c.error!));
         c.clearError();
       }
       return;
@@ -3347,9 +3379,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       onImport: c.importSpotifyPlaylists,
     );
     if (!mounted || c.error == null) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(c.error!)));
+    showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(c.error!));
     c.clearError();
   }
 

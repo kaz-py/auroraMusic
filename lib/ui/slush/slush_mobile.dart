@@ -24,9 +24,11 @@ class SlushMobileTopBar extends StatelessWidget {
     super.key,
     required this.onSettings,
     required this.onMore,
+    this.friendsBadge = 0,
   });
   final VoidCallback onSettings;
   final ValueChanged<int> onMore;
+  final int friendsBadge;
 
   static const _more = <(int, IconData, String)>[
     (3, Icons.download_outlined, 'Descargas'),
@@ -57,7 +59,14 @@ class SlushMobileTopBar extends StatelessWidget {
           onSelected: onMore,
           child: SizedBox.square(
             dimension: SlushControl.touch,
-            child: _circle(context, const Icon(Icons.more_horiz, size: 20)),
+            child: _circle(
+              context,
+              Badge(
+                isLabelVisible: friendsBadge > 0,
+                label: Text('$friendsBadge'),
+                child: const Icon(Icons.more_horiz, size: 20),
+              ),
+            ),
           ),
           itemBuilder: (_) => [
             for (final m in _more)
@@ -65,7 +74,13 @@ class SlushMobileTopBar extends StatelessWidget {
                 value: m.$1,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(m.$2),
+                  leading: m.$1 == 14
+                      ? Badge(
+                          isLabelVisible: friendsBadge > 0,
+                          label: Text('$friendsBadge'),
+                          child: Icon(m.$2),
+                        )
+                      : Icon(m.$2),
                   title: Text(m.$3),
                 ),
               ),

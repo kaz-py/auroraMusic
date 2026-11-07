@@ -2,7 +2,9 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/friends/friends_providers.dart';
 import 'package:aurora_music/friends/friends_service.dart';
-import 'package:aurora_music/ui/studio/studio_navigation.dart';
+import 'package:aurora_music/theme/modern_widgets.dart';
+import 'package:aurora_music/ui/friends_page.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/queue_panel.dart';
 import 'package:aurora_music/ui/mini_player/atelier_mini_player.dart';
@@ -163,11 +165,22 @@ void main() {
   Future<AppController> pumpPhone(
     WidgetTester tester, {
     FriendsService? friends,
+    String? theme,
+    bool play = false,
   }) async {
     final controller = (await tester.runAsync(
-      () => createTestController(tracks: _tracks, audio: FakeAudio()),
+      () => createTestController(
+        tracks: _tracks,
+        audio: FakeAudio(),
+        preferences: {'themeKind': ?theme},
+      ),
     ))!;
     addTearDown(() => tester.runAsync(() => closeTestController(controller)));
+    if (play) {
+      controller.queue = [..._tracks];
+      await tester.runAsync(() => controller.playQueueAt(0));
+      await controller.audio.pause();
+    }
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -238,14 +251,7 @@ void main() {
     tester,
   ) async {
     await pumpPhone(tester, friends: seededFriendsService());
-    // El menú móvil no es el objeto de la prueba: se llega a Amigos con la
-    // navegación ancha y se vuelve al móvil.
-    tester.view.physicalSize = const Size(1000, 800);
-    await tester.pumpAndSettle();
-    tester.widget<StudioTitleBar>(find.byType(StudioTitleBar)).onNavigate(14);
-    await tester.pumpAndSettle();
-    tester.view.physicalSize = const Size(360, 640);
-    await tester.pumpAndSettle();
+    await _openFriends(tester);
     await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
@@ -256,6 +262,71 @@ void main() {
     expect(find.byKey(const ValueKey('chat-back')), findsNothing);
     expect(find.byKey(const ValueKey('friends-tab-2')), findsOneWidget);
   });
+
+  for (final theme in const ['atelier', 'modern', 'brasa', 'slush']) {
+    testWidgets('$theme: «Más vistas» → Amigos abre FriendsPage', (
+      tester,
+    ) async {
+      await pumpPhone(tester, theme: theme, friends: seededFriendsService());
+      await _openFriends(tester);
+      expect(find.byType(FriendsPage), findsOneWidget);
+    });
+
+    testWidgets('$theme: «Más vistas» muestra la insignia de Amigos', (
+      tester,
+    ) async {
+      await pumpPhone(tester, theme: theme, friends: seededFriendsService());
+      final badge = find.descendant(
+        of: find.byTooltip('Más vistas'),
+        matching: find.byType(Badge),
+      );
+      expect(badge, findsOneWidget);
+      expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
+    });
+
+    testWidgets('$theme: ⋯ del reproductor abre la tarjeta de acciones', (
+      tester,
+    ) async {
+      await pumpPhone(
+        tester,
+        theme: theme,
+        friends: seededFriendsService(),
+        play: true,
+      );
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(MiniPlayerHost),
+              matching: find.text(_long),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Más acciones'));
+      await tester.pumpAndSettle();
+      for (final label in const ['Añadir a la cola', 'Enviar a un amigo']) {
+        final tile = find.text(label);
+        expect(tile, findsOneWidget, reason: label);
+        expect(tester.getRect(tile).bottom, lessThanOrEqualTo(640));
+      }
+    });
+  }
+
+  testWidgets('Modern en móvil no muestra titular ni saludo en Inicio', (
+    tester,
+  ) async {
+    await pumpPhone(tester, theme: 'modern');
+    expect(find.byType(ModernHeadline), findsNothing);
+    expect(find.textContaining('siempre'), findsNothing);
+    expect(find.text('Encontrar música'), findsOneWidget);
+  });
+}
+
+Future<void> _openFriends(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Más vistas'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Amigos'));
+  await tester.pumpAndSettle();
 }
 
 void _expectTargets(WidgetTester tester, Finder buttons) {
