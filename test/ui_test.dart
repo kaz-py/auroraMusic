@@ -437,7 +437,7 @@ void main() {
     await tester.tap(find.byTooltip('Letras').first);
     await tester.pumpAndSettle();
     expect(find.byType(ArtistModePage), findsOneWidget);
-    await tester.tap(find.byTooltip('Salir del modo artista'));
+    await tester.tap(find.byTooltip('Salir del modo letra'));
     await tester.pumpAndSettle();
     expect(find.byType(ArtistModePage), findsNothing);
     expect(tester.takeException(), isNull);
@@ -528,7 +528,7 @@ void main() {
     await tester.tap(find.text('Letras'));
     await tester.pumpAndSettle();
     expect(find.byType(ArtistModePage), findsOneWidget);
-    await tester.tap(find.byTooltip('Salir del modo artista'));
+    await tester.tap(find.byTooltip('Salir del modo letra'));
     await tester.pumpAndSettle();
     expect(find.byType(ArtistModePage), findsNothing);
     await tester.tap(find.byTooltip('Ajustes'));
@@ -933,11 +933,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(audio.analysisEnabled, isTrue);
     expect(tester.takeException(), isNull);
-    // Letras: modo artista (sección 6) y salida con «Salir del modo artista».
+    // Letras: modo artista (sección 6) y salida con «Salir del modo letra».
     await openFromMoreViews(tester, 'Letras');
     expect(audio.analysisEnabled, isFalse);
     expect(find.byType(ArtistModePage), findsOneWidget);
-    final closeLyrics = find.byTooltip('Salir del modo artista');
+    final closeLyrics = find.byTooltip('Salir del modo letra');
     expect(closeLyrics, findsOneWidget);
     await tester.tap(closeLyrics);
     await tester.pump(const Duration(milliseconds: 500));

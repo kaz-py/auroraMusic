@@ -57,10 +57,18 @@ class _ArtistModePageState extends State<ArtistModePage> {
   String? _trackId;
   int _request = 0;
   int _lastActive = -1;
+  // La lista de líneas ya está colocada en la línea activa. Mientras no lo
+  // esté se oculta (sin parpadeo de las primeras líneas) y el primer
+  // posicionamiento es un salto, no un desplazamiento animado.
+  bool _placed = false;
+  bool _revealing = false;
+  int _revealGen = 0;
+  int _lineCount = 0;
   double? _drag;
   bool _fullscreen = false;
   int _offsetMs = 0;
   final Map<int, GlobalKey> _lineKeys = {};
+  final _lineScroll = ScrollController();
   final _plainScroll = ScrollController();
 
   @override
@@ -75,6 +83,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
     widget.controller.removeListener(_changed);
     if (_fullscreen) unawaited(WindowControls.setFullscreen(false));
     _plainScroll.dispose();
+    _lineScroll.dispose();
     super.dispose();
   }
 
@@ -84,6 +93,9 @@ class _ArtistModePageState extends State<ArtistModePage> {
     _trackId = track?.id;
     _request++;
     _lastActive = -1;
+    _placed = false;
+    _revealing = false;
+    _revealGen++;
     _lineKeys.clear();
     _offsetMs = 0;
     _result = null;
@@ -132,6 +144,9 @@ class _ArtistModePageState extends State<ArtistModePage> {
       setState(() {
         _result = result;
         _lastActive = -1;
+        _placed = false;
+        _revealing = false;
+        _revealGen++;
         _lineKeys.clear();
       });
     } catch (_) {
@@ -303,10 +318,10 @@ class _ArtistModePageState extends State<ArtistModePage> {
   /// Botón de salir: con texto y flecha, arriba a la izquierda, donde se busca
   /// el «volver» (un icono suelto no se entiende). Esc hace lo mismo.
   Widget _exit(BuildContext context, CoverTone tone, bool compact) => Tooltip(
-    message: 'Salir del modo artista',
+    message: 'Salir del modo letra',
     child: Semantics(
       button: true,
-      label: 'Salir del modo artista',
+      label: 'Salir del modo letra',
       excludeSemantics: true,
       child: Material(
         color: tone.foreground.withValues(alpha: .16),
@@ -328,7 +343,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    compact ? 'Salir' : 'Salir del modo artista',
+                    compact ? 'Salir' : 'Salir del modo letra',
                     style: TextStyle(
                       color: tone.foreground,
                       fontWeight: FontWeight.w700,
@@ -359,30 +374,35 @@ class _ArtistModePageState extends State<ArtistModePage> {
           child: LayoutBuilder(
             builder: (context, box) {
               final compact = box.maxWidth < 760;
-              final page = Padding(
-                padding: EdgeInsets.fromLTRB(
-                  compact ? 16 : 40,
-                  8,
-                  compact ? 16 : 40,
-                  12,
-                ),
-                child: Column(
-                  children: [
-                    _topBar(context, tone, compact),
-                    Expanded(
-                      child: track == null
-                          ? Center(
-                              child: Text(
-                                'No suena nada',
-                                style: TextStyle(color: tone.secondary),
-                              ),
-                            )
-                          : compact
-                          ? _compactBody(context, state, actions, track, tone)
-                          : _wideBody(context, state, actions, track, tone),
-                    ),
-                    _controls(context, state, actions, tone),
-                  ],
+              // SafeArea: en Android la barra de estado y la de navegación
+              // no deben tapar «Salir» ni los controles (en pantalla completa
+              // inmersiva los márgenes valen 0).
+              final page = SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 16 : 40,
+                    8,
+                    compact ? 16 : 40,
+                    12,
+                  ),
+                  child: Column(
+                    children: [
+                      _topBar(context, tone, compact),
+                      Expanded(
+                        child: track == null
+                            ? Center(
+                                child: Text(
+                                  'No suena nada',
+                                  style: TextStyle(color: tone.secondary),
+                                ),
+                              )
+                            : compact
+                            ? _compactBody(context, state, actions, track, tone)
+                            : _wideBody(context, state, actions, track, tone),
+                      ),
+                      _controls(context, state, actions, tone),
+                    ],
+                  ),
                 ),
               );
               // Con la página muy baja (barras, texto grande) todo se
@@ -625,6 +645,46 @@ class _ArtistModePageState extends State<ArtistModePage> {
     );
   }
 
+  /// Lleva la línea activa a su sitio. Con [jump] (primera colocación) salta sin
+  /// animar: el ListView es perezoso y la línea puede no estar construida, así
+  /// que se salta a una posición estimada y se reintenta hasta que exista.
+  void _reveal({required int gen, required bool jump, int tries = 0}) {
+    if (!mounted || gen != _revealGen) return;
+    final ctx = _lineKeys[_lastActive]?.currentContext;
+    if (ctx != null && ctx.mounted) {
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: .35,
+        duration: jump || MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+      if (jump) {
+        _revealing = false;
+        setState(() => _placed = true);
+      }
+      return;
+    }
+    if (!jump) return;
+    if (tries >= 8 || _lineCount == 0) {
+      _revealing = false;
+      setState(() => _placed = true);
+      return;
+    }
+    if (_lineScroll.hasClients && _lineScroll.position.hasContentDimensions) {
+      final p = _lineScroll.position;
+      final total = p.maxScrollExtent + p.viewportDimension;
+      p.jumpTo(
+        (total * _lastActive / _lineCount).clamp(0.0, p.maxScrollExtent),
+      );
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _reveal(gen: gen, jump: true, tries: tries + 1),
+    );
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   Widget _lyrics(
     BuildContext context,
     MiniPlayerState state,
@@ -671,72 +731,79 @@ class _ArtistModePageState extends State<ArtistModePage> {
     final active = lines.lastIndexWhere(
       (line) => line.at.inMilliseconds <= position.inMilliseconds + _offsetMs,
     );
-    if (active != _lastActive) {
-      _lastActive = active;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final key = _lineKeys[active]?.currentContext;
-        if (key != null && mounted) {
-          Scrollable.ensureVisible(
-            key,
-            alignment: .35,
-            duration: MediaQuery.disableAnimationsOf(context)
-                ? Duration.zero
-                : const Duration(milliseconds: 400),
-            curve: Curves.easeOutCubic,
-          );
-        }
-      });
+    _lineCount = lines.length;
+    // Antes de la primera línea no hay nada que centrar: el inicio es correcto.
+    if (!_placed && active < 0) _placed = true;
+    final changed = active != _lastActive;
+    _lastActive = active;
+    if (!_placed) {
+      if (!_revealing) {
+        _revealing = true;
+        final gen = _revealGen;
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _reveal(gen: gen, jump: true),
+        );
+      }
+    } else if (changed) {
+      final gen = _revealGen;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _reveal(gen: gen, jump: false),
+      );
     }
-    final list = ShaderMask(
-      // Las líneas se funden arriba y abajo, como en el reproductor de Apple.
-      shaderCallback: (rect) => const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Color(0x00FFFFFF),
-          Color(0xFFFFFFFF),
-          Color(0xFFFFFFFF),
-          Color(0x00FFFFFF),
-        ],
-        stops: [0, .12, .88, 1],
-      ).createShader(rect),
-      blendMode: BlendMode.dstIn,
-      child: ListView.builder(
-        padding: EdgeInsets.symmetric(vertical: large ? 120 : 60),
-        itemCount: lines.length,
-        itemBuilder: (context, i) {
-          final line = lines[i];
-          final on = i == active;
-          return Padding(
-            key: _lineKeys.putIfAbsent(i, GlobalKey.new),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: state.canSeek && state.duration > Duration.zero
-                  ? () => actions.seek(
-                      line.at.inMilliseconds / state.duration.inMilliseconds,
-                    )
-                  : null,
-              // La línea activa va en blanco, grande y en negrita; el resto se
-              // atenúa y se encoge, para que se vea de un vistazo por dónde va.
-              child: AnimatedDefaultTextStyle(
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 280),
-                curve: Curves.easeOutCubic,
-                style: TextStyle(
-                  color: on
-                      ? tone.foreground
-                      : tone.secondary.withValues(alpha: .55),
-                  fontSize: on ? size * 1.12 : size * .88,
-                  height: 1.25,
-                  fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+    final list = Opacity(
+      opacity: _placed ? 1 : 0,
+      child: ShaderMask(
+        // Las líneas se funden arriba y abajo, como en el reproductor de Apple.
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0x00FFFFFF),
+            Color(0xFFFFFFFF),
+            Color(0xFFFFFFFF),
+            Color(0x00FFFFFF),
+          ],
+          stops: [0, .12, .88, 1],
+        ).createShader(rect),
+        blendMode: BlendMode.dstIn,
+        child: ListView.builder(
+          controller: _lineScroll,
+          padding: EdgeInsets.symmetric(vertical: large ? 120 : 60),
+          itemCount: lines.length,
+          itemBuilder: (context, i) {
+            final line = lines[i];
+            final on = i == active;
+            return Padding(
+              key: _lineKeys.putIfAbsent(i, GlobalKey.new),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: state.canSeek && state.duration > Duration.zero
+                    ? () => actions.seek(
+                        line.at.inMilliseconds / state.duration.inMilliseconds,
+                      )
+                    : null,
+                // La línea activa va en blanco, grande y en negrita; el resto se
+                // atenúa y se encoge, para que se vea de un vistazo por dónde va.
+                child: AnimatedDefaultTextStyle(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  style: TextStyle(
+                    color: on
+                        ? tone.foreground
+                        : tone.secondary.withValues(alpha: .55),
+                    fontSize: on ? size * 1.12 : size * .88,
+                    height: 1.25,
+                    fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+                  ),
+                  child: Text(line.text.isEmpty ? '♪' : line.text),
                 ),
-                child: Text(line.text.isEmpty ? '♪' : line.text),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
     if (!isApprox) return list;

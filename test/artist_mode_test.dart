@@ -40,6 +40,24 @@ class _FakeLyrics extends LyricsService {
   );
 }
 
+/// Letra sincronizada larga: una línea cada 3 s.
+class _LongLyrics extends LyricsService {
+  @override
+  Future<LyricsResult> load(
+    Track track,
+    Directory root, {
+    bool force = false,
+    void Function(LyricsResult cached)? onInterim,
+    Duration slowAfter = const Duration(seconds: 3),
+  }) async => LyricsResult(
+    LyricsKind.synced,
+    lines: [
+      for (var i = 0; i < 60; i++)
+        LyricLine(Duration(seconds: i * 3), 'Verso $i'),
+    ],
+  );
+}
+
 /// LRCLIB solo tiene texto plano para la pista; con [withSynced] además hay un
 /// candidato sincronizado con título, artista y duración que casan.
 class _PlainLyrics extends LyricsService {
@@ -100,8 +118,10 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(1440, 900),
     double scale = 1,
+    EdgeInsets padding = EdgeInsets.zero,
     VoidCallback? onClose,
     LyricsService? service,
+    Duration position = Duration.zero,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -112,13 +132,16 @@ void main() {
     c.queue = [..._songs];
     await tester.runAsync(() => c.playQueueAt(0));
     await c.audio.pause();
+    if (position > Duration.zero) (c.audio as FakeAudio).advanceTo(position);
     addTearDown(() => tester.runAsync(() => closeTestController(c)));
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(scale)),
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(scale),
+            padding: padding,
+            viewPadding: padding,
+          ),
           child: child!,
         ),
         home: Scaffold(
@@ -136,6 +159,34 @@ void main() {
     return c;
   }
 
+  testWidgets('al entrar a mitad de canción la letra ya está en la línea '
+      'activa, sin partir del inicio', (tester) async {
+    await mountPage(
+      tester,
+      service: _LongLyrics(),
+      position: const Duration(seconds: 90),
+    );
+    // Unos fotogramas más: la colocación inicial reintenta hasta que la línea
+    // activa (la 30) existe en la lista perezosa.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final viewport = tester.getRect(find.byType(ListView));
+    final active = find.text('Verso 30');
+    expect(active, findsOneWidget);
+    final rect = tester.getRect(active);
+    expect(rect.top, greaterThanOrEqualTo(viewport.top));
+    expect(rect.bottom, lessThanOrEqualTo(viewport.bottom));
+    // Ni rastro del inicio de la letra.
+    expect(find.text('Verso 0'), findsNothing);
+    // Y es visible (no queda oculta esperando la colocación).
+    final opacity = tester.widget<Opacity>(
+      find.ancestor(of: find.byType(ListView), matching: find.byType(Opacity)),
+    );
+    expect(opacity.opacity, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('muestra título, artista, letra sincronizada y controles', (
     tester,
   ) async {
@@ -149,7 +200,7 @@ void main() {
       'Reproducir',
       'Siguiente',
       'Repetir',
-      'Salir del modo artista',
+      'Salir del modo letra',
     ]) {
       expect(find.byTooltip(tip), findsOneWidget, reason: tip);
     }
@@ -208,7 +259,7 @@ void main() {
   testWidgets('el botón de salir llama a onClose', (tester) async {
     var closed = 0;
     await mountPage(tester, onClose: () => closed++);
-    await tester.tap(find.byTooltip('Salir del modo artista'));
+    await tester.tap(find.byTooltip('Salir del modo letra'));
     expect(closed, 1);
   });
 
@@ -278,6 +329,19 @@ void main() {
       expect(calls.last.method, 'setFullscreen');
       expect((calls.last.arguments as Map)['enabled'], isFalse);
     });
+  });
+
+  testWidgets('respeta las barras del sistema (zona segura)', (tester) async {
+    await mountPage(
+      tester,
+      size: const Size(360, 780),
+      padding: const EdgeInsets.only(top: 40, bottom: 48),
+    );
+    expect(tester.getTopLeft(find.text('Salir')).dy, greaterThanOrEqualTo(40));
+    final play = find.byTooltip('Pausar').evaluate().isNotEmpty
+        ? find.byTooltip('Pausar')
+        : find.byTooltip('Reproducir');
+    expect(tester.getBottomLeft(play).dy, lessThanOrEqualTo(780 - 48));
   });
 
   group('sin letra', () {
@@ -403,9 +467,9 @@ void main() {
       // Se oculta toda la UI (menús, barra de abajo): solo queda esta página.
       expect(find.byType(MiniPlayerHost), findsNothing);
       expect(find.byTooltip('Minimizar'), findsOneWidget);
-      expect(find.byTooltip('Salir del modo artista'), findsOneWidget);
+      expect(find.byTooltip('Salir del modo letra'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Salir del modo artista'));
+      await tester.tap(find.byTooltip('Salir del modo letra'));
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(ArtistModePage), findsNothing);
       expect(find.byType(MiniPlayerHost), findsWidgets);
