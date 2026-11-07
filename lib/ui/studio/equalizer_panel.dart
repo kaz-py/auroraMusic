@@ -15,23 +15,29 @@ import '../slush/slush_eq_queue.dart';
 import 'studio_components.dart';
 import 'studio_symbols.dart';
 
+/// Hojas del ecualizador abiertas ahora mismo; el shell enciende el análisis
+/// del espectro mientras haya alguna.
+final ValueNotifier<int> equalizerSheetsOpen = ValueNotifier<int>(0);
+
 /// Hoja compacta con el ecualizador: se abre sobre la pantalla actual (Jam,
 /// cola, letras…) sin salir de ella. Reutiliza [EqualizerPanel].
-Future<void> showEqualizerSheet(BuildContext context, AppController c) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      constraints: const BoxConstraints(maxWidth: 640),
-      builder: (context) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        child: EqualizerPanel(
-          controller: c,
-          onClose: () => Navigator.pop(context),
-        ),
+Future<void> showEqualizerSheet(BuildContext context, AppController c) {
+  equalizerSheetsOpen.value++;
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    constraints: const BoxConstraints(maxWidth: 640),
+    builder: (context) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      child: EqualizerPanel(
+        controller: c,
+        onClose: () => Navigator.pop(context),
       ),
-    );
+    ),
+  ).whenComplete(() => equalizerSheetsOpen.value--);
+}
 
 String eqFrequencyLabel(double f, {bool short = false}) {
   if (f >= 1000) {
@@ -232,8 +238,9 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
             selected: selected,
           ),
           const SizedBox(height: 4),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: 4,
             children: [
               StudioStamp('20 Hz'),
               StudioStamp('1 kHz'),
@@ -419,12 +426,16 @@ class _BandColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final brasa = isBrasa(context);
+    final slush = isSlush(context);
     final modern = isModern(context) || brasa;
     final style = TextStyle(
       fontFamily: modern ? 'Inter' : 'monospace',
-      fontSize: modern ? 10 : 9,
+      fontSize: slush ? 12 : (modern ? 10 : 9),
       color: brasa
           ? (selected ? Brasa.cream : Brasa.steel)
+          : slush
+          // Seleccionada: sobre menta plana, tinta fija; si no, sobre papel.
+          ? (selected ? Slush.ink : colors.onSurfaceVariant)
           : modern
           ? (selected ? Tracky.navy : Tracky.slate)
           : selected
@@ -436,7 +447,13 @@ class _BandColumn extends StatelessWidget {
       children: [
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(eqGainLabel(band.gainDb), style: style),
+          // La ganancia va sobre el panel (no sobre la banda menta): tinta del tema.
+          child: Text(
+            eqGainLabel(band.gainDb),
+            style: slush || (modern && !brasa && selected)
+                ? style.copyWith(color: colors.onSurface)
+                : style,
+          ),
         ),
         GestureDetector(
           onDoubleTap: enabled ? onReset : null,
@@ -472,13 +489,13 @@ class _BandColumn extends StatelessWidget {
           onTap: onSelect,
           borderRadius: modern ? BorderRadius.circular(8) : null,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 28),
+            constraints: BoxConstraints(minHeight: slush ? 44 : 28),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: brasa && selected
                     ? Brasa.graphite
                     : modern && !brasa && selected
-                    ? Tracky.mint.withValues(alpha: .5)
+                    ? (slush ? Slush.mint : Tracky.mint.withValues(alpha: .5))
                     : null,
                 borderRadius: BorderRadius.circular(8),
               ),

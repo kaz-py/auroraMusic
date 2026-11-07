@@ -254,7 +254,9 @@ void main() {
         'https://music.youtube.com/watch?v=abcdefghijk',
       );
       expect(utility.resolved, isEmpty);
-      expect(app.recentTracks.map((track) => track.id), [web.id, local.id]);
+      audio.advanceTo(const Duration(seconds: 6));
+      await Future<void>.delayed(Duration.zero);
+      expect(app.recentTracks.map((track) => track.id), [web.id]);
       expect(app.preferences.getStringList('queue'), [web.id, local.id]);
       expect(audio.metadata?.id, web.id);
     },

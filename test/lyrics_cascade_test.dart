@@ -85,8 +85,11 @@ String _item({
   'plainLyrics': plain,
 });
 
-LyricsService _svc(_Handler h) =>
-    LyricsService(clientFactory: () => _Client(h), backoff: Duration.zero);
+LyricsService _svc(_Handler h, {DateTime Function()? now}) => LyricsService(
+  clientFactory: () => _Client(h),
+  backoff: Duration.zero,
+  now: now ?? DateTime.now,
+);
 
 void main() {
   late Directory dir;
@@ -325,17 +328,20 @@ void main() {
     });
 
     test(
-      'online primero: la respuesta nueva corrige una caché equivocada',
+      'caducada: va a la red y la respuesta nueva corrige la caché equivocada',
       () async {
+        var clock = DateTime(2026, 1, 1);
         final wrong = _svc(
           (u) => (200, _item(synced: '[00:01.00]letra vieja', plain: null)),
+          now: () => clock,
         );
         await wrong.load(_track, dir);
-        final fresh = _svc((u) => (200, _item()));
+        clock = clock.add(LyricsService.freshTtl + const Duration(days: 1));
+        final fresh = _svc((u) => (200, _item()), now: () => clock);
         final r = await fresh.load(_track, dir);
         expect(r.fromCache, isFalse);
         expect(r.lines.first.text, 'Is this the real life?');
-        final offline = _svc((u) => (503, ''));
+        final offline = _svc((u) => (503, ''), now: () => clock);
         expect(
           (await offline.load(_track, dir)).lines.first.text,
           'Is this the real life?',
@@ -343,27 +349,119 @@ void main() {
       },
     );
 
-    test('LRCLIB sin resultado conserva la caché y no la borra', () async {
+    test(
+      'LRCLIB sin resultado conserva la caché caducada y no la borra',
+      () async {
+        var clock = DateTime(2026, 1, 1);
+        await _svc((u) => (200, _item()), now: () => clock).load(_track, dir);
+        clock = clock.add(LyricsService.freshTtl + const Duration(days: 1));
+        final none = _svc(
+          (u) => u.path == '/api/search' ? (200, '[]') : (404, '{}'),
+          now: () => clock,
+        );
+        final r = await none.load(_track, dir);
+        expect(r.kind, LyricsKind.synced);
+        expect(r.fromCache, isTrue);
+      },
+    );
+
+    test('caché fresca: se entrega al instante sin ninguna petición', () async {
       await _svc((u) => (200, _item())).load(_track, dir);
-      final none = _svc(
-        (u) => u.path == '/api/search' ? (200, '[]') : (404, '{}'),
-      );
-      final r = await none.load(_track, dir);
-      expect(r.kind, LyricsKind.synced);
+      var calls = 0;
+      final svc = _svc((u) {
+        calls++;
+        return (200, _item(synced: '[00:01.00]otra', plain: null));
+      });
+      final r = await svc.load(_track, dir); // lectura de disco
       expect(r.fromCache, isTrue);
+      expect(r.lines.first.text, 'Is this the real life?');
+      final again = await svc.load(_track, dir); // lectura de memoria
+      expect(again.fromCache, isTrue);
+      expect(calls, 0);
+    });
+
+    test('caché en memoria: no vuelve a leer el disco en la sesión', () async {
+      final svc = _svc((u) => (200, _item()));
+      await svc.load(_track, dir);
+      for (final f in Directory('${dir.path}/lyrics').listSync()) {
+        f.deleteSync();
+      }
+      final r = await svc.load(_track, dir);
+      expect(r.fromCache, isTrue);
+      expect(r.kind, LyricsKind.synced);
+    });
+
+    test('caché fresca solo plana: también se entrega sin red', () async {
+      await _svc(
+        (u) => u.host == 'api.lyrics.ovh'
+            ? (200, jsonEncode({'lyrics': 'Is this the real life?'}))
+            : (404, '{}'),
+      ).load(_track, dir);
+      var calls = 0;
+      final r = await _svc((u) {
+        calls++;
+        return (503, '');
+      }).load(_track, dir);
+      expect(r.kind, LyricsKind.plain);
+      expect(r.fromCache, isTrue);
+      expect(calls, 0);
+    });
+
+    test('caché caducada (30 días): consulta la red', () async {
+      var clock = DateTime(2026, 1, 1);
+      await _svc((u) => (200, _item()), now: () => clock).load(_track, dir);
+      clock = clock.add(LyricsService.freshTtl - const Duration(days: 1));
+      var calls = 0;
+      final young = _svc((u) {
+        calls++;
+        return (200, _item());
+      }, now: () => clock);
+      expect((await young.load(_track, dir)).fromCache, isTrue);
+      expect(calls, 0, reason: 'a 29 días sigue fresca');
+      clock = clock.add(const Duration(days: 2));
+      final old = _svc((u) {
+        calls++;
+        return (200, _item(synced: '[00:01.00]nueva', plain: null));
+      }, now: () => clock);
+      final r = await old.load(_track, dir);
+      expect(calls, greaterThan(0));
+      expect(r.fromCache, isFalse);
+      expect(r.lines.first.text, 'nueva');
+    });
+
+    test('force: ignora la caché fresca, va a la red y la reescribe', () async {
+      await _svc((u) => (200, _item())).load(_track, dir);
+      var calls = 0;
+      final svc = _svc((u) {
+        calls++;
+        return (200, _item(synced: '[00:01.00]forzada', plain: null));
+      });
+      await svc.load(_track, dir); // calienta la memoria
+      expect(calls, 0);
+      final r = await svc.load(_track, dir, force: true);
+      expect(calls, greaterThan(0));
+      expect(r.fromCache, isFalse);
+      expect(r.lines.first.text, 'forzada');
+      // La caché (memoria y disco) quedó con la letra nueva.
+      expect((await svc.load(_track, dir)).lines.first.text, 'forzada');
+      final fresh = await _svc((u) => (503, '')).load(_track, dir);
+      expect(fresh.lines.first.text, 'forzada');
     });
 
     test(
-      'red lenta con caché: avisa con la guardada y luego entrega la nueva',
+      'caducada y red lenta: avisa con la guardada y luego entrega la nueva',
       () async {
+        var clock = DateTime(2026, 1, 1);
         await _svc(
           (u) => (200, _item(synced: '[00:01.00]guardada', plain: null)),
+          now: () => clock,
         ).load(_track, dir);
+        clock = clock.add(LyricsService.freshTtl + const Duration(days: 1));
         final gate = Completer<void>();
         final slow = _svc((u) async {
           await gate.future;
           return (200, _item());
-        });
+        }, now: () => clock);
         LyricsResult? interim;
         final fut = slow.load(
           _track,
@@ -393,13 +491,5 @@ void main() {
         expect(l[1].text, 'b c');
       },
     );
-    test('el desfase se recuerda por pista', () async {
-      final svc = _svc((u) => (404, ''));
-      expect(await svc.readOffset(_track, dir), 0);
-      await svc.saveOffset(_track, dir, -1500);
-      expect(await svc.readOffset(_track, dir), -1500);
-      await svc.saveOffset(_track, dir, 0);
-      expect(await svc.readOffset(_track, dir), 0);
-    });
   });
 }

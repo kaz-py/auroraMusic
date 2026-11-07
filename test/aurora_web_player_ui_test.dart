@@ -1,7 +1,8 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
-import 'package:aurora_music/ui/studio/studio_transport.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
+import 'package:aurora_music/ui/vinyl_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,23 +54,26 @@ void main() {
       UncontrolledProviderScope(container: container, child: const AuroraApp()),
     );
     await tester.pumpAndSettle();
+    // El Vinilo no lleva favorito: lo da el mini.
+    expect(find.byTooltip('Añadir a favoritos'), findsOneWidget);
     await tester.tap(
       find
           .descendant(
-            of: find.byType(StudioTransport),
+            of: find.byType(MiniPlayerGestures),
             matching: find.text(track.title),
           )
           .first,
     );
     await tester.pumpAndSettle();
-    expect(find.text('AHORA SUENA'), findsOneWidget);
+    expect(find.byType(VinylPlayer), findsOneWidget);
     expect(find.text(track.title).hitTestable(), findsOneWidget);
     expect(find.byTooltip('Anterior'), findsWidgets);
     expect(find.byTooltip('Siguiente'), findsWidgets);
-    expect(find.byTooltip('Añadir a favoritos'), findsOneWidget);
     expect(find.byTooltip('Descargar audio'), findsNothing);
     expect(find.text('music.youtube.com'), findsNothing);
-    await tester.tap(find.byTooltip('Cola de reproducción').last);
+    await tester.tap(find.byTooltip('Más vistas'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cola de reproducción').last);
     await tester.pumpAndSettle();
     expect(find.text('A continuación'), findsOneWidget);
     expect(controller.queue.single.id, track.id);

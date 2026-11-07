@@ -1,14 +1,8 @@
-import '../friends_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
-import '../../app_controller.dart';
-import '../../core/models.dart';
 import '../../core/window_controls.dart';
 import '../../theme/slush_theme.dart';
-import '../artwork.dart';
-
-const _ink = Slush.ink;
-const _hair = BorderSide(color: _ink, width: 2);
 
 /// Pestañas de la barra superior: (sección del shell, etiqueta).
 const slushTabs = <(int, String)>[
@@ -23,6 +17,7 @@ const slushTabs = <(int, String)>[
 ];
 
 Widget _round(
+  BuildContext context,
   String tip,
   IconData icon,
   VoidCallback? onTap, {
@@ -30,14 +25,14 @@ Widget _round(
 }) => Tooltip(
   message: tip,
   child: Material(
-    color: Colors.white,
-    shape: const CircleBorder(side: _hair),
+    color: context.slush.paper,
+    shape: CircleBorder(side: context.slush.border),
     child: InkWell(
       customBorder: const CircleBorder(),
       onTap: onTap,
       child: SizedBox.square(
         dimension: size,
-        child: Icon(icon, size: size * .52, color: _ink),
+        child: Icon(icon, size: size * .52, color: context.slush.ink),
       ),
     ),
   ),
@@ -65,9 +60,9 @@ class SlushTopBar extends StatelessWidget {
       container: true,
       label: 'Navegación principal',
       child: DecoratedBox(
-        decoration: const ShapeDecoration(
-          color: Colors.white,
-          shape: StadiumBorder(side: _hair),
+        decoration: ShapeDecoration(
+          color: context.slush.paper,
+          shape: StadiumBorder(side: context.slush.border),
         ),
         child: Padding(
           padding: const EdgeInsets.all(3),
@@ -88,9 +83,9 @@ class SlushTopBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: DecoratedBox(
-        decoration: const ShapeDecoration(
-          color: Colors.white,
-          shape: StadiumBorder(side: _hair),
+        decoration: ShapeDecoration(
+          color: context.slush.paper,
+          shape: StadiumBorder(side: context.slush.border),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -101,10 +96,10 @@ class SlushTopBar extends StatelessWidget {
                 onDoubleTap: () => WindowControls.invoke('maximize'),
                 child: Semantics(
                   label: 'Aurora',
-                  child: const DecoratedBox(
+                  child: DecoratedBox(
                     decoration: ShapeDecoration(
-                      color: Colors.white,
-                      shape: CircleBorder(side: _hair),
+                      color: context.slush.paper,
+                      shape: CircleBorder(side: context.slush.border),
                     ),
                     child: SizedBox.square(
                       dimension: 34,
@@ -114,7 +109,7 @@ class SlushTopBar extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'Bagel Fat One',
                             fontSize: 18,
-                            color: _ink,
+                            color: context.slush.ink,
                           ),
                         ),
                       ),
@@ -138,34 +133,42 @@ class SlushTopBar extends StatelessWidget {
                   ],
                 ),
               ),
-              _round('Buscar', Icons.search, () => onNavigate(1), size: 30),
+              _round(
+                context,
+                'Buscar',
+                Icons.search,
+                () => onNavigate(1),
+                size: 32,
+              ),
               const SizedBox(width: 8),
               Material(
-                color: _ink,
+                color: context.slush.ink,
                 shape: const StadiumBorder(),
                 child: InkWell(
                   customBorder: const StadiumBorder(),
                   onTap: onSession,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: SlushControl.touch,
+                      minHeight: SlushControl.dense,
                     ),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.groups_rounded,
                           size: 14,
-                          color: Colors.white,
+                          color: context.slush.paper,
                         ),
-                        if (w > 900) ...[
+                        if (Breakpoints.isWide(w)) ...[
                           const SizedBox(width: 6),
                           Text(
                             sessionText,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
+                            style: TextStyle(
+                              color: context.slush.paper,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: .3,
                             ),
@@ -177,9 +180,15 @@ class SlushTopBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _round('Crear lista', Icons.add, onAdd, size: 30),
+              _round(context, 'Crear lista', Icons.add, onAdd, size: 32),
               const SizedBox(width: 8),
-              _round('Ajustes', Icons.tune, () => onNavigate(7), size: 30),
+              _round(
+                context,
+                'Ajustes',
+                Icons.tune,
+                () => onNavigate(7),
+                size: 32,
+              ),
               if (WindowControls.supported) ...[
                 const SizedBox(width: 6),
                 for (final (op, icon, tip) in const [
@@ -202,289 +211,75 @@ class SlushTopBar extends StatelessWidget {
   }
 }
 
-class _Tab extends StatelessWidget {
+class _Tab extends StatefulWidget {
   const _Tab(this.label, {required this.active, required this.onTap});
   final String label;
   final bool active;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    selected: active,
-    child: Material(
-      color: active ? _ink : Colors.transparent,
-      shape: const StadiumBorder(),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .3,
-              color: active ? Colors.white : _ink,
+  State<_Tab> createState() => _TabState();
+}
+
+class _TabState extends State<_Tab> {
+  bool _hover = false;
+  bool _focus = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    // 32 con puntero fino (denso), 44 táctil.
+    final fine = RendererBinding.instance.mouseTracker.mouseIsConnected;
+    final minHeight = fine ? SlushControl.dense : SlushControl.touch;
+    final fill = widget.active
+        ? p.ink
+        : _hover
+        ? p.hoverFill
+        : Colors.transparent;
+    return Semantics(
+      button: true,
+      selected: widget.active,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        onShowFocusHighlight: (v) => setState(() => _focus = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: SlushMotion.hover,
+            curve: SlushMotion.easeOut,
+            constraints: BoxConstraints(minHeight: minHeight),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            alignment: Alignment.center,
+            decoration: ShapeDecoration(
+              color: fill,
+              shape: const StadiumBorder(),
+            ),
+            foregroundDecoration: _focus
+                ? ShapeDecoration(shape: StadiumBorder(side: p.focusRing))
+                : null,
+            child: Text(
+              widget.label,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .3,
+                color: widget.active ? p.paper : p.ink,
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
-
-String _mmss(Duration d) {
-  final s = d.inSeconds;
-  return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
-}
-
-/// Barra de reproducción inferior en píldora blanca.
-class SlushPlayerBar extends StatefulWidget {
-  const SlushPlayerBar({
-    super.key,
-    required this.controller,
-    required this.onLyrics,
-    required this.onVinyl,
-    required this.onQueue,
-    required this.onEqualizer,
-    required this.onSettings,
-    required this.onOpenPlayer,
-  });
-  final AppController controller;
-  final VoidCallback onLyrics,
-      onVinyl,
-      onQueue,
-      onEqualizer,
-      onSettings,
-      onOpenPlayer;
-
-  @override
-  State<SlushPlayerBar> createState() => _SlushPlayerBarState();
-}
-
-class _SlushPlayerBarState extends State<SlushPlayerBar> {
-  double? _scrub;
-
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.controller,
-    builder: (context, _) {
-      final c = widget.controller;
-      final Track? t = c.currentTrack;
-      final has = t != null;
-      final dur = c.audio.duration;
-      final pos = c.audio.position;
-      final max = dur.inMilliseconds.toDouble();
-      final value = (_scrub ?? pos.inMilliseconds.toDouble()).clamp(
-        0,
-        max <= 0 ? 1 : max,
-      );
-      final wide = MediaQuery.sizeOf(context).width >= 1000;
-      final fav = has && c.favoriteIds.contains(t.id);
-      Widget ic(String tip, IconData i, VoidCallback? f, {bool on = false}) =>
-          IconButton(
-            tooltip: tip,
-            visualDensity: VisualDensity.compact,
-            onPressed: f,
-            icon: Icon(i, size: 18, color: on ? Slush.blue : _ink),
-          );
-      final transport = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ic(
-            'Aleatorio',
-            Icons.shuffle,
-            has ? () => c.setShuffle(!c.shuffle) : null,
-            on: c.shuffle,
-          ),
-          ic('Anterior', Icons.skip_previous_rounded, has ? c.previous : null),
-          Tooltip(
-            message: c.audio.isPlaying ? 'Pausa' : 'Reproducir',
-            child: Material(
-              color: _ink,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: has ? c.togglePlayback : null,
-                child: SizedBox.square(
-                  dimension: 38,
-                  child: c.busy
-                      ? const Padding(
-                          padding: EdgeInsets.all(10),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Icon(
-                          c.audio.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: Colors.white,
-                        ),
-                ),
-              ),
-            ),
-          ),
-          ic('Siguiente', Icons.skip_next_rounded, has ? c.next : null),
-          ic(
-            'Repetir',
-            c.repeat == RepeatMode.one ? Icons.repeat_one : Icons.repeat,
-            has ? c.cycleRepeat : null,
-            on: c.repeat != RepeatMode.off,
-          ),
-        ],
-      );
-      final slider = SliderTheme.of(context).copyWith(
-        trackHeight: 4,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-        overlayShape: SliderComponentShape.noOverlay,
-      );
-      final progress = Row(
-        children: [
-          Text(_mmss(pos), style: const TextStyle(fontSize: 10)),
-          Expanded(
-            child: SliderTheme(
-              data: slider,
-              child: Slider(
-                value: value.toDouble(),
-                max: max <= 0 ? 1 : max,
-                semanticFormatterCallback: (v) =>
-                    'Posición ${_mmss(Duration(milliseconds: v.toInt()))}',
-                onChanged: max <= 0 || !has
-                    ? null
-                    : (v) => setState(() => _scrub = v),
-                onChangeEnd: max <= 0 || !has
-                    ? null
-                    : (v) {
-                        c.seek(Duration(milliseconds: v.toInt()));
-                        setState(() => _scrub = null);
-                      },
-              ),
-            ),
-          ),
-          Text(_mmss(dur), style: const TextStyle(fontSize: 10)),
-        ],
-      );
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-        child: DecoratedBox(
-          decoration: const ShapeDecoration(
-            color: Colors.white,
-            shape: StadiumBorder(side: _hair),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: SizedBox(
-              height: 56,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: wide ? 280 : 210,
-                    child: InkWell(
-                      customBorder: const StadiumBorder(),
-                      onTap: has ? widget.onOpenPlayer : null,
-                      child: Row(
-                        children: [
-                          if (has)
-                            Artwork(
-                              track: t,
-                              artworkContext: ArtworkContext.thumbnailCompact,
-                              radius: 28,
-                            )
-                          else
-                            const DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Slush.orange,
-                                shape: BoxShape.circle,
-                              ),
-                              child: SizedBox.square(dimension: 44),
-                            ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  t?.title ?? 'Elige una canción',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                if (t != null)
-                                  Text(
-                                    t.artist,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          ic(
-                            'Favorito',
-                            fav ? Icons.favorite : Icons.favorite_border,
-                            has ? () => c.toggleFavorite(t) : null,
-                            on: fav,
-                          ),
-                          if (has && !t.isLocal)
-                            FriendsGate(
-                              builder: (context, f) => ic(
-                                'Enviar a un amigo',
-                                Icons.send_outlined,
-                                () => showSendToFriendSheet(context, f, t),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        transport,
-                        SizedBox(height: 18, child: progress),
-                      ],
-                    ),
-                  ),
-                  ic('Cola', Icons.queue_music, widget.onQueue),
-                  ic('Modo Vinilo', Icons.album_outlined, widget.onVinyl),
-                  ic('Letras', Icons.lyrics_outlined, widget.onLyrics),
-                  ic('Ajustes', Icons.tune, widget.onSettings),
-                  if (wide) ...[
-                    ic('Ecualizador', Icons.equalizer, widget.onEqualizer),
-                    Icon(
-                      c.audio.volume <= 0
-                          ? Icons.volume_off
-                          : Icons.volume_up_outlined,
-                      size: 16,
-                    ),
-                    SizedBox(
-                      width: 110,
-                      child: SliderTheme(
-                        data: slider,
-                        child: Slider(
-                          semanticFormatterCallback: (v) =>
-                              'Volumen ${(v * 100).round()} por ciento',
-                          value: c.audio.volume.clamp(0, 1),
-                          onChanged: c.setVolume,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
+    );
+  }
 }

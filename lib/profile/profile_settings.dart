@@ -41,9 +41,7 @@ class _ProfileSettingsState extends State<ProfileSettings> {
   Future<void> _pick() async {
     final error = await widget.controller.pickProfileAvatar();
     if (error != null && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(auroraSnackBar(context, Text(error)));
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(error));
     }
   }
 

@@ -1,134 +1,17 @@
 import 'package:aurora_music/core/models.dart';
-import 'package:aurora_music/friends/friends_data.dart';
 import 'package:aurora_music/friends/friends_providers.dart';
 import 'package:aurora_music/friends/friends_service.dart';
 import 'package:aurora_music/ui/friends_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aurora_music/main.dart' show auroraTheme;
+import 'package:aurora_music/theme/brasa_theme.dart';
+import 'package:aurora_music/theme/modern_theme.dart';
+import 'package:aurora_music/theme/slush_theme.dart';
 
 import 'support/fakes.dart';
-
-class FakeAuth extends ChangeNotifier {
-  String? uid;
-  void set(String? v) {
-    uid = v;
-    notifyListeners();
-  }
-}
-
-class FakeData implements FriendsData {
-  FakeData(this.me);
-  final String me;
-  final profiles = <String, Map<String, dynamic>>{
-    'u1': {'id': 'u1', 'username': 'ana', 'avatar_path': null},
-    'u2': {'id': 'u2', 'username': 'beto', 'avatar_path': null},
-    'u3': {'id': 'u3', 'username': 'carla', 'avatar_path': null},
-  };
-  final requests = <Map<String, dynamic>>[];
-  final shares = <Map<String, dynamic>>[];
-  void Function(String, Map<String, dynamic>)? onRequest;
-  void Function(Map<String, dynamic>)? onShare;
-  bool unsubscribed = false;
-  Map<String, Object?>? lastTrack;
-  String? lastKind;
-
-  @override
-  Future<List<Map<String, dynamic>>> searchProfiles(
-    String prefix, {
-    required String excludeId,
-    int limit = 20,
-  }) async => [
-    for (final p in profiles.values)
-      if ((p['username'] as String).startsWith(prefix) && p['id'] != excludeId)
-        p,
-  ];
-  @override
-  Future<List<Map<String, dynamic>>> profilesByIds(List<String> ids) async => [
-    for (final i in ids)
-      if (profiles[i] != null) profiles[i]!,
-  ];
-  @override
-  Future<List<Map<String, dynamic>>> listRequests() async => [...requests];
-  @override
-  Future<void> insertRequest(String toId) async => requests.add({
-    'id': 'r${requests.length}',
-    'from_id': me,
-    'to_id': toId,
-    'status': 'pending',
-    'created_at': DateTime.now().toUtc().toIso8601String(),
-  });
-  @override
-  Future<void> setRequestStatus(String id, String status) async =>
-      requests.firstWhere((r) => r['id'] == id)['status'] = status;
-  @override
-  Future<void> deleteRequest(String id) async =>
-      requests.removeWhere((r) => r['id'] == id);
-  @override
-  Future<void> insertShare(
-    String toId,
-    String kind,
-    Map<String, Object?> payload,
-    String? note,
-  ) async {
-    lastKind = kind;
-    lastTrack = payload;
-  }
-
-  @override
-  Future<List<Map<String, dynamic>>> listInbox({
-    required int limit,
-    DateTime? before,
-  }) async {
-    final rows = [
-      for (final s in shares)
-        if (before == null ||
-            DateTime.parse(s['created_at'] as String).isBefore(before))
-          s,
-    ]..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at']));
-    return rows.take(limit).toList();
-  }
-
-  @override
-  Future<void> markSeen(List<String> ids) async {
-    for (final s in shares) {
-      if (ids.contains(s['id'])) s['seen'] = true;
-    }
-  }
-
-  @override
-  Future<int> countUnseen() async =>
-      shares.where((s) => s['seen'] != true).length;
-  @override
-  Future<Future<void> Function()> subscribe({
-    required void Function(String, Map<String, dynamic>) onRequest,
-    required void Function(Map<String, dynamic>) onShare,
-  }) async {
-    this.onRequest = onRequest;
-    this.onShare = onShare;
-    return () async => unsubscribed = true;
-  }
-}
-
-Map<String, dynamic> share(int i, {String from = 'u1', bool seen = false}) => {
-  'id': 's$i',
-  'from_id': from,
-  'to_id': 'me',
-  'track': {'id': 'v$i', 'title': 'Canción $i', 'artist': 'Artista'},
-  'note': i == 0 ? 'Escúchala' : null,
-  'created_at': DateTime.utc(2026, 1, 1, 0, i).toIso8601String(),
-  'seen': seen,
-};
-
-Map<String, dynamic> req(String id, String from, String to, String status) => {
-  'id': id,
-  'from_id': from,
-  'to_id': to,
-  'status': status,
-  'created_at': DateTime.now().toUtc().toIso8601String(),
-};
-
-Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
+import 'support/friends_fakes.dart';
 
 void main() {
   late FakeAuth auth;
@@ -195,23 +78,72 @@ void main() {
     f.dispose();
   });
 
-  test('bandeja: paginación, sin vistas y markSeen', () async {
-    for (var i = 0; i < 25; i++) {
-      data.shares.add(share(i));
-    }
+  test(
+    'mensajes: dos sentidos, ventana de 100 y anteriores por amigo',
+    () async {
+      for (var i = 0; i < 130; i++) {
+        data.shares.add(share(i));
+      }
+      // Dos enviados a ana, los más nuevos de todos.
+      for (var i = 0; i < 2; i++) {
+        data.shares.add({
+          'id': 'out$i',
+          'from_id': 'me',
+          'to_id': 'u1',
+          'kind': 'track',
+          'track': {'id': 'o$i', 'title': 'Enviada $i', 'artist': 'Yo'},
+          'note': null,
+          'created_at': DateTime.utc(2026, 1, 1, 5, i).toIso8601String(),
+          'seen': false,
+        });
+      }
+      auth.set('me');
+      final f = make();
+      await settle();
+      expect(f.messages.length, 100);
+      expect(f.threadWith('u1').first.track.title, 'Enviada 1');
+      expect(f.threadWith('u1').first.mine, isTrue);
+      expect(f.threadWith('u1').where((i) => i.mine).length, 2);
+      expect(f.hasOlderWith('u1'), isTrue);
+      // Los enviados no cuentan como sin ver.
+      expect(f.unseenCount, 130);
+      await f.loadOlderWith('u1');
+      expect(f.threadWith('u1').length, 120);
+      expect(f.hasOlderWith('u1'), isTrue);
+      await f.loadOlderWith('u1');
+      expect(f.threadWith('u1').length, 132);
+      expect(f.hasOlderWith('u1'), isFalse);
+      await f.markSeen(['s129', 's128', 'out0']);
+      expect(f.unseenCount, 128);
+      expect(data.shares.where((s) => s['seen'] == true).length, 2);
+      // Un refresh no pierde las páginas anteriores ya cargadas.
+      await f.refresh();
+      expect(f.threadWith('u1').length, 132);
+      f.dispose();
+    },
+  );
+
+  test('chats: orden por último envío y amigos sin envíos al final', () async {
+    data.requests
+      ..add(req('a', 'u1', 'me', 'accepted'))
+      ..add(req('b', 'u2', 'me', 'accepted'))
+      ..add(req('c', 'u3', 'me', 'accepted'));
+    final now = DateTime.now();
+    String ago(int m) =>
+        now.subtract(Duration(minutes: m)).toUtc().toIso8601String();
+    data.shares
+      ..add({...share(1), 'created_at': ago(30), 'seen': true})
+      ..add({...share(2), 'created_at': ago(20)})
+      ..add({...share(3, from: 'u2'), 'created_at': ago(2)})
+      ..add({...share(4, from: 'u2'), 'created_at': ago(5)});
     auth.set('me');
     final f = make();
     await settle();
-    expect(f.inbox.length, 20);
-    expect(f.hasMoreInbox, isTrue);
-    expect(f.inbox.first.track.title, 'Canción 24');
-    expect(f.unseenCount, 25);
-    await f.loadMoreInbox();
-    expect(f.inbox.length, 25);
-    expect(f.hasMoreInbox, isFalse);
-    await f.markSeen(['s24', 's23']);
-    expect(f.unseenCount, 23);
-    expect(data.shares.where((s) => s['seen'] == true).length, 2);
+    final chats = f.chats;
+    expect(chats.map((c) => c.peer.username), ['beto', 'ana', 'carla']);
+    expect(chats.map((c) => c.unseen), [2, 1, 0]);
+    expect(chats.last.last, isNull);
+    expect(chats.first.last!.id, 's3');
     f.dispose();
   });
 
@@ -224,7 +156,8 @@ void main() {
     data.onShare!(share(1));
     await settle();
     expect(f.unseenCount, 1);
-    expect(f.inbox.single.from.username, 'ana');
+    expect(f.messages.single.peer.username, 'ana');
+    expect(f.messages.single.mine, isFalse);
     data.requests.add(req('x', 'u2', 'me', 'pending'));
     data.onRequest!('insert', req('x', 'u2', 'me', 'pending'));
     await settle();
@@ -233,6 +166,7 @@ void main() {
       FriendsNoticeKind.share,
       FriendsNoticeKind.request,
     ]);
+    expect(notices.map((n) => n.peerId), ['u1', null]);
     f.dispose();
   });
 
@@ -317,7 +251,8 @@ void main() {
       expect(jamCodeFromShared({'code': 5}), isNull);
       final item = SharedItem(
         id: 'j',
-        from: f.friends.first,
+        peer: f.friends.first,
+        mine: false,
         track: const Track(id: '-', title: '', artist: ''),
         createdAt: DateTime(2026, 1, 1, 10),
         seen: false,
@@ -356,16 +291,29 @@ void main() {
         'kind': 'jam',
         'track': {'code': '<x>'},
       })
-      ..add({...share(5), 'kind': 'otro'});
+      ..add({...share(5), 'kind': 'otro'})
+      ..add({
+        ...share(6),
+        'kind': 'jam',
+        'created_at': DateTime.now()
+            .subtract(const Duration(hours: 3))
+            .toUtc()
+            .toIso8601String(),
+        'track': {'code': 'ABCD2345'},
+      });
     auth.set('me');
     final f = make();
     await settle();
-    expect(f.inbox.map((i) => i.kind).toSet(), {
+    expect(f.messages.map((i) => i.kind).toSet(), {
       SharedKind.track,
       SharedKind.playlist,
       SharedKind.jam,
     });
-    expect(f.inbox.length, 3);
+    // La Jam de hace 3 h llega en los datos (el falso no aplica RLS) pero el
+    // hilo no la enseña.
+    expect(f.messages.length, 4);
+    expect(f.threadWith('u1').length, 3);
+    expect(f.threadWith('u1').any((i) => i.jamExpired()), isFalse);
     final notices = <FriendsNoticeKind>[];
     f.notices.map((n) => n.kind).listen(notices.add);
     data.onShare!({
@@ -384,8 +332,15 @@ void main() {
     required bool signedIn,
     Size? size,
     Future<void> Function(String)? onJoinJam,
+    ValueNotifier<String?>? openChat,
+    Track? playing,
+    ThemeData? theme,
   }) async {
     final controller = await createTestController();
+    if (playing != null) {
+      controller.queue = [playing];
+      await controller.playQueueAt(0);
+    }
     auth.uid = signedIn ? 'me' : null;
     final f = make();
     addTearDown(() {
@@ -400,8 +355,13 @@ void main() {
       ProviderScope(
         overrides: [friendsServiceProvider.overrideWith((ref) => f)],
         child: MaterialApp(
+          theme: theme,
           home: Scaffold(
-            body: FriendsPage(controller: controller, onJoinJam: onJoinJam),
+            body: FriendsPage(
+              controller: controller,
+              onJoinJam: onJoinJam,
+              openChat: openChat ?? ValueNotifier<String?>(null),
+            ),
           ),
         ),
       ),
@@ -416,16 +376,28 @@ void main() {
   });
 
   for (final size in [const Size(1000, 800), const Size(320, 640)]) {
-    testWidgets('bandeja con listas e invitaciones ${size.width.toInt()}px', (
+    testWidgets('chat: lista, hilo, unirse y volver ${size.width.toInt()}px', (
       tester,
     ) async {
-      final now = DateTime.now().toUtc().toIso8601String();
+      final now = DateTime.now();
+      String ago(int m) =>
+          now.subtract(Duration(minutes: m)).toUtc().toIso8601String();
       data.requests.add(req('a', 'u1', 'me', 'accepted'));
       data.shares
         ..add({
+          'id': 'out0',
+          'from_id': 'me',
+          'to_id': 'u1',
+          'kind': 'track',
+          'track': {'id': 'o0', 'title': 'Enviada por mí', 'artist': 'Yo'},
+          'note': null,
+          'created_at': ago(5),
+          'seen': false,
+        })
+        ..add({
           ...share(2),
           'kind': 'playlist',
-          'created_at': now,
+          'created_at': ago(3),
           'track': {
             'name': 'Mix de ana',
             'tracks': [
@@ -436,15 +408,17 @@ void main() {
         ..add({
           ...share(3),
           'kind': 'jam',
-          'created_at': now,
+          'created_at': ago(1),
           'track': {'code': 'ABCD2345'},
         });
       String? joined;
+      final openChat = ValueNotifier<String?>(null);
       await tester.runAsync(
         () => pump(
           tester,
           signedIn: true,
           size: size,
+          openChat: openChat,
           onJoinJam: (c) async => joined = c,
         ),
       );
@@ -452,15 +426,144 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
       await tester.pump();
+      expect(find.byKey(const ValueKey('friends-chat-u1')), findsOneWidget);
+      expect(find.text('Te invita a su Jam'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
+      await tester.pump();
+      expect(openChat.value, 'u1');
+      expect(find.text('ana te invita a su Jam'), findsOneWidget);
       expect(find.text('Mix de ana'), findsOneWidget);
       expect(find.text('1 canciones'), findsOneWidget);
-      expect(find.text('Guardar en mi biblioteca'), findsOneWidget);
-      expect(find.text('ana te invita a su Jam'), findsOneWidget);
-      await tester.tap(find.text('Unirse'));
+      expect(find.byTooltip('Guardar en mi biblioteca'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('chat-join-s3')));
       expect(joined, 'ABCD2345');
+      // Lo enviado por mí está en lo alto del hilo; puede quedar fuera.
+      await tester.drag(find.byType(ListView).first, const Offset(0, 400));
+      await tester.pump();
+      expect(find.text('Enviada por mí'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('chat-back')));
+      await tester.pump();
+      expect(openChat.value, isNull);
+      expect(find.byKey(const ValueKey('friends-chat-u1')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
       expect(tester.takeException(), isNull);
     });
   }
+
+  // Toda la fila de la lista de chats abre el chat, también por los bordes.
+  for (final entry in {
+    'atelier': auroraTheme,
+    'modern': modernTheme,
+    'brasa': brasaTheme,
+    'slush': slushTheme,
+  }.entries) {
+    testWidgets('chats: ${entry.key}: pulsar en cualquier parte de la fila', (
+      tester,
+    ) async {
+      data.requests.add(req('a', 'u1', 'me', 'accepted'));
+      data.shares.add({
+        ...share(3),
+        'kind': 'jam',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'track': {'code': 'ABCD2345'},
+      });
+      final openChat = ValueNotifier<String?>(null);
+      await tester.runAsync(
+        () => pump(
+          tester,
+          signedIn: true,
+          size: const Size(1440, 900),
+          openChat: openChat,
+          theme: entry.value(Brightness.dark, const Color(0xff4d7cff)),
+        ),
+      );
+      await tester.runAsync(settle);
+      await tester.pump();
+      // En la pestaña de amigos, pulsar el nombre también abre el chat.
+      await tester.tap(find.text('ana'));
+      await tester.pump();
+      expect(openChat.value, 'u1', reason: '${entry.key}: fila de amigos');
+      openChat.value = null;
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
+      await tester.pump();
+      final row = find.byKey(const ValueKey('friends-chat-u1'));
+      final r = tester.getRect(row);
+      for (final p in [
+        Offset(r.left + 4, r.center.dy),
+        Offset(r.right - 4, r.center.dy),
+        Offset(r.center.dx, r.top + 20),
+        Offset(r.center.dx, r.bottom - 20),
+        r.center + Offset(r.width / 4, 0),
+      ]) {
+        openChat.value = null;
+        await tester.pump();
+        await tester.tapAt(p);
+        await tester.pump();
+        expect(openChat.value, 'u1', reason: '${entry.key} en $p de $r');
+      }
+    });
+  }
+
+  testWidgets('chat: enviar lo que suena añade el mensaje al hilo', (
+    tester,
+  ) async {
+    data.requests.add(req('a', 'u1', 'me', 'accepted'));
+    final openChat = ValueNotifier<String?>('u1');
+    await tester.runAsync(
+      () => pump(
+        tester,
+        signedIn: true,
+        openChat: openChat,
+        playing: const Track(id: 'v9', title: 'Nueva', artist: 'X'),
+      ),
+    );
+    await tester.runAsync(settle);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('chat-empty')), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('chat-note')), 'hola');
+    await tester.tap(find.byKey(const ValueKey('chat-send-now')));
+    await tester.runAsync(settle);
+    await tester.pump();
+    expect(data.lastKind, 'track');
+    expect(find.text('Nueva'), findsOneWidget);
+    // La nota viaja en el mensaje y el campo se vacía.
+    expect(find.text('«hola»'), findsOneWidget);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('chat-note')),
+    );
+    expect(field.controller!.text, isEmpty);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('chat: invitación a Jam caducada no aparece', (tester) async {
+    data.requests.add(req('a', 'u1', 'me', 'accepted'));
+    data.shares
+      ..add({
+        ...share(1),
+        'kind': 'jam',
+        'created_at': DateTime.now()
+            .subtract(const Duration(hours: 3))
+            .toUtc()
+            .toIso8601String(),
+        'track': {'code': 'ABCD2345'},
+      })
+      ..add({
+        ...share(2),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    final openChat = ValueNotifier<String?>('u1');
+    await tester.runAsync(
+      () => pump(tester, signedIn: true, openChat: openChat),
+    );
+    await tester.runAsync(settle);
+    await tester.pump();
+    expect(find.text('ana te invita a su Jam'), findsNothing);
+    expect(find.text('Canción 2'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+  });
 
   testWidgets('menú de canción: «Enviar a un amigo» sigue a la sesión', (
     tester,
@@ -524,6 +627,8 @@ void main() {
       await tester.pump();
       expect(find.text('beto'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
       await tester.pump();
       expect(find.text('Canción 0'), findsOneWidget);
       expect(find.textContaining('Escúchala'), findsOneWidget);

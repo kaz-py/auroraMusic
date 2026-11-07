@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../app_controller.dart';
 import '../../audio/eq_model.dart';
@@ -12,14 +13,56 @@ import '../artwork.dart';
 import '../studio/equalizer_panel.dart';
 import '../track_actions.dart';
 
-const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Color(0xffc9a8f5)];
+const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Slush.lilac];
 
-BoxDecoration _card([Color color = Colors.white, double r = 28]) =>
-    BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(r),
-      border: const Border.fromBorderSide(Slush.border),
-    );
+/// Contenedor: `lineSoft` (tarjeta); [control] = borde de control (`line`).
+BoxDecoration _card(
+  BuildContext context, [
+  Color? color,
+  double r = SlushRadius.r32,
+  bool control = false,
+]) => BoxDecoration(
+  color: color ?? context.slush.paper,
+  borderRadius: BorderRadius.circular(r),
+  border: Border.fromBorderSide(
+    control ? context.slush.border : context.slush.borderSoft,
+  ),
+);
+
+/// 44 con puntero grueso, 32 desde escritorio.
+double _minHeight(BuildContext context) =>
+    Breakpoints.isWide(MediaQuery.sizeOf(context).width)
+    ? SlushControl.dense
+    : SlushControl.touch;
+
+/// Píldora tocable: hundido al pulsar, foco, objetivo mínimo por ancho.
+Widget _pillButton(
+  BuildContext context, {
+  required Widget child,
+  required VoidCallback? onTap,
+  required Color fill,
+  bool outline = true,
+  EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+}) => SlushPressable(
+  elevation: SlushElevation.none,
+  onTap: onTap,
+  minSize: _minHeight(context),
+  child: ConstrainedBox(
+    constraints: BoxConstraints(minHeight: _minHeight(context)),
+    child: DecoratedBox(
+      decoration: ShapeDecoration(
+        color: fill,
+        shape: StadiumBorder(
+          side: outline ? context.slush.border : BorderSide.none,
+        ),
+      ),
+      child: Padding(
+        padding: padding,
+        child: Center(widthFactor: 1, child: child),
+      ),
+    ),
+  ),
+);
 
 String _gain(double db) {
   final a = db.abs();
@@ -28,18 +71,20 @@ String _gain(double db) {
   return '$sign$s dB';
 }
 
-/// Pantalla Slush «Ecualizador + Cola»: pestañas, EQ gigante, cola y
-/// temporizador de apagado.
+/// Pantallas Slush de Cola y Ecualizador. Con [queueFirst] la cola es el
+/// contenido principal (lista a alto completo, único scroll vertical) y el EQ
+/// queda a un lado en ancho; sin él, el EQ lidera. En estrecho cada vista
+/// ocupa su propia pestaña: Cola o Ecualizador.
 class SlushEqQueue extends StatefulWidget {
   const SlushEqQueue({
     super.key,
     required this.controller,
     required this.onNavigate,
-    this.showQueueTab = false,
+    this.queueFirst = false,
   });
   final AppController controller;
   final ValueChanged<int> onNavigate;
-  final bool showQueueTab;
+  final bool queueFirst;
   @override
   State<SlushEqQueue> createState() => _SlushEqQueueState();
 }
@@ -51,34 +96,90 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
   Widget build(BuildContext context) {
     final c = widget.controller;
     return ColoredBox(
-      color: const Color(0xffd9dbe0),
+      color: context.slush.screen,
       child: LayoutBuilder(
         builder: (context, box) {
-          final wide = box.maxWidth >= 900;
+          final wide = Breakpoints.isWide(box.maxWidth);
+          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          final big = scale > 1.3;
           final eq = EqualizerPanel(controller: c, slushBoard: true);
+          final queue = _QueueCard(
+            controller: c,
+            onSearch: () => widget.onNavigate(1),
+            fill: wide || widget.queueFirst,
+          );
+          if (widget.queueFirst && !wide) {
+            final pad = SlushSpacing.margin(box.maxWidth);
+            // Con texto grande el chrome del shell deja a la lista un hueco
+            // ridículo: el panel entero se desplaza y la cola conserva alto.
+            if (big) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(pad),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _top(c),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: math.max(520.0, box.maxHeight),
+                      child: queue,
+                    ),
+                  ],
+                ),
+              );
+            }
+            return Padding(
+              padding: EdgeInsets.all(pad),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _top(c),
+                  const SizedBox(height: 20),
+                  Expanded(child: queue),
+                ],
+              ),
+            );
+          }
           final side = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _QueueCard(controller: c, onSearch: () => widget.onNavigate(1)),
-              const SizedBox(height: 16),
+              if (wide) ...[Expanded(child: queue), const SizedBox(height: 16)],
               _timer(c),
             ],
           );
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(SlushSpacing.margin(box.maxWidth)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _top(c),
                 const SizedBox(height: 20),
                 if (wide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 11, child: eq),
-                      const SizedBox(width: 24),
-                      Expanded(flex: 8, child: side),
-                    ],
+                  SizedBox(
+                    height: math.max(
+                      560.0 * (big ? scale : 1),
+                      box.maxHeight - 140,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (widget.queueFirst) ...[
+                          Expanded(flex: 11, child: side),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 9,
+                            child: SingleChildScrollView(child: eq),
+                          ),
+                        ] else ...[
+                          Expanded(
+                            flex: 11,
+                            child: SingleChildScrollView(child: eq),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(flex: 8, child: side),
+                        ],
+                      ],
+                    ),
                   )
                 else ...[
                   eq,
@@ -93,32 +194,31 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
     );
   }
 
-  Widget _pill(String t, VoidCallback f, {IconData? icon}) => Material(
-    color: Colors.white,
-    shape: const StadiumBorder(side: Slush.border),
-    child: InkWell(
-      customBorder: const StadiumBorder(),
-      onTap: f,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: Slush.ink),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              t,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: Slush.ink,
-              ),
+  Widget _pill(String t, VoidCallback f, {IconData? icon}) => _pillButton(
+    context,
+    onTap: f,
+    fill: context.slush.paper,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: context.slush.ink),
+          const SizedBox(width: 6),
+        ],
+        Flexible(
+          child: Text(
+            t,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: context.slush.ink,
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     ),
   );
 
@@ -126,18 +226,16 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
     listenable: c,
     builder: (context, _) {
       final left = c.sleepRemaining;
-      final current = widget.showQueueTab ? 5 : 13;
-      return Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        runSpacing: 10,
-        spacing: 12,
-        children: [
-          _pill('VOLVER', () => widget.onNavigate(0), icon: Icons.arrow_back),
-          DecoratedBox(
-            decoration: _card(Colors.white, 40),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
+      final current = widget.queueFirst ? 5 : 13;
+      final items = <Widget>[
+        _pill('VOLVER', () => widget.onNavigate(0), icon: Icons.arrow_back),
+        DecoratedBox(
+          decoration: _card(context, null, SlushRadius.pill, true),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            // En el teléfono las cuatro pestañas no caben: se desplazan.
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -152,35 +250,53 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
               ),
             ),
           ),
-          _pill(
-            left == null ? 'ZZ · OFF' : 'ZZ · ${left.inMinutes + 1} MIN',
-            () => setState(() {
-              c.setSleepTimer(null);
-              _sleepChoice = null;
-            }),
-            icon: Icons.bedtime_outlined,
+        ),
+        _pill(
+          left == null ? 'ZZ · OFF' : 'ZZ · ${left.inMinutes + 1} MIN',
+          () => setState(() {
+            c.setSleepTimer(null);
+            _sleepChoice = null;
+          }),
+          icon: Icons.bedtime_outlined,
+        ),
+      ];
+      // Con texto grande tres filas de píldoras se comen la altura: una sola
+      // fila que se desplaza en horizontal.
+      if (MediaQuery.textScalerOf(context).scale(14) / 14 > 1.3) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                items[i],
+              ],
+            ],
           ),
-        ],
+        );
+      }
+      return Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 10,
+        spacing: 12,
+        children: items,
       );
     },
   );
 
-  Widget _tab(String t, bool on, VoidCallback f) => InkWell(
-    customBorder: const StadiumBorder(),
+  Widget _tab(String t, bool on, VoidCallback f) => _pillButton(
+    context,
     onTap: f,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: ShapeDecoration(
-        color: on ? Slush.ink : Colors.transparent,
-        shape: const StadiumBorder(),
-      ),
-      child: Text(
-        t,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: on ? Colors.white : Slush.ink,
-        ),
+    fill: on ? context.slush.ink : Colors.transparent,
+    outline: false,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+    child: Text(
+      t,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: on ? context.slush.paper : context.slush.ink,
       ),
     ),
   );
@@ -191,37 +307,28 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
       final active = c.sleepRemaining != null ? _sleepChoice : null;
       Widget chip(String t, int v) {
         final on = active == v;
-        return InkWell(
-          customBorder: const StadiumBorder(),
+        return _pillButton(
+          context,
           onTap: () {
             if (on) {
               c.setSleepTimer(null);
               setState(() => _sleepChoice = null);
               return;
             }
-            Duration d;
             if (v < 0) {
-              final left = c.audio.duration - c.audio.position;
-              d = left > Duration.zero ? left : const Duration(minutes: 1);
+              c.setSleepAtTrackEnd();
             } else {
-              d = Duration(minutes: v);
+              c.setSleepTimer(Duration(minutes: v));
             }
-            c.setSleepTimer(d);
             setState(() => _sleepChoice = v);
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: ShapeDecoration(
-              color: on ? Slush.ink : Colors.white,
-              shape: const StadiumBorder(side: Slush.border),
-            ),
-            child: Text(
-              t,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: on ? Colors.white : Slush.ink,
-              ),
+          fill: on ? context.slush.ink : context.slush.paper,
+          child: Text(
+            t,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: on ? context.slush.paper : context.slush.ink,
             ),
           ),
         );
@@ -235,7 +342,7 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
-              decoration: _card(Slush.mint),
+              decoration: _card(context, Slush.mint),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -289,162 +396,555 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
   );
 }
 
-class _QueueCard extends StatelessWidget {
-  const _QueueCard({required this.controller, required this.onSearch});
+class _QueueCard extends StatefulWidget {
+  const _QueueCard({
+    required this.controller,
+    required this.onSearch,
+    this.fill = false,
+  });
   final AppController controller;
   final VoidCallback onSearch;
+
+  /// Ocupa toda la altura disponible (escritorio) en vez de encogerse.
+  final bool fill;
+
+  @override
+  State<_QueueCard> createState() => _QueueCardState();
+}
+
+class _QueueCardState extends State<_QueueCard> {
+  /// Alto medio de una fila: solo estima dónde está una fila aún sin construir.
+  static const _rowExtent = 60.0;
+
+  final _scroll = ScrollController();
+  final _currentKey = GlobalKey();
+  String? _sig;
+
+  /// La lista sigue a la canción mientras el usuario no se aleje a mano.
+  bool _follow = true;
+  bool _endPending = false;
+  bool _syncQueued = false;
+
+  /// Dónde queda la fila actual respecto a la ventana: -1 arriba, 1 abajo.
+  int _away = 0;
+  bool _showPlayed = false;
+
+  /// Filas escuchadas ocultas arriba (desplazan los índices de la lista).
+  int _hidden = 0;
+
+  AppController get _c => widget.controller;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   static String _kind(Track t) =>
       t.isLocal ? (t.pageUrl != null ? 'DESCARGADA' : 'LOCAL') : 'YOUTUBE';
   static String _time(Duration v) =>
       '${v.inMinutes}:${(v.inSeconds % 60).toString().padLeft(2, '0')}';
+  static String _left(Duration v) {
+    final m = (v.inSeconds / 60).ceil();
+    return m >= 60
+        ? '${m ~/ 60} H ${(m % 60).toString().padLeft(2, '0')} MIN'
+        : '$m MIN';
+  }
+
+  /// Resumen vivo: cuántas faltan y cuánto queda (lo que resta de la actual
+  /// más lo que viene). En aleatorio el orden lo decide el azar.
+  String _summary(bool ordered) {
+    final c = _c;
+    final q = c.queue;
+    if (q.isEmpty) return '';
+    if (c.shuffle) return 'ALEATORIO · ${q.length} EN COLA';
+    if (!ordered) return '${q.length} EN COLA';
+    final rest = q.skip(c.queueIndex + 1).toList();
+    var left = c.queue[c.queueIndex].duration - c.audio.position;
+    if (left.isNegative) left = Duration.zero;
+    var unknown = false;
+    for (final t in rest) {
+      left += t.duration;
+      unknown |= t.duration == Duration.zero;
+    }
+    return '${rest.length} A CONTINUACIÓN · ${_left(left)}${unknown ? '+' : ''} RESTANTES';
+  }
+
+  // --- scroll -------------------------------------------------------------
+
+  RenderAbstractViewport? _viewportOf(RenderObject? ro) =>
+      ro == null ? null : RenderAbstractViewport.maybeOf(ro);
+
+  /// 0 = la fila actual se ve entera; -1 = queda arriba; 1 = queda abajo.
+  int _awayDirection() {
+    if (!_scroll.hasClients || _c.currentTrack == null) return 0;
+    final p = _scroll.position;
+    final ro = _currentKey.currentContext?.findRenderObject();
+    final vp = _viewportOf(ro);
+    if (ro == null || vp == null) {
+      return (_c.queueIndex - _hidden) * _rowExtent < p.pixels ? -1 : 1;
+    }
+    double at(double a) => vp
+        .getOffsetToReveal(ro, a)
+        .offset
+        .clamp(p.minScrollExtent, p.maxScrollExtent);
+    if (p.pixels > at(0) + 1) return -1;
+    if (p.pixels < at(1) - 1) return 1;
+    return 0;
+  }
+
+  void _setAway(int d) {
+    if (d != _away && mounted) setState(() => _away = d);
+  }
+
+  /// Lleva la fila actual a la vista (sin mover nada si ya se ve).
+  void _reveal({bool animate = true, int retry = 1}) {
+    if (!mounted || !_scroll.hasClients) return;
+    if (_awayDirection() == 0) return _setAway(0);
+    final p = _scroll.position;
+    final ro = _currentKey.currentContext?.findRenderObject();
+    final vp = _viewportOf(ro);
+    final built = ro != null && vp != null;
+    final target =
+        (built
+                ? vp.getOffsetToReveal(ro, .3).offset
+                : (_c.queueIndex - _hidden) * _rowExtent -
+                      p.viewportDimension * .3)
+            .clamp(p.minScrollExtent, p.maxScrollExtent);
+    _setAway(0);
+    if (animate && built && !_c.reducedMotion && !SlushMotion.reduce(context)) {
+      _scroll.animateTo(
+        target,
+        duration: SlushMotion.sheetIn,
+        curve: SlushMotion.easeOut,
+      );
+    } else {
+      _scroll.jumpTo(target);
+    }
+    // Sin construir solo se estimó: se afina cuando la fila ya existe.
+    if (!built && retry > 0) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _reveal(animate: animate, retry: retry - 1),
+      );
+    }
+  }
+
+  void _onChange(String sig) {
+    if (sig == _sig) return;
+    final first = _sig == null;
+    _sig = sig;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_follow) {
+        _reveal(animate: !first);
+      } else {
+        _setAway(_awayDirection());
+      }
+    });
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.depth != 0) return false;
+    // Solo el gesto o la rueda del usuario son «UserScroll»: animateTo no.
+    if (n is UserScrollNotification && n.direction != ScrollDirection.idle) {
+      _follow = false;
+    }
+    if (n is ScrollEndNotification) _endPending = true;
+    if ((n is ScrollUpdateNotification || n is ScrollEndNotification) &&
+        !_syncQueued) {
+      _syncQueued = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncQueued = false;
+        if (!mounted) return;
+        final d = _awayDirection();
+        // Al soltar con la actual a la vista, la lista vuelve a seguirla.
+        if (_endPending && d == 0) _follow = true;
+        _endPending = false;
+        _setAway(d);
+      });
+    }
+    return false;
+  }
+
+  void _goCurrent() {
+    _follow = true;
+    _reveal();
+  }
+
+  // --- build --------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: widget.controller,
     builder: (context, _) {
-      final c = controller;
+      final c = _c;
       final q = c.queue;
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: _card(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+      final cur = c.queueIndex;
+      // Con orden real (sin aleatorio) lo ya escuchado va aparte y atenuado.
+      final ordered = !c.shuffle && cur >= 0 && cur < q.length;
+      final played = ordered ? cur : 0;
+      _hidden = ordered && !_showPlayed ? played : 0;
+      _onChange('$cur:${c.currentTrack?.id}:${q.length}:$_hidden');
+      final count = q.length - _hidden;
+      final platform = Theme.of(context).platform;
+      // En el móvil arrastrar una fila es desplazar: reordenar pide mantener.
+      final desktop = const {
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+      }.contains(platform);
+      Widget itemBuilder(BuildContext context, int i) => _row(
+        context,
+        q[i + _hidden],
+        i + _hidden,
+        played: played,
+        ordered: ordered,
+        desktop: desktop,
+      );
+      Future<void> reorder(int o, int n) =>
+          c.reorderQueue(o + _hidden, n + _hidden);
+      final list = NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: ReorderableListView.builder(
+          proxyDecorator: (child, _, _) => Material(
+            type: MaterialType.transparency,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                const Text(
-                  'COLA',
-                  style: TextStyle(
-                    fontFamily: 'Bagel Fat One',
-                    fontSize: 52,
-                    height: 1,
-                    color: Slush.ink,
+                Positioned.fill(
+                  bottom: 8,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(SlushRadius.r16),
+                      boxShadow: context.slush.shadowsFor(SlushElevation.card),
+                    ),
                   ),
                 ),
-                const Spacer(),
-                Tooltip(
-                  message: c.shuffle
-                      ? 'Desactivar aleatorio'
-                      : 'Activar aleatorio',
-                  child: InkWell(
-                    customBorder: const StadiumBorder(),
-                    onTap: () => c.setShuffle(!c.shuffle),
-                    child: SlushPill(
-                      c.shuffle ? 'Aleatorio activo' : 'Aleatorio',
-                      color: c.shuffle ? Slush.mint : Colors.white,
+                child,
+              ],
+            ),
+          ),
+          scrollController: _scroll,
+          shrinkWrap: !widget.fill,
+          buildDefaultDragHandles: false,
+          itemCount: count,
+          onReorder: reorder,
+          itemBuilder: itemBuilder,
+        ),
+      );
+      final stack = Stack(
+        children: [
+          list,
+          if (_away != 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 6,
+              child: Center(child: _goPill(context)),
+            ),
+        ],
+      );
+      final summary = _summary(ordered);
+      return LayoutBuilder(
+        builder: (context, box) {
+          // Con poca altura (móvil con mini + barra) la cabecera se compacta y
+          // la lista, único scroll, absorbe el resto.
+          final compact =
+              widget.fill && box.hasBoundedHeight && box.maxHeight < 340;
+          final gap = compact ? 4.0 : 10.0;
+          return Container(
+            padding: EdgeInsets.all(compact ? 10 : 16),
+            decoration: _card(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'COLA',
+                          style: TextStyle(
+                            fontFamily: 'Bagel Fat One',
+                            fontSize: compact ? 32 : 52,
+                            height: 1,
+                            color: context.slush.ink,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: c.shuffle
+                          ? 'Desactivar aleatorio'
+                          : 'Activar aleatorio',
+                      child: SlushPressable(
+                        elevation: SlushElevation.none,
+                        onTap: () => c.setShuffle(!c.shuffle),
+                        child: SlushPill(
+                          c.shuffle ? 'Aleatorio activo' : 'Aleatorio',
+                          color: c.shuffle ? Slush.mint : context.slush.paper,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (summary.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(top: compact ? 2 : 6),
+                    child: Text(
+                      summary,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .6,
+                        color: context.slush.ink,
+                      ),
+                    ),
+                  ),
+                SizedBox(height: gap),
+                if (q.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('No hay canciones en la cola')),
+                  )
+                else if (widget.fill)
+                  Expanded(child: stack)
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 340),
+                    child: stack,
+                  ),
+                if (widget.fill && q.isEmpty) const Spacer(),
+                SizedBox(height: gap),
+                OutlinedButton.icon(
+                  onPressed: widget.onSearch,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text(
+                    'REPRODUCIR A CONTINUACIÓN…',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  Widget _goPill(BuildContext context) => SlushPressable(
+    onTap: _goCurrent,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(minHeight: _minHeight(context)),
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: Slush.yellow,
+          shape: StadiumBorder(side: context.slush.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Center(
+            widthFactor: 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _away < 0 ? Icons.arrow_upward : Icons.arrow_downward,
+                  size: 16,
+                  color: Slush.ink,
+                ),
+                const SizedBox(width: 6),
+                const Flexible(
+                  child: Text(
+                    'IR A LA ACTUAL',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Slush.ink,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            if (q.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: Text('No hay canciones en la cola')),
-              )
-            else
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 340),
-                child: ReorderableListView.builder(
-                  shrinkWrap: true,
-                  buildDefaultDragHandles: false,
-                  itemCount: q.length,
-                  onReorder: c.reorderQueue,
-                  itemBuilder: (context, i) => _row(context, q[i], i),
-                ),
-              ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: onSearch,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text(
-                'REPRODUCIR A CONTINUACIÓN…',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
-    },
+      ),
+    ),
   );
 
-  Widget _row(BuildContext context, Track t, int i) {
-    final c = controller;
+  Widget _caption(BuildContext context, String text, {VoidCallback? onTap}) =>
+      InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: onTap == null ? 0 : SlushControl.touch,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .8,
+                      color: context.slush.ink,
+                    ),
+                  ),
+                ),
+                if (onTap != null) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    _showPlayed ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: context.slush.ink,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _row(
+    BuildContext context,
+    Track t,
+    int i, {
+    required int played,
+    required bool ordered,
+    required bool desktop,
+  }) {
+    final c = _c;
     final active = i == c.queueIndex;
+    final dim = ordered && i < c.queueIndex;
+    // Sobre lila el contenido va en tinta fija (también en oscuro), con tema
+    // claro para iconos y menús.
+    final Widget Function(BuildContext, Widget) wrap = active
+        ? slushOnVivid
+        : (_, w) => w;
     final extras = [
       (label: 'Quitar de la cola', run: () => c.removeFromQueue(i)),
     ];
-    return ReorderableDragStartListener(
-      key: ValueKey('$i:${t.id}'),
-      index: i,
-      child: TrackActionsRegion(
-        controller: c,
-        track: t,
-        extras: extras,
-        builder: (context, _) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+    final String? caption = !ordered
+        ? null
+        : i == c.queueIndex + 1
+        ? 'A CONTINUACIÓN'
+        : null;
+    final togglePlayed = ordered && played > 0 && i == _hidden;
+    final body = TrackActionsRegion(
+      controller: c,
+      track: t,
+      extras: extras,
+      builder: (context, _) => Padding(
+        key: active ? _currentKey : null,
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Opacity(
+          opacity: dim ? .7 : 1,
           child: Material(
-            color: active ? Slush.lilac : Colors.white,
+            color: active ? Slush.mint : context.slush.paper,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: Slush.border,
+              borderRadius: BorderRadius.circular(SlushRadius.r16),
+              side: active ? context.slush.border : context.slush.borderSoft,
             ),
             child: InkWell(
               customBorder: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(SlushRadius.r16),
               ),
-              onTap: () => c.playQueueAt(i),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      child: Text(
-                        '${i + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+              onTap: () {
+                _follow = true;
+                c.playQueueAt(i);
+              },
+              child: wrap(
+                context,
+                Builder(
+                  builder: (context) => Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          child: active
+                              ? const Center(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Slush.orange,
+                                      shape: BoxShape.circle,
+                                      border: Border.fromBorderSide(
+                                        BorderSide(
+                                          color: Slush.ink,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                    child: SizedBox.square(dimension: 10),
+                                  ),
+                                )
+                              : Text(
+                                  '${i + 1}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
                         ),
-                      ),
-                    ),
-                    Artwork(track: t, size: 36, radius: 8),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                            ),
+                        Artwork(track: t, size: 36, radius: 8),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                t.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
                           ),
-                          Text(
-                            t.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11),
-                          ),
+                        ),
+                        // Con texto grande la fila no cabe en el teléfono: la
+                        // activa se distingue por el color.
+                        if (MediaQuery.textScalerOf(context).scale(1) <=
+                            1.3) ...[
+                          if (active)
+                            const SlushPill('Sonando', color: Slush.yellow)
+                          else
+                            SlushPill(_kind(t), color: context.slush.paper),
+                          const SizedBox(width: 6),
                         ],
-                      ),
+                        Text(
+                          _time(t.duration),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        TrackMenuButton(
+                          controller: c,
+                          track: t,
+                          extras: extras,
+                        ),
+                      ],
                     ),
-                    SlushPill(_kind(t), color: Colors.white),
-                    const SizedBox(width: 6),
-                    Text(
-                      _time(t.duration),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TrackMenuButton(controller: c, track: t, extras: extras),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -452,6 +952,34 @@ class _QueueCard extends StatelessWidget {
         ),
       ),
     );
+    final child = caption == null && !togglePlayed
+        ? body
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (togglePlayed)
+                _caption(
+                  context,
+                  'ESCUCHADAS · $played',
+                  onTap: () => setState(() => _showPlayed = !_showPlayed),
+                ),
+              ?(caption == null ? null : _caption(context, caption)),
+              body,
+            ],
+          );
+    final key = ValueKey('$i:${t.id}');
+    return desktop
+        ? ReorderableDragStartListener(
+            key: key,
+            index: i - _hidden,
+            child: child,
+          )
+        : ReorderableDelayedDragStartListener(
+            key: key,
+            index: i - _hidden,
+            child: child,
+          );
   }
 }
 
@@ -489,12 +1017,14 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
         value: v,
         onChanged: f,
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Slush.yellow : Colors.white,
+          (s) => s.contains(WidgetState.selected) ? Slush.mint : Slush.lilac,
         ),
       ),
-      Text(
-        t,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+      Flexible(
+        child: Text(
+          t,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
       ),
     ],
   );
@@ -504,6 +1034,11 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
     final eq = widget.eq;
     final ok = eq.supported;
     final sel = widget.selected.clamp(0, eq.bands.length - 1);
+    final note = widget.webPlayback
+        ? 'En canciones de YouTube el EQ se desactiva'
+        : !ok
+        ? 'Este dispositivo no ofrece EQ'
+        : null;
     final band = eq.bands[sel];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -512,13 +1047,13 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           crossAxisAlignment: WrapCrossAlignment.end,
           spacing: 16,
           children: [
-            const Text(
+            Text(
               'EQ',
               style: TextStyle(
                 fontFamily: 'Bagel Fat One',
                 fontSize: 130,
                 height: .95,
-                color: Slush.ink,
+                color: context.slush.ink,
               ),
             ),
             Column(
@@ -529,32 +1064,34 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
                   '8 bandas DSP · preamp automático',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 6),
-                DecoratedBox(
-                  decoration: _card(Colors.white, 20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircleAvatar(
-                          radius: 4,
-                          backgroundColor: Slush.orange,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          !ok && !widget.webPlayback
-                              ? 'Este dispositivo no ofrece EQ'
-                              : 'En canciones de YouTube el EQ se desactiva',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                      ],
+                if (note != null) ...[
+                  const SizedBox(height: 6),
+                  DecoratedBox(
+                    decoration: _card(context, null, SlushRadius.r16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircleAvatar(
+                            radius: 4,
+                            backgroundColor: Slush.orange,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              note,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
@@ -585,8 +1122,9 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           clipBehavior: Clip.none,
           children: [
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 18, 12, 10),
-              decoration: _card(),
+              // 36 arriba: el disco flotante (bajo 32 px) no tapa el dB de la 8ª banda.
+              padding: const EdgeInsets.fromLTRB(12, 36, 12, 10),
+              decoration: _card(context),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -636,8 +1174,8 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           children: [
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: Slush.ink,
-                foregroundColor: Colors.white,
+                backgroundColor: context.slush.ink,
+                foregroundColor: context.slush.paper,
               ),
               onPressed: ok ? widget.onSave : null,
               icon: const Icon(Icons.check, size: 16),
@@ -664,7 +1202,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 widget.message!,
-                style: const TextStyle(fontSize: 11),
+                style: const TextStyle(fontSize: 12),
               ),
             ),
           ),
@@ -714,8 +1252,12 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
 
   Widget _fineSlider(String l, double v, ValueChanged<double>? f) => Row(
     children: [
-      SizedBox(width: 92, child: Text(l, style: const TextStyle(fontSize: 11))),
+      Flexible(
+        flex: 2,
+        child: Text(l, maxLines: 2, style: const TextStyle(fontSize: 12)),
+      ),
       Expanded(
+        flex: 5,
         child: Slider(
           value: v.clamp(0.0, 1.0),
           onChanged: f,
@@ -725,22 +1267,17 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
     ],
   );
 
-  Widget _chip(String t, bool on, VoidCallback? f) => Material(
-    color: on ? Slush.ink : Colors.white,
-    shape: const StadiumBorder(side: Slush.border),
-    child: InkWell(
-      customBorder: const StadiumBorder(),
-      onTap: f,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        child: Text(
-          t,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: on ? Colors.white : Slush.ink,
-          ),
-        ),
+  Widget _chip(String t, bool on, VoidCallback? f) => _pillButton(
+    context,
+    onTap: f,
+    fill: on ? context.slush.ink : context.slush.paper,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+    child: Text(
+      t,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: on ? context.slush.paper : context.slush.ink,
       ),
     ),
   );
@@ -753,22 +1290,22 @@ class _Disc extends StatelessWidget {
     child: Container(
       width: 84,
       height: 84,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Slush.ink,
         border: Border.fromBorderSide(
-          BorderSide(color: Colors.white, width: 3),
+          BorderSide(color: context.slush.line, width: SlushStroke.strong),
         ),
-        boxShadow: [BoxShadow(color: Slush.ink, spreadRadius: 2)],
+        boxShadow: const [BoxShadow(color: Slush.ink, spreadRadius: 2)],
       ),
       child: Center(
         child: Container(
           width: 30,
           height: 30,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Slush.mint,
-            border: Border.fromBorderSide(Slush.border),
+            border: Border.fromBorderSide(context.slush.border),
           ),
           child: const Center(
             child: CircleAvatar(radius: 3, backgroundColor: Slush.ink),
@@ -815,7 +1352,7 @@ class _Band extends StatelessWidget {
           fit: BoxFit.scaleDown,
           child: Text(
             _gain(band.gainDb),
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
           ),
         ),
         const SizedBox(height: 6),
@@ -854,11 +1391,13 @@ class _Band extends StatelessWidget {
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xffeaeaea),
+                          color: context.slush.inset,
                           borderRadius: BorderRadius.circular(_w / 2),
                           border: Border.all(
-                            color: Slush.ink,
-                            width: selected ? 3 : 2,
+                            color: context.slush.line,
+                            width: selected
+                                ? SlushStroke.strong
+                                : SlushStroke.base,
                           ),
                         ),
                       ),
@@ -870,9 +1409,9 @@ class _Band extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: color,
-                            border: const Border.symmetric(
+                            border: Border.symmetric(
                               horizontal: BorderSide(
-                                color: Slush.ink,
+                                color: context.slush.line,
                                 width: 1.5,
                               ),
                             ),
@@ -885,16 +1424,21 @@ class _Band extends StatelessWidget {
                         child: Container(
                           width: _k,
                           height: _k,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white,
-                            border: Border.fromBorderSide(Slush.border),
+                            color: context.slush.violetAccent,
+                            border: Border.fromBorderSide(context.slush.border),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: SizedBox(
                               width: 9,
                               height: 2,
-                              child: ColoredBox(color: Slush.ink),
+                              child: ColoredBox(
+                                color: slushOnColor(
+                                  context,
+                                  context.slush.violetAccent,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -910,14 +1454,14 @@ class _Band extends StatelessWidget {
         InkWell(
           onTap: onSelect,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 28),
+            constraints: const BoxConstraints(minHeight: SlushControl.touch),
             child: Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   eqFrequencyLabel(band.frequency, short: true).toUpperCase(),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
                   ),
                 ),

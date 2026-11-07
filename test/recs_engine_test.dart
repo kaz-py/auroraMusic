@@ -154,10 +154,14 @@ void main() {
     expect(out.every((s) => s.reason.isNotEmpty), isTrue);
   });
 
-  test('mezcla de fuentes ≈ 50/30/15/5 y razones en español', () async {
+  test('mezcla de fuentes ≈ 50/30/5 y razones en español', () async {
     List<DjCandidate> pool(String p, int n) => [
       for (var i = 0; i < n; i++)
-        DjCandidate(tr('$p$i', '$p artista $i'), '', prior: 0.5),
+        DjCandidate(
+          tr('$p$i', '$p artista $i', genres: ['rock']),
+          '',
+          prior: 0.5,
+        ),
     ];
     final api = SuggestionsApi(
       memory: mem(),
@@ -166,17 +170,22 @@ void main() {
         RecSource(RecBucket.similar, (c, n) async => pool('s', 30)),
         RecSource(RecBucket.adjacent, (c, n) async => pool('j', 30)),
         RecSource(RecBucket.discovery, (c, n) async => pool('d', 30)),
-        RecSource(RecBucket.classics, (c, n) async => pool('c', 30)),
       ],
     );
     final out = await api.getSuggestions(
-      ctx(const [], limit: 20, seed: 1, favs: [tr('fav', 'Artista fav')]),
+      ctx(
+        const [],
+        limit: 20,
+        seed: 1,
+        favs: [
+          tr('fav', 'Artista fav', genres: ['rock']),
+        ],
+      ),
     );
     int n(RecBucket b) => out.where((s) => s.bucket == b).length;
     expect(n(RecBucket.similar), inInclusiveRange(7, 12));
     expect(n(RecBucket.adjacent), inInclusiveRange(4, 8));
     expect(n(RecBucket.discovery), inInclusiveRange(2, 5));
-    expect(n(RecBucket.classics), inInclusiveRange(0, 3));
     expect(out.any((s) => s.reason == 'Descubrimiento'), isTrue);
     expect(out.any((s) => s.reason.startsWith('Porque escuchas')), isTrue);
   });

@@ -4,6 +4,7 @@ import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
 import '../../theme/slush_theme.dart';
+import '../undo_snackbar.dart';
 
 abstract final class StudioPalette {
   static const canvas = Color(0xff151312);
@@ -52,17 +53,25 @@ class StudioPanel extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         // Modern: tarjeta blanca radio 16 con sombra cálida; el hueco usa el lienzo.
-        color: brasa
+        color: isSlush(context)
+            ? (recessed ? context.slush.inset : context.slush.paper)
+            : brasa
             ? (recessed ? colors.surface : Brasa.obsidian)
             : modern && recessed
             ? colors.surfaceContainer
             : recessed
             ? colors.surfaceContainerLowest
             : colors.surfaceContainerLow,
-        borderRadius: StudioPalette.of(context),
-        border: isSlush(context) ? Border.fromBorderSide(Slush.border) : null,
+        borderRadius: isSlush(context)
+            ? BorderRadius.circular(
+                recessed ? SlushRadius.r16 : SlushRadius.r24,
+              )
+            : StudioPalette.of(context),
+        border: isSlush(context) && !recessed
+            ? Border.fromBorderSide(context.slush.borderSoft)
+            : null,
         boxShadow: isSlush(context)
-            ? Slush.hardShadow
+            ? (recessed ? null : context.slush.shadows)
             : brasa
             ? (recessed ? null : Brasa.cardShadow)
             : modern
@@ -89,10 +98,12 @@ class StudioStamp extends StatelessWidget {
       text,
       style: TextStyle(
         fontFamily: modern ? null : 'monospace',
-        fontSize: modern ? 11 : 10,
+        fontSize: isSlush(context) ? 12 : (modern ? 11 : 10),
         fontWeight: modern ? FontWeight.w500 : null,
         letterSpacing: modern ? 0 : .5,
-        color: color ?? colors.onSurfaceVariant,
+        color:
+            color ??
+            (isSlush(context) ? context.slush.ink3 : colors.onSurfaceVariant),
       ),
     );
     if (brasa && filled) {
@@ -121,8 +132,9 @@ class StudioStamp extends StatelessWidget {
 }
 
 void showStudioPending(BuildContext context, String feature) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('$feature: función pendiente de implementar.')),
+  showUndoSnackBar(
+    ScaffoldMessenger.maybeOf(context),
+    Text('$feature: función pendiente de implementar.'),
   );
 }
 

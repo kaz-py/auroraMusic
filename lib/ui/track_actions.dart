@@ -46,6 +46,15 @@ String shareText(Track t) {
 /// Entrada extra del menú (p. ej. «Quitar de esta lista» en una playlist).
 typedef TrackMenuExtra = ({String label, VoidCallback run});
 
+/// Acción de la canción como dato: etiqueta, icono, qué hace y, si no se
+/// puede, el motivo.
+typedef TrackMenuItem = ({
+  String label,
+  IconData icon,
+  VoidCallback run,
+  String? disabledReason,
+});
+
 /// Lógica única de «cola / Jam» para menú ⋯, clic derecho, pulsación larga,
 /// botón «+» y atajos. No duplica nada: delega en AppController y JamController.
 class TrackActions {
@@ -163,80 +172,92 @@ class TrackActions {
     }
   }
 
-  List<PopupMenuEntry<VoidCallback>> entries(
-    Track track, {
-    List<TrackMenuExtra> extras = const [],
-  }) {
+  /// Acciones de la canción como datos (el menú ⋯ y la tarjeta del mini las
+  /// pintan a su manera). [TrackMenuItem.disabledReason] no nulo: desactivada.
+  List<TrackMenuItem> menuItems(Track track) {
     final jam = activeJam;
     final blocked = jamBlockedReason;
-    PopupMenuItem<VoidCallback> item(
-      String label,
-      IconData icon,
-      VoidCallback run, {
-      String? disabledReason,
-    }) {
-      final row = Row(
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 12),
-          Flexible(child: Text(label)),
-        ],
-      );
-      return PopupMenuItem<VoidCallback>(
-        value: run,
-        enabled: disabledReason == null,
-        child: disabledReason == null
-            ? row
-            : Tooltip(message: disabledReason, child: row),
-      );
-    }
-
+    final liked = app.favoriteIds.contains(track.id);
     return [
-      item(
-        'Reproducir a continuación',
-        Icons.playlist_play,
-        () => playNext(track),
+      (
+        label: 'Reproducir a continuación',
+        icon: Icons.playlist_play,
+        run: () => playNext(track),
+        disabledReason: null,
       ),
-      item('Añadir a la cola', Icons.queue_music, () => addToQueue(track)),
+      (
+        label: 'Añadir a la cola',
+        icon: Icons.queue_music,
+        run: () => addToQueue(track),
+        disabledReason: null,
+      ),
       if (jam != null)
-        item(
-          'Añadir a la Jam',
-          Icons.groups_outlined,
-          () => addToJam([track]),
+        (
+          label: 'Añadir a la Jam',
+          icon: Icons.groups_outlined,
+          run: () => addToJam([track]),
           disabledReason: blocked,
         )
       else if (_scope != null)
-        item(
-          'Iniciar una Jam con esto',
-          Icons.groups_outlined,
-          () => startJam([track]),
+        (
+          label: 'Iniciar una Jam con esto',
+          icon: Icons.groups_outlined,
+          run: () => startJam([track]),
+          disabledReason: null,
         ),
-      item(
-        app.favoriteIds.contains(track.id)
-            ? 'Quitar de favoritos'
-            : 'Añadir a favoritos',
-        app.favoriteIds.contains(track.id)
-            ? Icons.favorite
-            : Icons.favorite_border,
-        () => app.toggleFavorite(track),
+      (
+        label: liked ? 'Quitar de favoritos' : 'Añadir a favoritos',
+        icon: liked ? Icons.favorite : Icons.favorite_border,
+        run: () => app.toggleFavorite(track),
+        disabledReason: null,
       ),
-      item('Compartir', Icons.share_outlined, () => share(track)),
+      (
+        label: 'Compartir',
+        icon: Icons.share_outlined,
+        run: () => share(track),
+        disabledReason: null,
+      ),
       if (_friends case final f? when !track.isLocal)
-        item(
-          'Enviar a un amigo',
-          Icons.send_outlined,
-          () => showSendToFriendSheet(context, f, track),
+        (
+          label: 'Enviar a un amigo',
+          icon: Icons.send_outlined,
+          run: () => showSendToFriendSheet(context, f, track),
+          disabledReason: null,
         ),
       if (_scope?.addToPlaylist != null)
-        item(
-          'Añadir a una lista',
-          Icons.playlist_add,
-          () => _scope!.addToPlaylist!(track),
+        (
+          label: 'Añadir a una lista',
+          icon: Icons.playlist_add,
+          run: () => _scope!.addToPlaylist!(track),
+          disabledReason: null,
         ),
-      for (final extra in extras)
-        PopupMenuItem<VoidCallback>(value: extra.run, child: Text(extra.label)),
     ];
   }
+
+  List<PopupMenuEntry<VoidCallback>> entries(
+    Track track, {
+    List<TrackMenuExtra> extras = const [],
+  }) => [
+    for (final i in menuItems(track))
+      PopupMenuItem<VoidCallback>(
+        value: i.run,
+        enabled: i.disabledReason == null,
+        child: () {
+          final row = Row(
+            children: [
+              Icon(i.icon, size: 18),
+              const SizedBox(width: 12),
+              Flexible(child: Text(i.label)),
+            ],
+          );
+          return i.disabledReason == null
+              ? row
+              : Tooltip(message: i.disabledReason!, child: row);
+        }(),
+      ),
+    for (final extra in extras)
+      PopupMenuItem<VoidCallback>(value: extra.run, child: Text(extra.label)),
+  ];
 
   Future<void> showAt(
     Offset position,

@@ -6,6 +6,8 @@ import '../../jam/jam_service.dart';
 import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
+import '../../theme/slush_theme.dart';
+import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import '../studio/studio_components.dart';
 import '../undo_snackbar.dart';
@@ -48,9 +50,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
 
   void _say(String text) {
     if (mounted) {
-      ScaffoldMessenger.maybeOf(
-        context,
-      )?.showSnackBar(auroraSnackBar(context, Text(text)));
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
     }
   }
 
@@ -83,7 +83,9 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
             Expanded(
               child: Text(
                 text,
-                style: isBrasa(context)
+                style: isSlush(context)
+                    ? Theme.of(context).textTheme.titleLarge
+                    : isBrasa(context)
                     ? const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)
                     : isModern(context)
                     ? const TextStyle(
@@ -157,7 +159,10 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
                       ? ModernTone.mint
                       : ModernTone.neutral,
                 ),
-                if (invite != null && invite.isRemote) ModernBadge(invite.code),
+                if (invite != null && invite.isRemote)
+                  isSlush(context)
+                      ? _CodeBadge(invite.code)
+                      : ModernBadge(invite.code),
               ] else ...[
                 Chip(
                   avatar: const Icon(Icons.badge_outlined, size: 16),
@@ -340,7 +345,16 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
                 Row(
                   children: [
                     IconButton(
-                      style: isModern(context)
+                      style: isSlush(context)
+                          ? IconButton.styleFrom(
+                              backgroundColor: Slush.mint,
+                              foregroundColor: Slush.ink,
+                              disabledBackgroundColor:
+                                  context.slush.disabledFill,
+                              disabledForegroundColor:
+                                  context.slush.disabledText,
+                            )
+                          : isModern(context)
                           ? IconButton.styleFrom(
                               backgroundColor: Tracky.mint,
                               foregroundColor: Tracky.navy,
@@ -387,11 +401,20 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
                     ),
                     const Spacer(),
                     if (duration > 0)
-                      Text(
-                        '${_duration(position.toInt())} / ${_duration(duration)}',
-                        style: TextStyle(
-                          fontFamily: isBrasa(context) ? null : 'monospace',
-                          fontSize: 11,
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${_duration(position.toInt())} / ${_duration(duration)}',
+                            style: isSlush(context)
+                                ? jamCodeStyle(12, color: context.slush.ink2)
+                                : TextStyle(
+                                    fontFamily: isBrasa(context)
+                                        ? null
+                                        : 'monospace',
+                                    fontSize: 11,
+                                  ),
+                          ),
                         ),
                       ),
                   ],
@@ -433,7 +456,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
             suggested ? 'Sugerida para $who' : 'Añadida por $who',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11),
+            style: TextStyle(fontSize: isSlush(context) ? 12 : 11),
           ),
         ),
         if (suggested) ...[
@@ -502,7 +525,15 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLowest,
-        borderRadius: isBrasa(context)
+        shape: isSlush(context)
+            ? RoundedRectangleBorder(
+                side: context.slush.borderSoft,
+                borderRadius: BorderRadius.circular(SlushRadius.r16),
+              )
+            : null,
+        borderRadius: isSlush(context)
+            ? null
+            : isBrasa(context)
             ? BorderRadius.circular(6)
             : isModern(context)
             ? BorderRadius.circular(8)
@@ -528,7 +559,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
               child: Artwork(
                 track: jamTrackAsTrack(e.track),
                 artworkContext: ArtworkContext.thumbnail,
-                radius: 4,
+                radius: isSlush(context) ? SlushRadius.r8 : 4,
               ),
             ),
             const SizedBox(width: 10),
@@ -554,7 +585,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
                     e.track.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: isSlush(context) ? 12 : 11),
                   ),
                   _addedBy(e),
                   if (pending) const StudioStamp('ESPERA APROBACIÓN DEL HOST'),
@@ -640,34 +671,89 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
         _title(context, 'Participantes · ${c.peopleCount}'),
         _peopleCard(context, [
           for (final p in people)
-            ListTile(
-              contentPadding: isModern(context)
-                  ? const EdgeInsets.symmetric(horizontal: 8)
-                  : EdgeInsets.zero,
-              minVerticalPadding: 4,
-              leading: JamAvatar(
-                name: p.name,
-                size: 36,
-                image: c.avatarOf(p.id),
+            if (isSlush(context))
+              _slushPerson(context, p)
+            else
+              ListTile(
+                contentPadding: isModern(context)
+                    ? const EdgeInsets.symmetric(horizontal: 8)
+                    : EdgeInsets.zero,
+                minVerticalPadding: 4,
+                leading: JamAvatar(
+                  name: p.name,
+                  size: 36,
+                  image: c.avatarOf(p.id),
+                ),
+                title: Text(
+                  p.id == s.participantId ? '${p.name} (tú)' : p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  [
+                    jamRoleLabel(p.role),
+                    if (!p.connected) 'Desconectado',
+                    if (p.muted) 'Silenciado',
+                  ].join(' · '),
+                ),
+                trailing: s.isHost && p.id != 'host' && p.id != s.participantId
+                    ? _personMenu(p)
+                    : null,
               ),
-              title: Text(
-                p.id == s.participantId ? '${p.name} (tú)' : p.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                [
-                  jamRoleLabel(p.role),
-                  if (!p.connected) 'Desconectado',
-                  if (p.muted) 'Silenciado',
-                ].join(' · '),
-              ),
-              trailing: s.isHost && p.id != 'host' && p.id != s.participantId
-                  ? _personMenu(p)
-                  : null,
-            ),
         ]),
       ],
+    );
+  }
+
+  /// Slush: avatar 44, nombre en una línea y estado en píldoras.
+  Widget _slushPerson(BuildContext context, JamParticipant p) {
+    final pal = context.slush;
+    final name = p.id == s.participantId ? '${p.name} (tú)' : p.name;
+    final menu = s.isHost && p.id != 'host' && p.id != s.participantId;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 60),
+      child: Row(
+        children: [
+          JamAvatar(name: p.name, size: 44, image: c.avatarOf(p.id)),
+          const SizedBox(width: SlushSpacing.s12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Tooltip(
+                  message: name,
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(height: SlushSpacing.s4),
+                Wrap(
+                  spacing: SlushSpacing.s8,
+                  runSpacing: SlushSpacing.s4,
+                  children: [
+                    SlushPill(
+                      jamRoleLabel(p.role),
+                      color: switch (p.role) {
+                        JamRole.host => Slush.yellow,
+                        JamRole.coHost => Slush.lilac,
+                        JamRole.guest => Slush.mint,
+                      },
+                    ),
+                    if (!p.connected)
+                      SlushPill('Desconectado', color: pal.raised),
+                    if (p.muted)
+                      const SlushPill('Silenciado', color: Slush.orange),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (menu) _personMenu(p),
+        ],
+      ),
     );
   }
 
@@ -944,6 +1030,29 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
   }
 }
 
+/// Código de invitación (Slush): píldora de control con cifras tabulares.
+class _CodeBadge extends StatelessWidget {
+  const _CodeBadge(this.code);
+  final String code;
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    return DecoratedBox(
+      decoration: ShapeDecoration(
+        color: p.paper,
+        shape: StadiumBorder(side: p.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: SelectableText(
+          code,
+          style: jamCodeStyle(14, color: p.ink, spacing: 2),
+        ),
+      ),
+    );
+  }
+}
+
 Widget jamNotice(
   BuildContext context,
   String message,
@@ -955,21 +1064,40 @@ Widget jamNotice(
     width: double.infinity,
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: modern
+      color: isSlush(context)
+          ? Slush.yellow
+          : modern
           ? Tracky.butter
           : Theme.of(context).colorScheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(
         isBrasa(context)
             ? 6
+            : isSlush(context)
+            ? SlushRadius.r16
             : modern
             ? 16
             : 12,
       ),
+      border: isSlush(context)
+          ? Border.fromBorderSide(context.slush.borderSoft)
+          : null,
     ),
     child: DefaultTextStyle.merge(
-      style: TextStyle(color: modern ? Tracky.navy : null),
+      style: TextStyle(
+        color: isSlush(context)
+            ? Slush.ink
+            : modern
+            ? Tracky.navy
+            : null,
+      ),
       child: IconTheme.merge(
-        data: IconThemeData(color: modern ? Tracky.navy : null),
+        data: IconThemeData(
+          color: isSlush(context)
+              ? Slush.ink
+              : modern
+              ? Tracky.navy
+              : null,
+        ),
         child: Wrap(
           spacing: 12,
           runSpacing: 8,

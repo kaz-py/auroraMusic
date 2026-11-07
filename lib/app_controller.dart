@@ -26,8 +26,11 @@ import 'follow/follow_boost.dart';
 import 'library/library_database.dart';
 import 'jam/jam_models.dart' show jamCleanName;
 import 'lastfm/lastfm_service.dart';
+import 'lastfm/lastfm_stats.dart';
 import 'profile/avatar_image.dart';
 import 'dj/ai_dj.dart';
+import 'dj/artist_graph.dart';
+import 'dj/coherence.dart';
 import 'dj/dj_modes.dart';
 import 'dj/recommendations.dart';
 import 'dj/reco_memory.dart';
@@ -37,6 +40,7 @@ import 'metadata/spotify_recs.dart';
 import 'metadata/youtube_match.dart';
 import 'discord/discord_presence.dart';
 import 'sources/innertube_source.dart';
+import 'sources/stream/stream_orchestrator.dart' show AudioQuality;
 import 'sources/youtube_request_policy.dart';
 import 'sources/web_music_source.dart';
 
@@ -254,6 +258,26 @@ class AppController extends ChangeNotifier {
   Future<void>? _refillFuture;
   SuggestionsApi? _suggestionsApi;
 
+  /// Vecindario de artistas (YouTube Music, Last.fm y co-escucha en la radio)
+  /// con etiquetas de género; lo usan el motor, la cola y el DJ.
+  late final ArtistGraph artistGraph = ArtistGraph(
+    preferences: preferences,
+    youtubeRelated: switch (source) {
+      final InnerTubeSource s => s.relatedArtists,
+      _ => null,
+    },
+    lastfmSimilar: lastfm == null
+        ? null
+        : (a) async => lastfm!.active
+              ? lastfm!.client.similarArtists(a)
+              : throw StateError('Last.fm inactivo'),
+    lastfmTags: lastfm == null
+        ? null
+        : (a) async => lastfm!.active
+              ? lastfm!.client.artistTopTags(a)
+              : throw StateError('Last.fm inactivo'),
+  );
+
   /// Motor de recomendaciones compartido con la Jam; se crea una sola vez.
   SuggestionsApi get suggestionsApi {
     if (_suggestionsApi != null) return _suggestionsApi!;
@@ -268,6 +292,7 @@ class AppController extends ChangeNotifier {
     syncMix();
     lastfm?.addListener(syncMix);
     return _suggestionsApi = SuggestionsApi(
+      graph: artistGraph,
       mix: mix,
       sources: source is InnerTubeSource
           ? [
@@ -313,6 +338,53 @@ class AppController extends ChangeNotifier {
     ).whenComplete(() => _refillFuture = null);
   }
 
+  /// Artistas de las señales del usuario: favoritos, saltados (30 últimos
+  /// eventos) y escuchados enteros (10 últimos). Los eventos de pistas que no
+  /// están en la biblioteca usan el artista guardado en el evento.
+  ({Set<String> favorites, Set<String> skipped, Set<String> listened})
+  _djArtistSignals() {
+    final byId = {for (final t in tracks) t.id: t};
+    String artistOf(DjEvent e) => switch (byId[e.trackId]) {
+      final t? => djPrimaryArtist(t),
+      null => e.artist,
+    };
+    final events = _djEvents.reversed.take(30).toList();
+    return (
+      favorites: {
+        for (final id in favoriteIds)
+          if (byId[id] case final t?) djPrimaryArtist(t),
+      }..remove(''),
+      skipped: {
+        for (final e in events)
+          if (e.signal == DjSignal.skip) artistOf(e),
+      }..remove(''),
+      listened: {
+        for (final e
+            in events.where((e) => e.signal == DjSignal.complete).take(10))
+          artistOf(e),
+      }..remove(''),
+    );
+  }
+
+  /// Contexto de coherencia de la semilla actual (sin la cola: no deriva).
+  CoherenceContext _seedCoherence(TasteProfile profile) {
+    final signals = _djArtistSignals();
+    return seedCoherence(
+      features: profile.features,
+      favoriteArtists: signals.favorites,
+      listenedArtists: signals.listened,
+      current: currentTrack,
+      graph: artistGraph,
+    );
+  }
+
+  CoherenceResult _coherenceOf(Track t, CoherenceContext ctx) => scoreCoherence(
+    t,
+    ctx,
+    decade: djDecade(t),
+    genres: artistGraph.tagsOf(djPrimaryArtist(t)),
+  );
+
   /// Sugerencias del motor local (mismo filtro de coherencia para el DJ y el
   /// autoplay). Un fallo o un tiempo agotado no apagan nada: se anota un aviso
   /// discreto, se reintenta con espera creciente y quien llama cae a lo local.
@@ -325,10 +397,37 @@ class AppController extends ChangeNotifier {
         .expand(recommendationTrackKeys)
         .toSet();
     final extra = <DjCandidate>[];
-    List<Suggestion> radioOnly() => [
-      for (final c in extra)
-        Suggestion(c.track, c.reason, '', bucket: RecBucket.radio),
-    ];
+    final taste = selfTaste;
+    final signals = _djArtistSignals();
+    // Radio sola (motor caído o en espera): solo lo relacionado con la
+    // semilla; si nada lo está, las 3 más coherentes. Nunca vacía si hay radio.
+    List<Suggestion> radioOnly() {
+      final coh = _seedCoherence(taste.profile);
+      final scored = [
+        for (final c in extra) (c: c, r: _coherenceOf(c.track, coh)),
+      ];
+      var keep = [
+        for (final s in scored)
+          if (coh.isEmpty || s.r.score >= djRelatedThreshold) s,
+      ];
+      if (keep.isEmpty) {
+        keep = ([
+          ...scored,
+        ]..sort((a, b) => b.r.score.compareTo(a.r.score))).take(3).toList();
+      }
+      return [
+        for (final s in keep)
+          Suggestion(
+            s.c.track,
+            s.c.reason,
+            '',
+            bucket: RecBucket.radio,
+            coherence: s.r.score,
+            coherenceReason: s.r.reason,
+          ),
+      ];
+    }
+
     try {
       final src = source;
       final id = current?.id.startsWith('yt:') == true
@@ -349,6 +448,11 @@ class AppController extends ChangeNotifier {
               ),
             );
           }
+          // Co-escucha: artistas que se repiten en la radio son vecinos.
+          artistGraph.learnCoListened(
+            djPrimaryArtist(current!),
+            related.map(djPrimaryArtist),
+          );
         } catch (_) {}
       }
       // Radio de YouTube como suplente si el motor local falla o está en espera.
@@ -359,12 +463,16 @@ class AppController extends ChangeNotifier {
       final picks = await suggestionsApi
           .getSuggestions(
             SessionContext(
-              participants: [selfTaste],
+              participants: [taste],
               mode: _djMode,
               current: current,
               library: tracks,
               recentKeys: recent,
               queueTail: queue.skip(max(0, queue.length - 3)).toList(),
+              favoriteArtists: signals.favorites,
+              skippedArtists: signals.skipped,
+              listenedArtists: signals.listened,
+              filters: djFilters,
               extraCandidates: extra,
               limit: limit,
               heardShare: djHeardShare(_djMode),
@@ -506,7 +614,19 @@ class AppController extends ChangeNotifier {
       await _commitFill(picked, before, allowed, insertAt);
       return;
     }
-    take([mixed, tracks]);
+    // Biblioteca de respaldo: primero lo coherente con la semilla (orden
+    // estable: `sort` de Dart no lo es, así que se desempata por posición).
+    final coh = _seedCoherence(_tasteProfile());
+    final scores = [for (final t in tracks) _coherenceOf(t, coh).score];
+    final order = List.generate(tracks.length, (i) => i)
+      ..sort((a, b) {
+        final c = scores[b].compareTo(scores[a]);
+        return c != 0 ? c : a.compareTo(b);
+      });
+    take([
+      mixed,
+      [for (final i in order) tracks[i]],
+    ]);
     final favorites = [
       for (final t in tracks)
         if (favoriteIds.contains(t.id)) t,
@@ -560,10 +680,12 @@ class AppController extends ChangeNotifier {
     'purple': Color(0xff7047a3),
   };
   bool reducedMotion = false;
+
   ThemeMode themeMode = ThemeMode.dark;
 
   /// 'atelier' (por defecto), 'modern', 'brasa' o 'slush'.
   String themeKind = 'modern';
+  AudioQuality audioQuality = AudioQuality.high;
   final DiscordPresence discord = DiscordPresence();
   bool get discordPresence => discord.enabled;
   void setDiscordPresence(bool value) {
@@ -580,6 +702,7 @@ class AppController extends ChangeNotifier {
   Color accentColor = const Color(0xffe86927);
   Timer? _sleepTimer;
   DateTime? _sleepEnd;
+  bool _sleepAtTrackEnd = false;
   int _playGeneration = 0;
   int _recoveryGeneration = 0;
   int _searchGeneration = 0;
@@ -1077,7 +1200,10 @@ class AppController extends ChangeNotifier {
     // One signal per playback: duplicate completion events must not skew taste.
     if (_djSignalGeneration == _playGeneration) return;
     _djSignalGeneration = _playGeneration;
-    _djEvents = [..._djEvents, DjEvent(signal, track.id, DateTime.now())];
+    _djEvents = [
+      ..._djEvents,
+      DjEvent(signal, track.id, DateTime.now(), artist: djPrimaryArtist(track)),
+    ];
     if (_djEvents.length > djMaxEvents) {
       _djEvents = _djEvents.sublist(_djEvents.length - djMaxEvents);
     }
@@ -1168,10 +1294,20 @@ class AppController extends ChangeNotifier {
 
     // Discovery: queries built from the taste profile, results embedded.
     if (discovery) {
+      final signals = _djArtistSignals();
+      final top = tasteTop(profile, 'a:', 1).firstOrNull ?? '';
+      final libraryArtists = {
+        for (final t in tracks) coherenceNorm(djPrimaryArtist(t)),
+      };
       final queries = djDiscoveryQueries(
         profile,
         used: _djUsedQueries,
         fallback: current,
+        neighbors: [
+          for (final n in artistGraph.neighborsOf(top))
+            if (!libraryArtists.contains(n)) n,
+        ],
+        skippedArtists: signals.skipped,
       );
       for (final query in queries) {
         if (stale()) return;
@@ -1213,11 +1349,7 @@ class AppController extends ChangeNotifier {
     final limit = djUpcomingTarget - _upcomingCount;
     if (limit <= 0) return;
     _personalDjSeenKeys.addAll(queue.expand(recommendationTrackKeys));
-    final skippedArtists = {
-      for (final event in _djEvents.reversed.take(30))
-        if (event.signal == DjSignal.skip)
-          if (byId[event.trackId] case final track?) djPrimaryArtist(track),
-    };
+    final signals = _djArtistSignals();
     final picks = rankDjCandidates(
       candidates: [
         for (final candidate in candidates)
@@ -1228,13 +1360,21 @@ class AppController extends ChangeNotifier {
       current: current,
       blockedKeys: _personalDjSeenKeys,
       recentKeys: recentTracks.take(20).expand(recommendationTrackKeys).toSet(),
-      skippedArtists: skippedArtists,
+      skippedArtists: signals.skipped,
       queueTail: queue.skip(max(0, queueIndex)).toList(),
       filters: djFilters,
       lambda: 1 - _djDiversity,
       artistCooldown: _djArtistCooldown,
       heardKeys: {for (final t in tracks) ...recommendationTrackKeys(t)},
       heardShare: djHeardShare(_djMode),
+      coherence: seedCoherence(
+        features: profile.features,
+        favoriteArtists: signals.favorites,
+        listenedArtists: signals.listened,
+        current: current,
+        graph: artistGraph,
+      ),
+      graph: artistGraph,
       adjust: (t) =>
           djModeBonus(
             _djMode,
@@ -1268,6 +1408,10 @@ class AppController extends ChangeNotifier {
   }
 
   Duration? get sleepRemaining {
+    if (_sleepAtTrackEnd) {
+      final left = audio.duration - audio.position;
+      return left.isNegative ? Duration.zero : left;
+    }
     final end = _sleepEnd;
     if (end == null) return null;
     final remaining = end.difference(DateTime.now());
@@ -1345,6 +1489,12 @@ class AppController extends ChangeNotifier {
           }.contains(preferences.getString('themeKind'))
           ? preferences.getString('themeKind')!
           : 'modern';
+      audioQuality =
+          AudioQuality.values.asNameMap()[preferences.getString(
+            'audioQuality',
+          )] ??
+          AudioQuality.high;
+      _applyAudioQuality();
       discord.enabled = preferences.getBool('discordPresence') ?? true;
       themeMode = ThemeMode.values.firstWhere(
         (mode) => mode.name == preferences.getString('themeMode'),
@@ -1490,6 +1640,17 @@ class AppController extends ChangeNotifier {
       _expiryRetries = 0;
       _recoveryProgressPosition = audio.position;
     }
+    if (audio.isPlaying && audio.position >= _openFailureWindow) {
+      _openFailureSkips = 0;
+    }
+    if (_pendingPlay != null &&
+        _pendingPlay!.id == currentTrack?.id &&
+        _pendingPlayGeneration == _playGeneration &&
+        audioError == null &&
+        audio.isPlaying &&
+        audio.position >= _openFailureWindow) {
+      unawaited(_confirmPlay());
+    }
     // The web engine reports its own actionable errors; no stream to renew.
     final streamPlayback = _usingRemote && !webPlayback;
     if (audioError != null &&
@@ -1501,6 +1662,16 @@ class AppController extends ChangeNotifier {
         _expiryRetries < _maxStreamRecoveryAttempts &&
         _isRecoverableStreamError(audioError)) {
       unawaited(_recoverExpiredStream());
+    } else if (audioError != null &&
+        streamPlayback &&
+        _recoverableRemoteTrackId == currentTrack?.id &&
+        _playIntent &&
+        !_recovering &&
+        !busy &&
+        audio.position < _openFailureWindow &&
+        _isRecoverableStreamError(audioError)) {
+      // Retries spent and the stream never really started: next track.
+      _skipUnopenableStream();
     } else if (audioError != null &&
         streamPlayback &&
         (failure == YouTubeFailure.blocked ||
@@ -1535,6 +1706,55 @@ class AppController extends ChangeNotifier {
   }
 
   int _failedSkips = 0;
+
+  Track? _pendingPlay;
+  int _pendingPlayGeneration = -1;
+
+  /// Escribe historial y memoria de la pista cargada cuando suena de verdad.
+  Future<void> _confirmPlay() async {
+    final track = _pendingPlay;
+    final generation = _pendingPlayGeneration;
+    if (track == null) return;
+    _pendingPlay = null;
+    try {
+      await database.recordPlay(track.id);
+      if (generation != _playGeneration || _disposed) return;
+      recentTracks = [
+        track,
+        ...recentTracks.where((item) => item.id != track.id),
+      ].take(100).toList();
+      // La memoria anti-repetición del motor cuenta lo que SUENA.
+      unawaited(
+        RecsMemory.shared
+            .record([track], DateTime.now())
+            .then((_) {}, onError: (Object _) {}),
+      );
+      _notify();
+    } catch (exception) {
+      _report(exception);
+    }
+  }
+
+  /// A stream that errors before this much playback "never opened".
+  static const _openFailureWindow = Duration(seconds: 5);
+  static const _maxOpenFailureSkips = 3;
+  int _openFailureSkips = 0;
+
+  /// Moves on when a stream that never started failed past its retries, so a
+  /// dead URL does not park the queue. Bounded to avoid a loop of failures.
+  void _skipUnopenableStream() {
+    if (!_playIntent ||
+        _openFailureSkips >= _maxOpenFailureSkips ||
+        !_hasNextToAdvance) {
+      return;
+    }
+    _openFailureSkips++;
+    unawaited(next(fromCompletion: true));
+  }
+
+  bool get _hasNextToAdvance => shuffle
+      ? queue.length - _shufflePlayed.length > 0
+      : repeat == RepeatMode.all || queueIndex < queue.length - 1;
 
   /// true solo cuando `next(fromCompletion)` lleva a la pista que va a sonar.
   bool _autoAdvance = false;
@@ -1672,7 +1892,7 @@ class AppController extends ChangeNotifier {
       return currentTrack != null && source.isExpiredStream(currentTrack!);
     }
     return RegExp(
-      r'410|expired|termin[oó] antes de completar|premature\s+(?:eof|end)|timed?\s*out|timeout|socketexception|httpexception|connection\s+(?:reset|closed|aborted)|network_connection_(?:failed|timeout)|broken\s+pipe|unexpected\s+eof',
+      r'410|4xx\s+client\s+error|expired|termin[oó] antes de completar|premature\s+(?:eof|end)|timed?\s*out|timeout|socketexception|httpexception|connection\s+(?:reset|closed|aborted)|network_connection_(?:failed|timeout)|broken\s+pipe|unexpected\s+eof',
       caseSensitive: false,
     ).hasMatch(message);
   }
@@ -1907,6 +2127,7 @@ class AppController extends ChangeNotifier {
   }) async {
     _playIntent = true;
     _expiryRetries = 0;
+    if (replaceQueue) _sleepAtTrackEnd = false;
     final remembered = {for (final item in tracks) item.id: item};
     final selected = remembered[track.id] ?? track;
     if (_routeToYouTubeMusic(selected)) return;
@@ -2073,7 +2294,7 @@ class AppController extends ChangeNotifier {
           _pendingResolveVideoId = videoId;
         }
       }
-      final resolved = availableLocally
+      var resolved = availableLocally
           ? ResolvedAudio(input: local, duration: track.duration)
           : await source.resolve(track);
       if (generation != _playGeneration || _disposed) return;
@@ -2081,11 +2302,32 @@ class AppController extends ChangeNotifier {
       _loadedAudioInput = resolved.input;
       // Before load so the system session never shows the previous track.
       _publishMetadata(track);
-      await audio.load(
-        resolved,
-        ffmpegExecutable: source.ffmpegExecutable,
-        start: _resumePosition,
-      );
+      try {
+        await audio.load(
+          resolved,
+          ffmpegExecutable: source.ffmpegExecutable,
+          start: _resumePosition,
+        );
+      } catch (loadError) {
+        // The CDN can refuse one URL (410 from the loopback proxy, expiry):
+        // a fresh resolve usually lands on another URL, so retry once.
+        if (availableLocally ||
+            fromRecovery ||
+            generation != _playGeneration ||
+            _disposed ||
+            !_isRecoverableStreamError('$loadError')) {
+          rethrow;
+        }
+        source.invalidateResolvedAudio(track);
+        resolved = await source.resolve(track);
+        if (generation != _playGeneration || _disposed) return;
+        _loadedAudioInput = resolved.input;
+        await audio.load(
+          resolved,
+          ffmpegExecutable: source.ffmpegExecutable,
+          start: _resumePosition,
+        );
+      }
       if (_youtubeMusicActive) {
         await audio.pause();
         return;
@@ -2117,18 +2359,10 @@ class AppController extends ChangeNotifier {
       await _remember(readyTrack);
       if (generation != _playGeneration || _disposed) return;
       _publishMetadata(readyTrack);
-      await database.recordPlay(track.id);
-      if (generation != _playGeneration || _disposed) return;
-      recentTracks = [
-        readyTrack,
-        ...recentTracks.where((item) => item.id != track.id),
-      ].take(100).toList();
-      // La memoria anti-repetición del motor cuenta lo que SUENA.
-      unawaited(
-        RecsMemory.shared
-            .record([readyTrack], DateTime.now())
-            .then((_) {}, onError: (Object _) {}),
-      );
+      // Historial y memoria esperan a que suene de verdad (_confirmPlay):
+      // una pista que falla al abrir no cuenta como escuchada.
+      _pendingPlay = readyTrack;
+      _pendingPlayGeneration = generation;
       await _saveQueue();
       _failedSkips = 0;
       unawaited(_updateAccent(track));
@@ -2141,9 +2375,7 @@ class AppController extends ChangeNotifier {
             autoAdvance &&
             !fromRecovery &&
             _failedSkips < 3 &&
-            (shuffle
-                ? queue.length - _shufflePlayed.length > 0
-                : repeat == RepeatMode.all || queueIndex < queue.length - 1)) {
+            _hasNextToAdvance) {
           _failedSkips++;
           unawaited(next(fromCompletion: true));
         }
@@ -2247,6 +2479,7 @@ class AppController extends ChangeNotifier {
     busy = true;
     _notify();
     _resumePosition = resumePosition;
+    var exhausted = false;
     try {
       while (_expiryRetries < _maxStreamRecoveryAttempts) {
         _expiryRetries++;
@@ -2281,15 +2514,24 @@ class AppController extends ChangeNotifier {
               YouTubeFailure.blocked,
               YouTubeFailure.accessDenied,
             }.contains(YouTubeRequestPolicy.classify(error!))) {
-          break;
+          return;
         }
       }
+      exhausted = true;
     } finally {
       if (recoveryGeneration == _recoveryGeneration) {
         _recovering = false;
         busy = false;
         _notify();
       }
+    }
+    if (exhausted &&
+        resumePosition < _openFailureWindow &&
+        recoveryGeneration == _recoveryGeneration &&
+        occurrence == queueIndex &&
+        currentTrack?.id == trackId &&
+        !_disposed) {
+      _skipUnopenableStream();
     }
   }
 
@@ -2339,6 +2581,8 @@ class AppController extends ChangeNotifier {
     if (_jamPlaybackActive) return;
     if (!keepDj) stopPersonalDj();
     ++_playGeneration;
+    _sleepAtTrackEnd = false;
+    _pendingPlay = null;
     _playIntent = false;
     _cancelRecovery();
     _cancelPendingResolution();
@@ -2374,6 +2618,13 @@ class AppController extends ChangeNotifier {
       return;
     }
     _recordDjSignal(DjSignal.complete);
+    if (_pendingPlayGeneration == _playGeneration) await _confirmPlay();
+    if (_sleepAtTrackEnd) {
+      _sleepAtTrackEnd = false;
+      _notify();
+      await pausePlayback();
+      return;
+    }
     if (repeat == RepeatMode.one) {
       _resumePosition = Duration.zero;
       await _playCurrent();
@@ -3693,6 +3944,18 @@ class AppController extends ChangeNotifier {
     _notify();
   }
 
+  void setAudioQuality(AudioQuality q) {
+    audioQuality = q;
+    unawaited(preferences.setString('audioQuality', q.name));
+    _applyAudioQuality();
+    _notify();
+  }
+
+  void _applyAudioQuality() {
+    final s = source;
+    if (s is InnerTubeSource) s.audioQuality = audioQuality;
+  }
+
   void setThemeMode(ThemeMode value) {
     themeMode = value;
     unawaited(preferences.setString('themeMode', value.name));
@@ -3723,7 +3986,15 @@ class AppController extends ChangeNotifier {
     _notify();
   }
 
+  /// Para al terminar la pista que suena; si se salta a otra, vale la nueva.
+  void setSleepAtTrackEnd() {
+    setSleepTimer(null);
+    _sleepAtTrackEnd = true;
+    _notify();
+  }
+
   void setSleepTimer(Duration? duration) {
+    _sleepAtTrackEnd = false;
     _sleepTimer?.cancel();
     _sleepEnd = duration == null ? null : DateTime.now().add(duration);
     if (duration != null) {

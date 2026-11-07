@@ -13,6 +13,10 @@ constexpr wchar_t kGeometryKey[] = L"Software\\AuroraMusic\\Window";
 // Tamano minimo logico (a 96 dpi); se escala con el dpi de la ventana.
 constexpr int kMinWidth = 720;
 constexpr int kMinHeight = 540;
+// Minimo del modo mini (ventana compacta).
+constexpr int kMiniMinWidth = 300;
+constexpr int kMiniMinHeight = 120;
+bool g_mini_mode = false;
 
 bool ReadDword(HKEY key, const wchar_t* name, int* value) {
   DWORD data = 0, size = sizeof(data), type = 0;
@@ -190,6 +194,11 @@ void FillMinMaxInfo(HWND hwnd, MINMAXINFO* info) {
     info->ptMaxSize.y = work.bottom - work.top;
   }
   const UINT dpi = std::max<UINT>(GetDpiForWindow(hwnd), 96);
-  info->ptMinTrackSize.x = MulDiv(kMinWidth, dpi, 96);
-  info->ptMinTrackSize.y = MulDiv(kMinHeight, dpi, 96);
+  // En modo mini (ventana compacta) el minimo es el del mini reproductor.
+  info->ptMinTrackSize.x =
+      MulDiv(g_mini_mode ? kMiniMinWidth : kMinWidth, dpi, 96);
+  info->ptMinTrackSize.y =
+      MulDiv(g_mini_mode ? kMiniMinHeight : kMinHeight, dpi, 96);
 }
+
+void SetMiniMode(bool enabled) { g_mini_mode = enabled; }

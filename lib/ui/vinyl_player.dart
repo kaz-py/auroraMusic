@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../core/models.dart';
 
 import '../app_controller.dart';
+import '../jam/jam_controller.dart';
 import '../follow/follow_service.dart';
+import '../theme/accent_transition.dart';
 import '../theme/brasa_theme.dart';
 import '../theme/modern_theme.dart';
 import '../theme/modern_widgets.dart';
@@ -21,10 +23,18 @@ class VinylPlayer extends StatefulWidget {
     required this.controller,
     this.follow,
     this.onSection,
+    this.onBack,
+    this.jam,
   });
+
+  /// Jam activa: limita saltos y anterior en los controles de Slush.
+  final JamController? jam;
 
   /// Slush: cambia de sección del shell (0 inicio, 4 vinilo, 5 cola, 6 letras, 13 EQ).
   final ValueChanged<int>? onSection;
+
+  /// Atrás del reproductor (móvil); lo resuelve el shell.
+  final VoidCallback? onBack;
   final AppController controller;
 
   /// Si se pasa, junto al artista aparece «Seguir / Siguiendo».
@@ -203,7 +213,10 @@ class _VinylPlayerState extends State<VinylPlayer>
     final color = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
+        // Slush: el reproductor de escritorio (rejilla de 3 zonas) necesita >= 900.
+        final compact =
+            constraints.maxWidth <
+            (isSlush(context) ? Breakpoints.medium : 760);
         final artSize = compact
             ? ArtworkContext.vinylCompact.constrain(
                 BoxConstraints(
@@ -267,14 +280,20 @@ class _VinylPlayerState extends State<VinylPlayer>
                     onTap: track == null
                         ? null
                         : () => widget.controller.openArtist(track.artist),
-                    child: Text(
-                      track?.artist ??
-                          'Elige una canci\u00f3n de tu biblioteca',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: color.onSurfaceVariant,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: 1,
+                        child: Text(
+                          track?.artist ??
+                              'Elige una canci\u00f3n de tu biblioteca',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: color.onSurfaceVariant),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -745,32 +764,39 @@ extension on _VinylPlayerState {
     bool compact,
     BoxConstraints constraints,
   ) => SlushPlayerScreen(
+    jam: widget.jam,
     controller: c,
     track: track,
     compact: compact,
     cassette: _cassette,
     onToggleCassette: () => _setCassette(!_cassette),
     onSection: widget.onSection,
-    recordBuilder: (size) => _record(
-      context,
-      c,
-      track,
-      math.max(0.0, size),
-      _VinylStyle(
-        disc: const Color(0xff111111),
-        label: slushScreenColor(c.accentColor),
-        ring: Slush.ink,
-        ringWidth: 2.5,
-        shadow: const [],
-        groove: Colors.white,
-        grooveHi: .07,
-        grooveLo: .03,
-        pivot: Slush.ink,
-        arm: Slush.ink,
-        needle: Slush.ink,
-        slush: true,
-      ),
-    ),
+    onBack: widget.onBack,
+    recordBuilder: (size) {
+      final p = context.slush;
+      final dark = Theme.of(context).brightness == Brightness.dark;
+      return _record(
+        context,
+        c,
+        track,
+        math.max(0.0, size),
+        _VinylStyle(
+          // Oscuro: el disco es el pozo `inset`; claro: vinilo negro.
+          disc: dark ? p.inset : const Color(0xff111111),
+          label: slushScreenColor(AccentScope.of(context, c.accentColor)),
+          ring: p.line,
+          ringWidth: SlushStroke.base,
+          shadow: const [],
+          groove: SlushPalette.dark.ink,
+          grooveHi: .07,
+          grooveLo: .03,
+          pivot: p.line,
+          arm: p.line,
+          needle: p.line,
+          slush: true,
+        ),
+      );
+    },
   );
 
   /// Modo Vinilo de Modern y Brasa: mismo disco que Atelier dentro de una
@@ -828,23 +854,30 @@ extension on _VinylPlayerState {
             onTap: track == null
                 ? null
                 : () => widget.controller.openArtist(track.artist),
-            child: Text(
-              track?.artist ?? 'Elige una canci\u00f3n de tu biblioteca',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: brasa
-                  ? const TextStyle(
-                      fontFamily: 'Inter',
-                      color: Brasa.cloud,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    )
-                  : const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -.16,
-                    ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                widthFactor: 1,
+                child: Text(
+                  track?.artist ?? 'Elige una canci\u00f3n de tu biblioteca',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: brasa
+                      ? const TextStyle(
+                          fontFamily: 'Inter',
+                          color: Brasa.cloud,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        )
+                      : const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -.16,
+                        ),
+                ),
+              ),
             ),
           ),
         ),
@@ -855,20 +888,46 @@ extension on _VinylPlayerState {
             service: widget.follow!,
             name: _primaryArtist(track.artist),
           ),
+        if (!brasa && track != null)
+          IconButton(
+            tooltip: c.favoriteIds.contains(track.id)
+                ? 'Quitar de favoritos'
+                : 'Añadir a favoritos',
+            color: c.favoriteIds.contains(track.id)
+                ? Tracky.coral
+                : Colors.white70,
+            onPressed: () => c.toggleFavorite(track),
+            icon: Icon(
+              c.favoriteIds.contains(track.id)
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+            ),
+          ),
       ],
     );
+    // Modern suma aleatorio y repetir a los lados (en Brasa solo los tres
+    // botones de siempre).
+    final extras = !brasa && track != null;
     final controls = ListenableBuilder(
       listenable: c.audio,
       builder: (context, _) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          if (extras)
+            IconButton(
+              tooltip: 'Aleatorio',
+              isSelected: c.shuffle,
+              color: c.shuffle ? Tracky.mint : Colors.white54,
+              onPressed: () => c.setShuffle(!c.shuffle),
+              icon: const Icon(Icons.shuffle_rounded, size: 24),
+            ),
           IconButton(
             tooltip: 'Anterior',
             color: fg,
             onPressed: track == null ? null : c.previous,
             icon: const Icon(Icons.skip_previous_rounded, size: 32),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: extras ? 4 : 12),
           FilledButton(
             onPressed: track == null ? null : c.togglePlayback,
             style: FilledButton.styleFrom(
@@ -888,13 +947,26 @@ extension on _VinylPlayerState {
               size: brasa ? 30 : 32,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: extras ? 4 : 12),
           IconButton(
             tooltip: 'Siguiente',
             color: fg,
             onPressed: track == null ? null : c.next,
             icon: const Icon(Icons.skip_next_rounded, size: 32),
           ),
+          if (extras)
+            IconButton(
+              tooltip: 'Repetir',
+              isSelected: c.repeat != RepeatMode.off,
+              color: c.repeat == RepeatMode.off ? Colors.white54 : Tracky.mint,
+              onPressed: c.cycleRepeat,
+              icon: Icon(
+                c.repeat == RepeatMode.one
+                    ? Icons.repeat_one_rounded
+                    : Icons.repeat_rounded,
+                size: 24,
+              ),
+            ),
         ],
       ),
     );
@@ -965,13 +1037,26 @@ extension on _VinylPlayerState {
         controls,
       ],
     );
-    final record = _record(
-      context,
-      c,
-      track,
-      math.max(0.0, recordSide),
-      brasa ? _VinylStyle.brasa : _VinylStyle.modern,
-    );
+    // Modern abre con la portada sola; el disco queda para los demás temas.
+    final photo = !brasa && !_cassette && track != null;
+    final record = photo
+        ? _seekable(
+            c,
+            math.max(0.0, recordSide),
+            Artwork(
+              track: track,
+              size: math.max(0.0, recordSide),
+              radius: 12,
+              artworkContext: ArtworkContext.playerDetail,
+            ),
+          )
+        : _record(
+            context,
+            c,
+            track,
+            math.max(0.0, recordSide),
+            brasa ? _VinylStyle.brasa : _VinylStyle.modern,
+          );
     final inner = compact
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

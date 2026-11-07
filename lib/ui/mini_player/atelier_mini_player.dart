@@ -1,0 +1,761 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../../core/models.dart';
+import '../artwork.dart';
+import '../studio/studio_components.dart';
+import '../studio/studio_symbols.dart';
+import 'mini_player_desktop_controls.dart';
+import 'mini_player_model.dart';
+import 'mini_player_theme.dart';
+
+/// Mini reproductor de Atelier Sonoro: una funda de disco con el vinilo
+/// asomando, sobre papel cálido (oscuro: carbón cálido). La regla superior de
+/// un píxel es a la vez el borde del dock y la línea de tiempo, con un nudo
+/// minúsculo donde va la reproducción. Ver `docs/mini_player.md`.
+const MiniPlayerTheme atelierMiniPlayer = MiniPlayerTheme(build: _build);
+
+Widget _build(
+  BuildContext context,
+  MiniPlayerState state,
+  MiniPlayerActions actions, {
+  required bool wide,
+}) => AtelierMiniPlayer(state: state, actions: actions, wide: wide);
+
+/// Alto de la zona de la regla/nudo en reposo (también el aire sobre y bajo el
+/// contenido).
+const double _kStrip = 5;
+
+/// Alto de la regla pintada con el puntero encima: cabe el nudo ampliado.
+const double _kStripHover = 12;
+
+/// Alto de la franja que recibe tocar o arrastrar la regla (≥ 24 para que
+/// acertar con el ratón o el dedo no cueste).
+const double _kScrub = 24;
+
+/// Margen lateral fijo de la regla: el radio del nudo ampliado. Lo comparten el
+/// pintado y la conversión de toque a fracción.
+const double _kScrubInset = 5;
+
+/// Ancho fijo (a escala 1) de lo que no son texto ni controles en el carril:
+/// margen, funda con vinilo, hueco, corazón, anterior, play y siguiente.
+const double _kWideFixed = 20 + 4 + 72 + 12 + 4 * 44;
+
+/// Lado táctil de los botones.
+const double _kTouch = 44;
+
+class AtelierMiniPlayer extends StatelessWidget {
+  const AtelierMiniPlayer({
+    super.key,
+    required this.state,
+    required this.actions,
+    required this.wide,
+  });
+
+  final MiniPlayerState state;
+  final MiniPlayerActions actions;
+
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final track = state.track;
+    if (track == null) return const SizedBox.shrink();
+    final paper = Theme.of(context).colorScheme.surfaceContainerLow;
+    // La barra nunca crece más allá de ×1,5 (igual que el host): por encima
+    // el texto se recorta con puntos.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.5,
+      child: Builder(
+        builder: (context) {
+          final scale = MediaQuery.textScalerOf(context).scale(1);
+          final dock = _Dock(
+            state: state,
+            actions: actions,
+            track: track,
+            wide: wide,
+            minHeight: (wide ? 64.0 : 56.0) * scale,
+            scale: scale,
+          );
+          if (!wide) return ColoredBox(color: paper, child: dock);
+          // Escritorio: tarjeta flotante y centrada (como la de Modern) con la
+          // forma de funda del tema, en vez de una barra de borde a borde.
+          final scheme = Theme.of(context).colorScheme;
+          const radius = StudioPalette.sleeve;
+          final card = DecoratedBox(
+            decoration: BoxDecoration(
+              color: paper,
+              borderRadius: radius,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: scheme.brightness == Brightness.dark ? .38 : .10,
+                  ),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: ClipRRect(borderRadius: radius, child: dock),
+            ),
+          );
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width >= 1100
+                      ? 960
+                      : 760,
+                ),
+                child: card,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Colores resueltos del tema.
+class _Ink {
+  _Ink._({
+    required this.fg,
+    required this.sub,
+    required this.accent,
+    required this.onAccent,
+    required this.track,
+    required this.error,
+  });
+
+  factory _Ink.of(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return _Ink._(
+      fg: scheme.onSurface,
+      sub: scheme.onSurfaceVariant,
+      accent: scheme.primary,
+      onAccent: scheme.onPrimary,
+      track: scheme.outlineVariant,
+      error: scheme.error,
+    );
+  }
+
+  final Color fg, sub, accent, onAccent, track, error;
+}
+
+class _Dock extends StatelessWidget {
+  const _Dock({
+    required this.state,
+    required this.actions,
+    required this.track,
+    required this.wide,
+    required this.minHeight,
+    required this.scale,
+  });
+
+  final MiniPlayerState state;
+  final MiniPlayerActions actions;
+  final Track track;
+  final bool wide;
+  final double minHeight, scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = _Ink.of(context);
+    final base = Theme.of(context).textTheme.titleLarge!;
+    final cover = (wide ? 54.0 : 46.0) * math.min(scale, 1.25);
+    final edge = wide ? 20.0 : 12.0;
+
+    Text line(String s, TextStyle style) =>
+        Text(s, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
+    // Título en la cara de display, artista en cursiva pequeña.
+    final headline = line(
+      track.title,
+      base.copyWith(
+        fontSize: wide ? 18 : 16.5,
+        height: 1.15,
+        fontWeight: FontWeight.w500,
+        letterSpacing: -.1,
+        color: ink.fg,
+      ),
+    );
+    final small = TextStyle(
+      fontSize: wide ? 14.5 : 14,
+      height: 1.2,
+      fontStyle: FontStyle.italic,
+    );
+    final detail = miniSubtitleIsError(state)
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(StudioSymbols.error, size: 14, color: ink.error),
+              const SizedBox(width: 4),
+              Flexible(
+                child: line(
+                  miniSubtitle(state),
+                  base.merge(small).copyWith(color: ink.error),
+                ),
+              ),
+            ],
+          )
+        : line(miniSubtitle(state), base.merge(small).copyWith(color: ink.sub));
+    final text = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [headline, detail],
+    );
+
+    final playing = state.isPlaying && !state.buffering && !state.hasError;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final showHeart = box.maxWidth >= 330;
+        // La hora solo cuando los controles de escritorio ya caben enteros y
+        // sobra su ancho además del título mínimo.
+        final showTime =
+            wide &&
+            box.maxWidth -
+                    _kWideFixed * scale -
+                    150 -
+                    miniDesktopFull(actions) >=
+                kMiniTimeWidth + 8;
+        return Material(
+          type: MaterialType.transparency,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(edge, _kStrip, 4, _kStrip),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: MiniPlayerInfoTap(
+                            actions: actions,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _Sleeve(
+                                  track: track,
+                                  size: cover,
+                                  spinning: playing,
+                                  accent: ink.accent,
+                                  onAccent: ink.onAccent,
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: wide ? 460 : double.infinity,
+                                    ),
+                                    child: text,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (showTime) ...[
+                        const SizedBox(width: 8),
+                        MiniPlayerTime(state: state, color: ink.sub),
+                      ],
+                      if (showHeart)
+                        _Quiet(
+                          tooltip: state.liked
+                              ? 'Quitar de favoritos'
+                              : 'Añadir a favoritos',
+                          icon: state.liked
+                              ? Icons.favorite
+                              : StudioSymbols.favorite,
+                          color: state.liked ? ink.accent : ink.sub,
+                          onPressed: actions.toggleLike,
+                        ),
+                      if (wide)
+                        _Quiet(
+                          tooltip: state.previousLabel(),
+                          icon: StudioSymbols.skipPrevious,
+                          color: ink.fg,
+                          onPressed: state.hasPrevious
+                              ? actions.previous
+                              : null,
+                        ),
+                      _PlayButton(state: state, actions: actions, ink: ink),
+                      _Quiet(
+                        tooltip: state.nextLabel(),
+                        icon: state.jamVoteSkip
+                            ? Icons.how_to_vote_outlined
+                            : StudioSymbols.skipNext,
+                        color: ink.fg,
+                        onPressed: state.hasNext ? actions.next : null,
+                      ),
+                      if (wide)
+                        SizedBox(
+                          width: math.min(
+                            miniDesktopFull(actions),
+                            math.max(
+                              kMiniControlTarget,
+                              box.maxWidth - _kWideFixed * scale - 150,
+                            ),
+                          ),
+                          child: MiniPlayerDesktopControls(
+                            state: state,
+                            actions: actions,
+                            color: ink.sub,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                _Scrub(
+                  progress: state.progress,
+                  canSeek: state.canSeek,
+                  onSeek: actions.seek,
+                  rule: ink.track,
+                  fill: ink.accent,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Funda cuadrada (radio 6) con el vinilo asomando por la derecha. Con la
+/// pista sonando el disco gira despacio (solo `transform`); con movimiento
+/// reducido se queda quieto.
+class _Sleeve extends StatefulWidget {
+  const _Sleeve({
+    required this.track,
+    required this.size,
+    required this.spinning,
+    required this.accent,
+    required this.onAccent,
+  });
+
+  final Track track;
+  final double size;
+  final bool spinning;
+  final Color accent, onAccent;
+
+  @override
+  State<_Sleeve> createState() => _SleeveState();
+}
+
+class _SleeveState extends State<_Sleeve> with SingleTickerProviderStateMixin {
+  late final _turns = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 10),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_Sleeve old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    final move = widget.spinning && !MediaQuery.disableAnimationsOf(context);
+    if (move && !_turns.isAnimating) {
+      _turns.repeat();
+    } else if (!move && _turns.isAnimating) {
+      _turns.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _turns.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.size;
+    final disc = size * .92;
+    final left = size * .34;
+    final scheme = Theme.of(context).colorScheme;
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: left + disc,
+        height: size,
+        child: Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: (size - disc) / 2,
+              width: disc,
+              height: disc,
+              child: RepaintBoundary(
+                child: RotationTransition(
+                  turns: _turns,
+                  child: CustomPaint(
+                    painter: _VinylPainter(
+                      rim: scheme.onSurface.withValues(alpha: .28),
+                      label: widget.accent,
+                      ink: widget.onAccent,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              top: 0,
+              child: Artwork(track: widget.track, size: size, radius: 6),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VinylPainter extends CustomPainter {
+  const _VinylPainter({
+    required this.rim,
+    required this.label,
+    required this.ink,
+  });
+
+  final Color rim, label, ink;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    canvas.drawCircle(c, r, Paint()..color = const Color(0xff12100f));
+    canvas.drawCircle(
+      c,
+      r - .5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = rim,
+    );
+    final groove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .6
+      ..color = const Color(0x2effffff);
+    for (final f in const [.86, .74, .62, .5]) {
+      canvas.drawCircle(c, r * f, groove);
+    }
+    // Dos reflejos opuestos: lo que hace visible el giro.
+    final sheen = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * .16
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0x1fffffff);
+    final ring = Rect.fromCircle(center: c, radius: r * .68);
+    canvas.drawArc(ring, -.9, .7, false, sheen);
+    canvas.drawArc(ring, math.pi - .9, .7, false, sheen);
+    canvas.drawCircle(c, r * .3, Paint()..color = label);
+    canvas.drawCircle(c + Offset(r * .15, 0), r * .045, Paint()..color = ink);
+    canvas.drawCircle(c, r * .04, Paint()..color = const Color(0xff12100f));
+  }
+
+  @override
+  bool shouldRepaint(_VinylPainter old) =>
+      old.rim != rim || old.label != label || old.ink != ink;
+}
+
+/// Franja de la regla, al borde de arriba y por encima del contenido. Con
+/// [canSeek] se puede tocar o arrastrar (la posición se confirma al soltar) y
+/// gana al deslizar de pista de la barra dentro de la franja. Con el puntero
+/// encima o arrastrando, la franja crece a 24 px, la regla engorda y el nudo
+/// crece (sin animación si están desactivadas).
+class _Scrub extends StatefulWidget {
+  const _Scrub({
+    required this.progress,
+    required this.canSeek,
+    required this.onSeek,
+    required this.rule,
+    required this.fill,
+  });
+
+  final double progress;
+  final bool canSeek;
+  final ValueChanged<double> onSeek;
+  final Color rule, fill;
+
+  @override
+  State<_Scrub> createState() => _ScrubState();
+}
+
+class _ScrubState extends State<_Scrub> {
+  double? _drag;
+  bool _hover = false;
+
+  double _at(Offset local) {
+    final w = (context.size?.width ?? 0) - 2 * _kScrubInset;
+    return w <= 0 ? 0 : ((local.dx - _kScrubInset) / w).clamp(0.0, 1.0);
+  }
+
+  void _setHover(bool v) {
+    if (v != _hover) setState(() => _hover = v);
+  }
+
+  void _commit(double fraction) {
+    setState(() => _drag = null);
+    widget.onSeek(fraction);
+  }
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: 0,
+    right: 0,
+    top: 0,
+    // En reposo solo la franja de la regla (no tapa nada); con el puntero
+    // encima o arrastrando crece a 24 px por encima del contenido.
+    height: widget.canSeek && (_hover || _drag != null) ? _kScrub : _kStrip,
+    child: _content(context),
+  );
+
+  Widget _content(BuildContext context) {
+    final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
+    final percent = '${(value * 100).round()} %';
+    final active = widget.canSeek && (_hover || _drag != null);
+    final line = ExcludeSemantics(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          height: _kStripHover,
+          child: RepaintBoundary(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: active ? 1.0 : 0.0),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 120),
+              builder: (_, t, _) => CustomPaint(
+                size: const Size.fromHeight(_kStripHover),
+                painter: _TimelinePainter(
+                  progress: value,
+                  rule: widget.rule,
+                  fill: widget.fill,
+                  emphasis: t,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!widget.canSeek) {
+      return IgnorePointer(
+        child: Semantics(
+          label: 'Progreso de la pista',
+          value: percent,
+          child: line,
+        ),
+      );
+    }
+    return Semantics(
+      container: true,
+      label: 'Posición',
+      value: percent,
+      increasedValue: percent,
+      decreasedValue: percent,
+      onIncrease: () => widget.onSeek((widget.progress + .05).clamp(0.0, 1.0)),
+      onDecrease: () => widget.onSeek((widget.progress - .05).clamp(0.0, 1.0)),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => _setHover(true),
+        onExit: (_) => _setHover(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTapUp: (d) => _commit(_at(d.localPosition)),
+          onHorizontalDragStart: (d) =>
+              setState(() => _drag = _at(d.localPosition)),
+          onHorizontalDragUpdate: (d) =>
+              setState(() => _drag = _at(d.localPosition)),
+          onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
+          onHorizontalDragCancel: () => setState(() => _drag = null),
+          child: line,
+        ),
+      ),
+    );
+  }
+}
+
+/// Regla con el tramo recorrido y un nudo. [emphasis] (0 reposo, 1 puntero
+/// encima) engorda la regla y agranda el nudo; el centro baja para que el nudo
+/// ampliado no se corte por arriba.
+class _TimelinePainter extends CustomPainter {
+  const _TimelinePainter({
+    required this.progress,
+    required this.rule,
+    required this.fill,
+    this.emphasis = 0,
+  });
+
+  final double progress;
+  final Color rule, fill;
+  final double emphasis;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = _lerp(_kStrip / 2, _kScrubInset);
+    final y = _lerp(_kStrip / 2, _kStripHover / 2);
+    final ruleH = _lerp(1, 3), fillH = _lerp(1.5, 4);
+    canvas.drawRect(
+      Rect.fromLTWH(0, y - ruleH / 2, size.width, ruleH),
+      Paint()..color = rule,
+    );
+    final x =
+        _kScrubInset +
+        progress.clamp(0.0, 1.0) * math.max(0, size.width - 2 * _kScrubInset);
+    canvas.drawRect(
+      Rect.fromLTRB(0, y - fillH / 2, x, y + fillH / 2),
+      Paint()..color = fill,
+    );
+    canvas.drawCircle(Offset(x, y), r, Paint()..color = fill);
+  }
+
+  double _lerp(double a, double b) => a + (b - a) * emphasis;
+
+  @override
+  bool shouldRepaint(_TimelinePainter old) =>
+      old.progress != progress ||
+      old.rule != rule ||
+      old.fill != fill ||
+      old.emphasis != emphasis;
+}
+
+/// Botón sin relleno, 44 × 44, con un hundimiento breve al pulsar.
+class _Quiet extends StatelessWidget {
+  const _Quiet({
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => _Press(
+    child: IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 22),
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(_kTouch),
+        minimumSize: const Size.square(_kTouch),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: color,
+        disabledForegroundColor: color.withValues(alpha: .4),
+      ),
+    ),
+  );
+}
+
+/// Play/pausa: círculo cálido de 44 px. Buffering: anillo (o reloj de arena
+/// quieto con movimiento reducido).
+class _PlayButton extends StatelessWidget {
+  const _PlayButton({
+    required this.state,
+    required this.actions,
+    required this.ink,
+  });
+
+  final MiniPlayerState state;
+  final MiniPlayerActions actions;
+  final _Ink ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.disableAnimationsOf(context);
+    final enabled = state.canTogglePlay;
+    final Widget glyph = state.buffering
+        ? still
+              ? Icon(StudioSymbols.hourglassEmpty, size: 22)
+              : SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: ink.onAccent,
+                  ),
+                )
+        : Icon(
+            state.isPlaying ? StudioSymbols.pause : StudioSymbols.playArrow,
+            size: 26,
+          );
+    return _Press(
+      child: IconButton(
+        tooltip: !enabled && state.jamHostName != null
+            ? 'Lo controla ${state.jamHostName}'
+            : state.isPlaying
+            ? 'Pausar'
+            : 'Reproducir',
+        onPressed: enabled ? actions.togglePlay : null,
+        icon: glyph,
+        style: IconButton.styleFrom(
+          fixedSize: const Size.square(_kTouch),
+          minimumSize: const Size.square(_kTouch),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: const CircleBorder(),
+          backgroundColor: ink.accent,
+          foregroundColor: ink.onAccent,
+          disabledBackgroundColor: ink.accent.withValues(alpha: .3),
+          disabledForegroundColor: ink.onAccent.withValues(alpha: .6),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hundimiento al pulsar (100 ms, ease-out); sin él con movimiento reducido.
+class _Press extends StatefulWidget {
+  const _Press({required this.child});
+  final Widget child;
+
+  @override
+  State<_Press> createState() => _PressState();
+}
+
+class _PressState extends State<_Press> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (_down != v) setState(() => _down = v);
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => _set(true),
+    onPointerUp: (_) => _set(false),
+    onPointerCancel: (_) => _set(false),
+    child: AnimatedScale(
+      scale: _down && !MediaQuery.disableAnimationsOf(context) ? .93 : 1,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
+      child: widget.child,
+    ),
+  );
+}

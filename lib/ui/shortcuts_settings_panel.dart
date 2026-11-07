@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../shortcuts/shortcut_service.dart';
+import '../theme/slush_theme.dart';
 
 class ShortcutsSettingsPanel extends StatefulWidget {
   const ShortcutsSettingsPanel({super.key, required this.service});
@@ -92,32 +93,80 @@ class _ShortcutsSettingsPanelState extends State<ShortcutsSettingsPanel> {
         if (_message != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(_message!),
+            child: Text(
+              _message!,
+              style: isSlush(context)
+                  ? TextStyle(color: context.slush.ink2)
+                  : null,
+            ),
           ),
         for (final id in ShortcutId.values)
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            children: [
-              SizedBox(
-                width: 150,
-                child: Text(
-                  widget.service.isCustom(id) ? '${id.label} *' : id.label,
+          isSlush(context)
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.service.isCustom(id)
+                              ? '${id.label} *'
+                              : id.label,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: OutlinedButton(
+                          onPressed: () => _capture(id),
+                          child: Text(
+                            widget.service.labelOf(id),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Restablecer',
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        onPressed: widget.service.isCustom(id)
+                            ? () => widget.service.reset(id)
+                            : null,
+                        icon: const Icon(Icons.restore, size: 18),
+                      ),
+                    ],
+                  ),
+                )
+              : Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  children: [
+                    SizedBox(
+                      width: 150,
+                      child: Text(
+                        widget.service.isCustom(id)
+                            ? '${id.label} *'
+                            : id.label,
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: () => _capture(id),
+                      child: Text(widget.service.labelOf(id)),
+                    ),
+                    IconButton(
+                      tooltip: 'Restablecer',
+                      onPressed: widget.service.isCustom(id)
+                          ? () => widget.service.reset(id)
+                          : null,
+                      icon: const Icon(Icons.restore, size: 18),
+                    ),
+                  ],
                 ),
-              ),
-              OutlinedButton(
-                onPressed: () => _capture(id),
-                child: Text(widget.service.labelOf(id)),
-              ),
-              IconButton(
-                tooltip: 'Restablecer',
-                onPressed: widget.service.isCustom(id)
-                    ? () => widget.service.reset(id)
-                    : null,
-                icon: const Icon(Icons.restore, size: 18),
-              ),
-            ],
-          ),
       ],
     ),
   );

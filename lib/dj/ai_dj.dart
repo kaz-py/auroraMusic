@@ -2,7 +2,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import '../core/models.dart';
+import 'artist_graph.dart';
+import 'coherence.dart';
 import 'recommendations.dart';
+import 'suggestions_api.dart' show djCoherenceWeight, djDecade;
 
 /// Local taste model: feature-hashed track vectors, a time-decayed profile
 /// built from observed signals, and an MMR ranker. Pure Dart, no network.
@@ -202,26 +205,34 @@ double djCosine(List<double> a, List<double> b) {
 
 enum DjSignal { complete, skip }
 
-/// One observed playback outcome. Stored compactly as `kind|millis|trackId`.
+/// One observed playback outcome. Stored compactly as
+/// `kind|millis|trackId|artist` (old events have no artist).
 class DjEvent {
-  const DjEvent(this.signal, this.trackId, this.at);
+  const DjEvent(this.signal, this.trackId, this.at, {this.artist = ''});
   final DjSignal signal;
   final String trackId;
   final DateTime at;
 
+  /// Artista principal (para saltos de pistas que no están en la biblioteca).
+  final String artist;
+
   String encode() =>
-      '${signal == DjSignal.skip ? 's' : 'c'}|${at.millisecondsSinceEpoch}|$trackId';
+      '${signal == DjSignal.skip ? 's' : 'c'}|${at.millisecondsSinceEpoch}|$trackId|${artist.replaceAll('|', '')}';
 
   static DjEvent? decode(String value) {
     final parts = value.split('|');
     if (parts.length < 3 || (parts[0] != 's' && parts[0] != 'c')) return null;
     final millis = int.tryParse(parts[1]);
-    final id = parts.sublist(2).join('|');
+    // El artista (sin «|») va siempre al final; el id puede llevar «|».
+    // Formato antiguo: exactamente 3 partes, sin artista.
+    final legacy = parts.length == 3;
+    final id = parts.sublist(2, legacy ? 3 : parts.length - 1).join('|');
     if (millis == null || id.isEmpty) return null;
     return DjEvent(
       parts[0] == 's' ? DjSignal.skip : DjSignal.complete,
       id,
       DateTime.fromMillisecondsSinceEpoch(millis),
+      artist: legacy ? '' : parts.last,
     );
   }
 }
@@ -291,11 +302,15 @@ typedef DjQuery = ({String query, String reason});
 
 /// Discovery searches built from the strongest positive profile features,
 /// interleaving artists, genres and albums; [used] keeps refills varied.
+/// [neighbors] (artistas afines) van primero si no son ya del perfil ni de
+/// [skippedArtists].
 List<DjQuery> djDiscoveryQueries(
   TasteProfile profile, {
   Set<String> used = const {},
   int max = djSearchesPerRefill,
   Track? fallback,
+  List<String> neighbors = const [],
+  Set<String> skippedArtists = const {},
 }) {
   List<String> top(String prefix, int count) {
     final entries =
@@ -314,6 +329,19 @@ List<DjQuery> djDiscoveryQueries(
 
   final artists = top('a:', 6), genres = top('g:', 3), albums = top('al:', 2);
   final options = <DjQuery>[];
+  final known = {
+    for (final k in profile.features.keys)
+      if (k.startsWith('a:')) coherenceNorm(k.substring(2)),
+    for (final a in skippedArtists) coherenceNorm(a),
+  };
+  for (final n in neighbors) {
+    if (n.isEmpty ||
+        isGenericArtistName(n) ||
+        known.contains(coherenceNorm(n))) {
+      continue;
+    }
+    options.add((query: '$n songs', reason: 'Artista afín a lo que escuchas'));
+  }
   for (var i = 0; i < 6; i++) {
     if (i < artists.length) {
       options.add((
@@ -341,7 +369,7 @@ List<DjQuery> djDiscoveryQueries(
 }
 
 /// De dónde sale un candidato; la mezcla de fuentes reparte cuota por cubo.
-enum RecBucket { similar, adjacent, discovery, classics, radio, lastfm }
+enum RecBucket { similar, adjacent, discovery, radio, lastfm }
 
 class DjCandidate {
   const DjCandidate(
@@ -366,6 +394,9 @@ bool djWantHeard(int heardSoFar, int chosenSoFar, double share) =>
 /// Ranks candidates by taste, continuity and source prior, minus penalties,
 /// then picks greedily with MMR (λ = [lambda]) under an artist cooldown:
 /// never the same artist back-to-back and at most two per ten tracks.
+/// Con [coherence], lo no relacionado con la semilla (bajo
+/// [djRelatedThreshold]) solo entra si falta relacionado, y la coherencia
+/// suma a la relevancia; [graph] aporta etiquetas de género por artista.
 List<TrackRecommendation> rankDjCandidates({
   required List<DjCandidate> candidates,
   required List<double> profile,
@@ -381,8 +412,11 @@ List<TrackRecommendation> rankDjCandidates({
   double Function(Track track)? adjust, // sesgo de modo (dj_modes.dart)
   Set<String> heardKeys = const {}, // claves de lo ya oído (biblioteca)
   double? heardShare, // cuota de ya oídas por tanda; null = sin cuota
+  CoherenceContext? coherence,
+  ArtistGraph? graph,
 }) {
   if (limit <= 0) return const [];
+  final cohOf = <DjCandidate, CoherenceResult>{};
   final currentVector = current == null ? null : embedDjTrack(current);
   final pool =
       <({DjCandidate candidate, Float32List vector, double relevance})>[];
@@ -399,6 +433,14 @@ List<TrackRecommendation> rankDjCandidates({
     }
     seen.addAll(keys);
     final vector = embedDjTrack(track);
+    final coh = coherence == null || coherence.isEmpty
+        ? null
+        : scoreCoherence(
+            track,
+            coherence,
+            decade: djDecade(track),
+            genres: graph?.tagsOf(djPrimaryArtist(track)) ?? const [],
+          );
     final relevance =
         djTasteWeight * djCosine(profile, vector) +
         djPriorWeight * candidate.prior +
@@ -409,21 +451,45 @@ List<TrackRecommendation> rankDjCandidates({
         (keys.any(recentKeys.contains) ? djRecentPenalty : 0) -
         (skippedArtists.contains(djPrimaryArtist(track))
             ? djSkippedArtistPenalty
-            : 0);
+            : 0) +
+        (coh == null ? 0 : djCoherenceWeight * (coh.score - 0.5));
     pool.add((candidate: candidate, vector: vector, relevance: relevance));
+    if (coh != null) cohOf[candidate] = coh;
   }
-
   final artistsSoFar = [
     if (current != null && queueTail.isEmpty) djPrimaryArtist(current),
     ...queueTail.map(djPrimaryArtist),
   ];
+  final window = artistsSoFar.length > 9
+      ? artistsSoFar.sublist(artistsSoFar.length - 9)
+      : artistsSoFar;
   bool allowed(String artist) {
     if (artist.isEmpty || !artistCooldown) return true;
     if (artistsSoFar.isNotEmpty && artistsSoFar.last == artist) return false;
-    final window = artistsSoFar.length > 9
-        ? artistsSoFar.sublist(artistsSoFar.length - 9)
-        : artistsSoFar;
     return window.where((a) => a == artist).length < 2;
+  }
+
+  if (cohOf.isNotEmpty && pool.isNotEmpty) {
+    // Misma puerta que el motor: relacionado primero, lo demás para completar.
+    final gate = coherenceGate(
+      pool,
+      result: (p) => cohOf[p.candidate]!,
+      artist: (p) => djPrimaryArtist(p.candidate.track),
+      limit: limit,
+      lastResort: (p) => p.candidate.bucket == RecBucket.discovery,
+      // El enfriamiento admite dos por cada diez pistas.
+      artistCap: artistCooldown ? math.max(1, (limit * 0.2).ceil()) : limit,
+      // Mismas apariciones que bloquea allowed(): ventana de las últimas 9.
+      used: artistCooldown
+          ? {
+              for (final a in window.toSet())
+                a: window.where((x) => x == a).length,
+            }
+          : const {},
+    );
+    pool
+      ..clear()
+      ..addAll(gate.kept);
   }
 
   bool heardOf(DjCandidate c) =>

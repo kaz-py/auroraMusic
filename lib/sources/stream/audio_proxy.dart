@@ -8,7 +8,8 @@ import 'resolved_stream.dart';
 /// Loopback range proxy in front of googlevideo (127.0.0.1 only).
 ///
 /// The player sees one stable URL per video and any `Range`; upstream is read
-/// in bounded chunks so an expired URL can be refreshed mid-stream.
+/// in bounded chunks so an expired URL can be refreshed mid-stream. googlevideo
+/// 3xx replies are followed (max 5 hops, https `*.googlevideo.com` only).
 class AudioProxy {
   AudioProxy._(
     this._server,
@@ -17,9 +18,22 @@ class AudioProxy {
     int maxUpstream,
     this.headerTimeout,
     this.stallTimeout,
+    this.allowRedirect,
   ) : _free = maxUpstream;
 
   static const _maxEntries = 64;
+  static const _maxRedirects = 5;
+  static const _redirects = {301, 302, 303, 307, 308};
+
+  /// Only https hosts under googlevideo.com: a signed media URL must never
+  /// be replayed (nor its Range answered) by an arbitrary host.
+  static bool isGoogleVideoRedirect(Uri uri) =>
+      uri.scheme == 'https' &&
+      uri.userInfo.isEmpty &&
+      (!uri.hasPort || uri.port == 443) &&
+      uri.host.endsWith('.googlevideo.com');
+
+  final bool Function(Uri target) allowRedirect;
 
   final HttpServer _server;
   final HttpClient _client;
@@ -39,6 +53,7 @@ class AudioProxy {
     Duration headerTimeout = const Duration(seconds: 15),
     Duration stallTimeout = const Duration(seconds: 20),
     HttpClient? client,
+    bool Function(Uri target)? allowRedirect,
   }) async {
     if (chunkBytes <= 0 || maxUpstream <= 0) throw ArgumentError('limits');
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -54,6 +69,7 @@ class AudioProxy {
       maxUpstream,
       headerTimeout,
       stallTimeout,
+      allowRedirect ?? isGoogleVideoRedirect,
     );
     server.listen(
       (request) => unawaited(proxy._serve(request)),
@@ -225,13 +241,20 @@ class AudioProxy {
             final sub = upstream
                 .timeout(stallTimeout)
                 .listen(null, cancelOnError: true);
+            // Sin pausar el flujo: con la suscripción pausada, el socket TLS de
+            // googlevideo hace que dart:io gire al 100 % de CPU mientras dura
+            // la descarga. La memoria queda acotada por [chunkBytes] y el
+            // vaciado se espera al final de cada tramo.
             sub.onData((data) {
               got += data.length;
-              sub.pause();
-              socket!.add(data);
+              try {
+                socket!.add(data);
+              } catch (error, stack) {
+                fail(error, stack);
+                return;
+              }
               // Mark before the flush: the player may hang up right after it.
               if (pos + got - 1 == total - 1) entry!.servedToEnd = true;
-              socket.flush().then((_) => sub.resume(), onError: fail);
             });
             sub.onError(fail);
             sub.onDone(() {
@@ -243,6 +266,7 @@ class AudioProxy {
             };
             await done.future;
             ctx.cancelBody = null;
+            await socket.flush();
             if (got != last - pos + 1) throw _Fail(null, 'premature EOF');
           } catch (_) {
             ctx.cancelBody?.call();
@@ -329,22 +353,61 @@ class AudioProxy {
       if (ctx.aborted || _closed) throw _Fail(null, 'aborted');
       HttpClientRequest? request;
       try {
-        request = await _client.getUrl(
-          stream.url,
-        ); // connectionTimeout bounds it
-        ctx.upstream = request;
-        if (ctx.aborted) request.abort();
-        request.followRedirects = false;
-        request.headers
-          ..set('range', 'bytes=$a-$b')
-          ..set('accept-encoding', 'identity');
-        for (final h in stream.headers.entries) {
-          if (h.key.toLowerCase() == 'user-agent') {
-            request.headers.set('user-agent', h.value);
+        var target = stream.url;
+        late HttpClientResponse response;
+        // A redirect that cannot be followed: renewable like a stale URL.
+        String? unfollowable;
+        for (var hop = 0; ; hop++) {
+          request = await _client.getUrl(target); // connectionTimeout bounds it
+          ctx.upstream = request;
+          if (ctx.aborted) request.abort();
+          request.followRedirects = false;
+          // El cuerpo se baja entero sin pausar; la conexión no debe quedar en
+          // el pool a la espera de que el reproductor termine de leer.
+          request.persistentConnection = false;
+          request.headers
+            ..set('range', 'bytes=$a-$b')
+            ..set('accept-encoding', 'identity');
+          for (final h in stream.headers.entries) {
+            if (h.key.toLowerCase() == 'user-agent') {
+              request.headers.set('user-agent', h.value);
+            }
           }
+          response = await request.close().timeout(headerTimeout);
+          if (!_redirects.contains(response.statusCode)) break;
+          // googlevideo's `rr*` front answers 302 to the cache node that
+          // holds the file; the Range is repeated against the new URL.
+          final location = response.headers.value('location');
+          final next = location == null ? null : Uri.tryParse(location);
+          request.abort();
+          _discard(response);
+          if (next == null) {
+            unfollowable = 'redirect without a valid Location';
+            break;
+          }
+          final to = target.resolve(next.toString());
+          if (!allowRedirect(to)) {
+            throw _Fail(response.statusCode, 'redirect to ${to.host} refused');
+          }
+          if (hop >= _maxRedirects) {
+            unfollowable = 'too many redirects';
+            break;
+          }
+          target = to;
         }
-        final response = await request.close().timeout(headerTimeout);
         final status = response.statusCode;
+        if (unfollowable != null) {
+          if (attempt == 0) {
+            stream = await _renew(
+              entry,
+              stream,
+              status: status,
+              reason: unfollowable,
+            );
+            continue;
+          }
+          throw _Fail(status, unfollowable);
+        }
         if (status == HttpStatus.partialContent) {
           final m = RegExp(
             r'^bytes (\d+)-(\d+)/',
@@ -361,7 +424,7 @@ class AudioProxy {
         }
         request.abort();
         _discard(response);
-        // Other statuses (3xx, 5xx, 416, ...) end as our 410 downstream.
+        // Other statuses (5xx, 416, ...) end as our 410 downstream.
         if (attempt == 0 && const {400, 401, 403, 410}.contains(status)) {
           stream = await _renew(
             entry,

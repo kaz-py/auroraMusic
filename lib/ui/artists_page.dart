@@ -6,6 +6,8 @@ import '../follow/follow_service.dart';
 import '../theme/brasa_theme.dart';
 import '../theme/modern_theme.dart';
 import '../theme/slush_theme.dart';
+import '../theme/slush_widgets.dart';
+import 'slush/slush_pages.dart';
 import 'horizontal_music_row.dart';
 import '../theme/modern_widgets.dart';
 import 'follow_widgets.dart';
@@ -103,6 +105,21 @@ class _ArtistsPageState extends State<ArtistsPage> {
   }
 
   Widget _artistList(List<_Artist> artists) {
+    final slush = isSlush(context);
+    if (artists.isEmpty && slush) {
+      return SlushEmpty(
+        icon: Icons.mic_none_rounded,
+        title: widget.follow != null
+            ? 'Aún no sigues a ningún artista'
+            : 'Todavía no hay artistas',
+        message: widget.follow != null
+            ? 'Sigue a un artista desde su perfil o desde el reproductor con el botón Seguir.'
+            : 'Busca música para encontrar artistas y añadir canciones a tu biblioteca.',
+        sticker: 'AÚN NO',
+        actionLabel: 'Buscar música',
+        onAction: () => widget.onSearch(''),
+      );
+    }
     if (artists.isEmpty) {
       return ListView(
         padding: const EdgeInsets.all(24),
@@ -164,6 +181,7 @@ class _ArtistsPageState extends State<ArtistsPage> {
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
+    if (slush) return _slushGrid(artists, count);
     if (brasa) {
       return CustomScrollView(
         slivers: [
@@ -315,6 +333,67 @@ class _ArtistsPageState extends State<ArtistsPage> {
           track: track,
           controller: widget.controller,
           onPlay: () => widget.onPlay(track),
+        );
+      },
+    );
+  }
+}
+
+extension on _ArtistsPageState {
+  /// Slush: rejilla circular de 3/4/5/7 columnas según el ancho.
+  Widget _slushGrid(List<_Artist> artists, String count) {
+    final p = context.slush;
+    final ts = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final margin = SlushSpacing.margin(w);
+        final side = w > 1440 ? (w - 1440) / 2 + margin : margin;
+        final cols = w >= Breakpoints.large
+            ? 7
+            : w >= Breakpoints.medium
+            ? 5
+            : w >= Breakpoints.compact
+            ? 4
+            : 3;
+        final gap = w < Breakpoints.compact ? SlushSpacing.s8 : 16.0;
+        final cell = (w - side * 2 - gap * (cols - 1)) / cols;
+        // avatar + nombre (2 líneas) + recuento, con relleno de 8 en la tarjeta.
+        final extent =
+            cell + 8 + ts.scale(14) * 1.25 * 2 + ts.scale(12) * 1.3 + 8;
+        return CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(side, 0, side, SlushSpacing.s16),
+              sliver: SliverToBoxAdapter(
+                child: Text(
+                  count,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                    color: p.ink2,
+                  ),
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(side, 0, side, SlushSpacing.s24),
+              sliver: SliverGrid.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
+                  mainAxisExtent: extent,
+                  crossAxisSpacing: gap,
+                  mainAxisSpacing: gap,
+                ),
+                itemCount: artists.length,
+                itemBuilder: (context, i) => _SlushArtistTile(
+                  artist: artists[i],
+                  onTap: () => _open(artists[i]),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -534,6 +613,81 @@ class _Artist {
       ? 'Siguiendo'
       : '${tracks.length} ${tracks.length == 1 ? 'canción' : 'canciones'}';
   String get key => name.toLowerCase();
+}
+
+/// Slush: avatar circular con borde `line`, nombre 1-2 líneas centrado y
+/// recuento. Hover/pulsado = solo capa de color (sin escala ni sombra).
+class _SlushArtistTile extends StatelessWidget {
+  const _SlushArtistTile({required this.artist, required this.onTap});
+
+  final _Artist artist;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    return Tooltip(
+      message: 'Abrir ${artist.name}',
+      child: SlushPressable(
+        onTap: onTap,
+        radius: SlushRadius.r24,
+        elevation: SlushElevation.none,
+        pressedScale: 1,
+        minSize: 0,
+        semanticLabel: 'Abrir ${artist.name}',
+        child: Padding(
+          padding: const EdgeInsets.all(SlushSpacing.s8),
+          child: Column(
+            children: [
+              LayoutBuilder(
+                builder: (context, box) {
+                  final d = box.maxWidth;
+                  return DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.fromBorderSide(p.border),
+                    ),
+                    child: Artwork(
+                      track: artist.cover,
+                      artworkContext: ArtworkContext.card,
+                      size: d,
+                      radius: d / 2,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: SlushSpacing.s8),
+              Text(
+                artist.name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.25,
+                  fontWeight: FontWeight.w800,
+                  color: p.ink,
+                ),
+              ),
+              Text(
+                artist.countLabel,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                  color: p.ink2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ArtistTile extends StatelessWidget {

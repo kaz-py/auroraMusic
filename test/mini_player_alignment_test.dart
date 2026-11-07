@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
-import 'package:aurora_music/ui/studio/studio_transport.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 
 import 'support/fakes.dart';
 
@@ -53,9 +53,12 @@ void main() {
     await controller.audio.pause();
 
     for (final (size, scale) in [
-      (const Size(1440, 900), 1.0),
+      (const Size(360, 800), 1.0),
+      (const Size(412, 800), 1.0),
+      (const Size(600, 900), 1.0),
       (const Size(900, 900), 1.0),
-      (const Size(320, 800), 2.0),
+      (const Size(1440, 900), 1.0),
+      (const Size(360, 800), 2.0),
     ]) {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -74,29 +77,29 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final playButton = find.byTooltip('Reproducir').last;
+      final mini = find.byType(MiniPlayerHost);
+      final playButton = find.descendant(
+        of: mini,
+        matching: find.byTooltip('Reproducir'),
+      );
       expect(playButton, findsOneWidget);
-      final transport = find.byType(StudioTransport);
-      if (size.width >= 1100) {
-        // The studio layout allocates different widths to metadata and volume.
-        // Transport controls remain centered within their own progress column.
-        final controls = find
-            .ancestor(of: playButton, matching: find.byType(Column))
-            .first;
-        expect(
-          tester.getCenter(playButton).dx,
-          closeTo(tester.getRect(controls).center.dx, 1),
-        );
-      } else {
-        final metadata = find.descendant(
-          of: transport,
-          matching: find.text(track.title),
-        );
-        expect(metadata, findsOneWidget);
-        final metadataRect = tester.getRect(metadata);
-        final playRect = tester.getRect(playButton);
-        expect(metadataRect.right, lessThanOrEqualTo(playRect.left));
-      }
+      final metadata = find.descendant(
+        of: mini,
+        matching: find.text(track.title),
+      );
+      expect(metadata, findsOneWidget);
+      final miniRect = tester.getRect(mini);
+      final metadataRect = tester.getRect(metadata);
+      final playRect = tester.getRect(playButton);
+      // The title never runs under the play button, and both sit inside the bar.
+      expect(metadataRect.right, lessThanOrEqualTo(playRect.left));
+      expect(playRect.left, greaterThanOrEqualTo(miniRect.left));
+      expect(playRect.right, lessThanOrEqualTo(miniRect.right));
+      expect(playRect.height, greaterThanOrEqualTo(44));
+      expect(
+        metadataRect.center.dy,
+        closeTo(playRect.center.dy, miniRect.height / 2),
+      );
       expect(
         tester.takeException(),
         isNull,

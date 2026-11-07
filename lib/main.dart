@@ -5,6 +5,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'theme/brasa_theme.dart';
+import 'theme/accent_transition.dart';
 import 'theme/slush_theme.dart';
 import 'theme/modern_theme.dart';
 import 'ui/aurora_states.dart';
@@ -216,33 +217,39 @@ class AuroraApp extends ConsumerWidget {
       'slush' => slushTheme,
       _ => auroraTheme,
     };
-    return MaterialApp(
-      title: 'Aurora',
-      debugShowCheckedModeBanner: false,
-      themeMode: settings.$4 == 'brasa'
-          ? ThemeMode.dark
-          : settings.$4 == 'slush'
-          ? ThemeMode.light
-          : settings.$1,
-      theme: build(
-        settings.$4 == 'brasa' ? Brightness.dark : Brightness.light,
-        settings.$2,
+    return AccentTransition(
+      accent: settings.$2,
+      instant: settings.$3,
+      builder: (context, accent, moving) => MaterialApp(
+        title: 'Aurora',
+        debugShowCheckedModeBanner: false,
+        themeMode: settings.$4 == 'brasa' ? ThemeMode.dark : settings.$1,
+        theme: build(
+          settings.$4 == 'brasa' ? Brightness.dark : Brightness.light,
+          accent,
+        ),
+        darkTheme: build(Brightness.dark, accent),
+        // El acento ya llega interpolado fotograma a fotograma: animarlo otra
+        // vez en AnimatedTheme sería una segunda animación encima. Cambiar de
+        // tema o de modo sí conserva su fundido.
+        themeAnimationDuration: settings.$3 || moving
+            ? Duration.zero
+            : const Duration(milliseconds: 300),
+        builder: (context, child) {
+          final media = MediaQuery.of(context);
+          WindowControls.setBackground(Theme.of(context).colorScheme.surface);
+          return AccentScope(
+            accent: accent,
+            child: MediaQuery(
+              data: media.copyWith(
+                disableAnimations: media.disableAnimations || settings.$3,
+              ),
+              child: child!,
+            ),
+          );
+        },
+        home: const AuroraShell(),
       ),
-      darkTheme: build(Brightness.dark, settings.$2),
-      themeAnimationDuration: settings.$3
-          ? Duration.zero
-          : const Duration(milliseconds: 300),
-      builder: (context, child) {
-        final media = MediaQuery.of(context);
-        WindowControls.setBackground(Theme.of(context).colorScheme.surface);
-        return MediaQuery(
-          data: media.copyWith(
-            disableAnimations: media.disableAnimations || settings.$3,
-          ),
-          child: child!,
-        );
-      },
-      home: const AuroraShell(),
     );
   }
 }
@@ -421,6 +428,9 @@ ThemeData auroraTheme(Brightness brightness, Color accent) {
     scaffoldBackgroundColor: scheme.surface,
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, thickness: 1),
     visualDensity: VisualDensity.standard,
+    chipTheme: const ChipThemeData(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 44),
@@ -518,6 +528,19 @@ ThemeData auroraTheme(Brightness brightness, Color accent) {
       thumbColor: scheme.primary,
       inactiveTrackColor: scheme.outlineVariant,
       overlayColor: scheme.primary.withValues(alpha: .14),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      elevation: 0,
+      backgroundColor: dark ? scheme.surfaceContainerHighest : ink,
+      contentTextStyle: TextStyle(
+        color: dark ? scheme.onSurface : paper,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: dark ? scheme.primary : scheme.inversePrimary,
+      closeIconColor: dark ? scheme.onSurface : paper,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),

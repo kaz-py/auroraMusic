@@ -137,8 +137,12 @@ class _JamPageState extends State<JamPage> {
     final colors = Theme.of(context).colorScheme;
     final message = _inputError ?? c?.error ?? session?.error;
     if (isSlush(context)) {
+      // Claro: Jam sobre papel. Oscuro: sobre el fondo, para que las tarjetas
+      // de papel queden por delante.
       return ColoredBox(
-        color: Colors.white,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).scaffoldBackgroundColor
+            : context.slush.paper,
         child: active
             ? SlushJamActive(controller: c!)
             : SlushJamIdle(
@@ -160,14 +164,7 @@ class _JamPageState extends State<JamPage> {
       );
     }
     final header = <Widget>[
-      if (isSlush(context))
-        Text(
-          'JAM',
-          style: Theme.of(
-            context,
-          ).textTheme.displayLarge?.copyWith(fontSize: 96, height: .9),
-        )
-      else if (isModern(context)) ...[
+      if (isModern(context)) ...[
         const Align(alignment: Alignment.centerLeft, child: ModernBadge('Jam')),
         const SizedBox(height: 12),
         ModernHeadline(
@@ -216,10 +213,7 @@ class _JamPageState extends State<JamPage> {
         ),
       ),
     );
-    // Slush: Jam sobre fondo blanco.
-    return isSlush(context)
-        ? ColoredBox(color: Colors.white, child: page)
-        : page;
+    return page;
   }
 
   List<Widget> _idle(JamController? c, bool busy) => [

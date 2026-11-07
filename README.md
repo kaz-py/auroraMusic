@@ -23,7 +23,7 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 - Interfaz Atelier Sonoro reconstruida en Flutter a partir de los originales de `diseñoidea/`: Newsreader normal e italic, Plus Jakarta Sans, símbolos locales y navegación adaptable.
 - Biblioteca en cuadrícula, cola con vista propia y ajustes por secciones. **Modo Vinilo** gira durante la reproducción y permite desplazar la posición arrastrando el disco.
 - Botón **Letras**: búsqueda exacta en LRCLIB, texto sincronizado o tradicional, caché privada e importación de archivos LRC/TXT.
-- Letras interactivas: toca un verso sincronizado para avanzar o retroceder, ajusta el volumen y vuelve al reproductor con **Volver**. Buscar una posición conserva tu decisión de reproducir o pausar.
+- Letras interactivas: toca un verso sincronizado para avanzar o retroceder y ajusta el volumen. Buscar una posición conserva tu decisión de reproducir o pausar.
 - Inicio con carruseles horizontales de datos reales; DJ de descubrimiento con gestos: izquierda omite, derecha guarda el favorito y encola.
 - **Para ti** recomienda según favoritos, listas y escuchas recientes. **DJ personal**, sin voz, continúa la cola con esas preferencias; las novedades de YouTube son opcionales y se consultan con límites visibles.
 - **Jam**: cola compartida en red local o en línea (Supabase), QR, permisos del anfitrión y reproducción sincronizada opcional con fuentes de audio propias.
@@ -34,8 +34,13 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 - Paletas Automático, Morado, Terracota, Ámbar y Verde bosque para toda la interfaz.
 - **Temas** Modern (por defecto), Atelier, Brasa y Slush, con logo propio.
 - **Aleatorio** que no gasta las canciones saltadas: siguen en la cola y pueden volver a salir (nunca dos veces seguidas).
+- **Mini reproductor** (Windows): ventana compacta siempre visible con portada, progreso y controles, como el Miniplayer de Spotify; se activa en Ajustes o desde el menú de la canción (clic en la portada o el título de la barra de abajo).
+- **Tarjeta de acciones de la canción**: pulsación larga sobre el mini (Android) o botón ⋯ del reproductor completo; cola de reproducción, añadir a la cola, Jam, favorito, compartir, enviar a un amigo y añadir a una lista. Las filas de canciones conservan su menú.
+- **Avisos** flotantes y con el mismo aspecto en los cuatro temas; se cierran solos, también los que llevan acción (Deshacer).
+- Al pasar el cursor sobre la línea de progreso del mini, la zona de pulsación crece y la línea se engorda para adelantar con facilidad (en los cuatro temas).
+- **Modo letra**: apartado inmersivo (portada difuminada a pantalla completa, portada grande con progreso y título, letra sincronizada y controles) que oculta la barra de abajo; se abre con **Letras**. Tiene pantalla completa (botón, **F11** y **Esc**; en Android, modo inmersivo), **Copiar letra** y respeta las barras del sistema. Sin letra muestra solo la portada, centrada, y el aviso se oculta solo. Entra siempre en el verso que suena. **Salir del modo letra** vuelve a la sección anterior.
 - **Cuenta Aurora** (Supabase, gratis): correo, contraseña y nombre de usuario, foto de perfil (genérica hasta que subas una; la anterior se borra del almacenamiento). Sincroniza me gusta, playlists, historial y perfil de gustos del DJ entre dispositivos.
-- **Amigos**: solicitudes por nombre de usuario; envía canciones y playlists o invita a tu Jam en línea. Llegan a una bandeja en tiempo real con aviso en la app.
+- **Amigos** (escritorio y Android): solicitudes por nombre de usuario; envía canciones y playlists o invita a tu Jam en línea (con una nota opcional de 200 caracteres). En móvil están en **Más vistas**, con insignia de solicitudes pendientes. La pestaña «Chats» guarda el historial de envíos con cada amigo, en los dos sentidos, con un diseño propio por tema; pulsar en cualquier parte de una fila abre su chat. Las invitaciones a Jam desaparecen a las 2 h. Llegan en tiempo real con aviso en la app.
 - **Last.fm**: cada usuario conecta su cuenta para registrar lo que escucha (scrobbling), ver sus estadísticas en Perfil y alimentar el DJ. La contraseña solo se usa para iniciar sesión y no se guarda.
 - **Discord y Duvet**: muestran «Escuchando Aurora Music» con canción, artista, tiempo y portada (Windows y Linux); en una Jam indica que escuchas en grupo.
 
@@ -100,9 +105,9 @@ Abre **Descargas locales** en la navegación o desde Inicio. La ruta aparece en 
 
 En Android, las descargas permanecen en el almacenamiento privado de Aurora; la selección de una carpeta externa aún no está implementada.
 
-El botón **Letras** está en el reproductor inferior y en la cabecera del reproductor completo. Al abrirlo, se envían título y artista a LRCLIB si no existe una copia local. Las letras sincronizadas siguen la posición de reproducción. No todas las pistas tienen coincidencia: puedes importar tu propio `.lrc` o `.txt` (máximo 1 MiB), cuyo original permanece intacto. Las letras guardadas funcionan sin conexión.
+El botón **Letras** está en el reproductor inferior y en la cabecera del reproductor completo. Las letras se guardan en la caché privada: una letra guardada se abre al instante, sin esperar a la red, y solo se vuelve a consultar a los 30 días o al forzar la búsqueda. Si no está guardada, se envían título y artista a LRCLIB. Las letras sincronizadas siguen la posición de reproducción y, al entrar a mitad de canción, aparecen ya colocadas en el verso actual. No todas las pistas tienen coincidencia: puedes importar tu propio `.lrc` o `.txt` (máximo 1 MiB), cuyo original permanece intacto. Las letras guardadas funcionan sin conexión.
 
-En escritorio, la entrada **Letras** mantiene la navegación y los controles inferiores; el botón del reproductor abre la vista completa. En móvil, **Más vistas** abre vinilo, cola o letras, conservando los cuatro destinos principales. En la cola, el menú de cada pista permite quitar esa aparición sin borrar el archivo. Las referencias y la preferencia de trabajar con subagentes Luna están en [docs/design/README.md](docs/design/README.md).
+En escritorio, la entrada **Letras** abre el **modo letra** (el antiguo modo artista) a pantalla completa con sus propios controles. En móvil, **Más vistas** abre vinilo, cola, letras y Amigos, conservando los cuatro destinos principales. En la cola, el menú de cada pista permite quitar esa aparición sin borrar el archivo. Las referencias y la preferencia de trabajar con subagentes Luna están en [docs/design/README.md](docs/design/README.md).
 
 ## Ejecutar desde el código
 

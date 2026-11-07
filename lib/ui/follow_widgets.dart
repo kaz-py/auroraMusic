@@ -74,7 +74,8 @@ class FollowButton extends StatelessWidget {
           size: 18,
         );
         final onPressed = busy ? null : () => _toggle(context);
-        final style = ButtonStyle(visualDensity: VisualDensity.compact);
+        // Densidad estándar: la compacta bajaba el botón a 36 px (< 40 táctil).
+        const style = ButtonStyle(visualDensity: VisualDensity.standard);
         return Tooltip(
           message: following
               ? 'Dejar de seguir a $name'

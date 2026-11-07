@@ -5,6 +5,7 @@ import '../../core/models.dart';
 import '../../friends/friends_providers.dart';
 import '../../friends/friends_service.dart';
 import '../friends_page.dart';
+import '../undo_snackbar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Tracks de [playlist] resueltos en la biblioteca.
@@ -50,7 +51,7 @@ Future<void> changePlaylistPhoto(
 ) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final error = await controller.pickPlaylistPhoto(playlist);
-  if (error != null) messenger?.showSnackBar(SnackBar(content: Text(error)));
+  if (error != null) showUndoSnackBar(messenger, Text(error));
 }
 
 /// Menú «Cambiar foto» / «Quitar foto» en la posición indicada.

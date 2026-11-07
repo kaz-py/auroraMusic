@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
-import 'package:aurora_music/ui/lyrics_panel.dart';
+import 'package:aurora_music/ui/artist_mode.dart';
 import 'package:aurora_music/lyrics/lyrics_service.dart';
 import 'package:aurora_music/import/spotify_import.dart';
 import 'package:aurora_music/ui/spotify_import_dialog.dart';
@@ -235,9 +235,10 @@ void main() {
         child: MaterialApp(
           theme: auroraTheme(Brightness.dark, const Color(0xffe86927)),
           home: Scaffold(
-            body: LyricsPanel(
+            body: ArtistModePage(
               controller: c,
               service: _FixtureLyrics(),
+              onTogglePlay: () {},
               onClose: () => lyricsClosed = true,
             ),
           ),
@@ -254,14 +255,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(c.audio.position, Duration.zero);
     expect(c.audio.isPlaying, isTrue);
-    await tester.drag(find.byType(Slider).last, const Offset(-60, 0));
-    await tester.pumpAndSettle();
-    expect(c.audio.volume, lessThan(.75));
     await capture('aurora-redesign-lyrics');
     await tester.binding.setSurfaceSize(const Size(390, 844));
     await tester.pumpAndSettle();
     await capture('aurora-103-mobile-lyrics');
-    await tester.tap(find.text('Volver'));
+    await tester.tap(find.byTooltip('Salir del modo letra'));
     await tester.pumpAndSettle();
     expect(lyricsClosed, isTrue);
     await tester.pumpWidget(const SizedBox.shrink());

@@ -142,7 +142,7 @@ class _FakeOrch implements StreamOrchestrator {
   Object? failOnce;
   final gates = <String, Completer<void>>{};
   @override
-  bool get preferMp4a => false;
+  AudioQuality quality = AudioQuality.high;
   @override
   Future<ResolvedStream> resolve(
     String videoId, {
@@ -195,6 +195,9 @@ class _FakeProxy implements AudioProxy {
   int get activeConnections => 0;
   @override
   int get chunkBytes => 4 << 20;
+  @override
+  bool Function(Uri target) get allowRedirect =>
+      AudioProxy.isGoogleVideoRedirect;
   @override
   Duration get headerTimeout => Duration.zero;
   @override
@@ -306,6 +309,10 @@ void main() {
 
     // Playback errors reach the orchestrator, never the yt-dlp delegate.
     source.reportPlaybackFailure('HTTP 410 Gone');
+    expect(orch.failures.last, '19y35jAcG6k:410');
+    source.reportPlaybackFailure(
+      'Error opening input: Server returned 4XX Client Error, but not one of 40{0,1,3,4}',
+    );
     expect(orch.failures.last, '19y35jAcG6k:410');
     source.reportPlaybackFailure('premature EOF');
     expect(orch.failures.last, '19y35jAcG6k:null');

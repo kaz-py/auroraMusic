@@ -234,88 +234,45 @@ class StudioHomeIntroduction extends StatelessWidget {
 
   Widget _modern(BuildContext context, Track? track) {
     final width = MediaQuery.sizeOf(context).width;
-    final moods = <(IconData, String, VoidCallback)>[
-      (
-        StudioSymbols.waterDrop,
-        'Tarde Lluviosa',
-        () => showStudioPending(context, 'Ánimos de escucha'),
-      ),
-      (
-        StudioSymbols.graphicEq,
-        'Cinta Magnética',
-        () => showStudioPending(context, 'Simulación de cinta'),
-      ),
-      (
-        StudioSymbols.nightlife,
-        'Improvisación Jazz',
-        () => _searchMood('jazz'),
-      ),
-      (
-        StudioSymbols.psychology,
-        'Enfoque Profundo',
-        () => showStudioPending(context, 'Perfil de enfoque'),
-      ),
-      (
-        StudioSymbols.acUnit,
-        'Acústica Nórdica',
-        () => _searchMood('acústica nórdica'),
-      ),
-    ];
+    // Android/estrecho: sin saludo ni titular, solo el botón.
+    final compactModern = !isSlush(context) && width < 600;
     final left = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isSlush(context))
-          Row(
-            children: [
-              SlushPill(studioGreeting(studioClock())),
-              const SizedBox(width: 12),
-              const SlushSticker('NUEVO', size: 64),
-            ],
-          )
-        else
-          ModernBadge(studioGreeting(studioClock()), tone: ModernTone.mint),
-        const SizedBox(height: 20),
-        ModernHeadline(
-          before: 'Tu ',
-          emphasis: 'música',
-          after: ', siempre',
-          size: width < 600 ? 40 : 60,
-        ),
-        const SizedBox(height: 16),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Text(
-            'Escucha lo que amas, descubre lo que viene y deja que el DJ siga por ti.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+        if (!compactModern) ...[
+          if (isSlush(context))
+            Row(
+              children: [
+                SlushPill(studioGreeting(studioClock())),
+                const SizedBox(width: 12),
+                const SlushSticker('NUEVO', size: 64),
+              ],
+            )
+          else
+            ModernBadge(studioGreeting(studioClock()), tone: ModernTone.mint),
+          const SizedBox(height: 20),
+          ModernHeadline(
+            before: 'Tu ',
+            emphasis: 'música',
+            after: ', siempre',
+            size: width < 600 ? 40 : 60,
+          ),
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Text(
+              'Escucha lo que amas, descubre lo que viene y deja que el DJ siga por ti.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
+          const SizedBox(height: 24),
+        ],
         FilledButton.icon(
           onPressed: onSearch,
           icon: const Icon(StudioSymbols.search),
           label: const Text('Encontrar música'),
-        ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final m in moods)
-              ActionChip(
-                avatar: Icon(m.$1, size: 16),
-                label: Text(m.$2),
-                onPressed: m.$3,
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerLow,
-              ),
-          ],
         ),
       ],
     );
@@ -604,11 +561,7 @@ class StudioHomeIntroduction extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                StudioSymbols.verified,
-                color: colors.primaryContainer,
-                size: 18,
-              ),
+              Icon(StudioSymbols.verified, color: colors.primary, size: 18),
               const SizedBox(width: 6),
               const Expanded(
                 child: StudioStamp('EDICIÓN MÁSTER · AUDIÓFILO DE LA SEMANA'),

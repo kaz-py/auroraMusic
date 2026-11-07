@@ -36,12 +36,14 @@ import 'studio/equalizer_panel.dart';
 import 'studio/studio_navigation.dart';
 import 'slush/slush_bars.dart';
 import 'slush/slush_pages.dart';
-import 'studio/studio_transport.dart';
+import 'slush/slush_decor.dart';
+import 'mini_player/mini_player_host.dart';
 import 'studio/session_aside.dart';
 import 'studio/downloads_studio_page.dart';
 import '../shortcuts/shortcut_host.dart';
 import '../shortcuts/shortcut_service.dart';
-import 'lyrics_panel.dart';
+import 'artist_mode.dart';
+import 'mini_window.dart';
 import 'shortcuts_settings_panel.dart';
 import 'artwork.dart';
 import 'dj_discovery_page.dart';
@@ -62,6 +64,7 @@ import 'spotify_auto_add.dart';
 import 'spotify_browser_panel.dart';
 import '../metadata/youtube_match.dart';
 import '../sources/innertube_source.dart';
+import '../sources/stream/stream_orchestrator.dart' show AudioQuality;
 export 'artwork.dart';
 import 'spotify_import_dialog.dart';
 import 'spotify_match_dialog.dart';
@@ -75,6 +78,7 @@ import 'artists_page.dart';
 import 'follow_widgets.dart';
 import '../follow/follow_providers.dart';
 import 'track_actions.dart';
+import 'mini_player/song_card.dart';
 import 'friends_page.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
@@ -119,6 +123,7 @@ const _icons = [
   Icons.people_outline,
 ];
 const _primarySections = [0, 1, 8, 2, 3];
+const _slushPrimarySections = [0, 1, 2, 8, 9];
 
 class AuroraShell extends ConsumerStatefulWidget {
   const AuroraShell({super.key});
@@ -136,6 +141,22 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   Uri? _musicUri;
   final _musicKey = GlobalKey<YouTubeMusicPageState>();
   JamController? _jam;
+
+  /// Amigo con el chat abierto en Amigos (`null`: la lista). Lo comparten
+  /// los avisos y «atrás».
+  final _friendsChat = ValueNotifier<String?>(null);
+
+  /// Modo mini (ventana compacta, solo Windows): `MiniWindowView` sustituye al
+  /// shell mientras está activo.
+  bool _miniWindow = false;
+
+  Future<void> _setMiniWindow(bool on) async {
+    if (_miniWindow == on) return;
+    final done = await WindowControls.setMiniWindow(on);
+    // Al salir se vuelve aunque falle la ventana nativa: no atrapa al usuario.
+    if (!mounted || (on && !done)) return;
+    setState(() => _miniWindow = on);
+  }
 
   /// Un único controlador de Jam para chip, barra inferior, panel y página.
   JamController _ensureJam() {
@@ -213,12 +234,15 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   MusicPlaylist? _playlist;
   bool _likesSelected = false;
+  final List<int> _backStack = [];
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
   late final AudioBackend _audio;
   late final DesktopShell _desktop;
   late final DuvetPresence _duvet;
-  bool _playerOpen = false;
+  // Hay un consumidor visible del espectro: Vinilo, EQ o la hoja del EQ.
+  bool get _playerOpen =>
+      _section == 4 || _section == 13 || equalizerSheetsOpen.value > 0;
   bool _foreground = true;
   bool _analysisEnabled = false;
   late final UpdateController _updates;
@@ -238,6 +262,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _duvet = DuvetPresence(ref.read(controllerProvider))..start();
     _guardWebClose();
     _audio.setVisualizationEnabled(false);
+    equalizerSheetsOpen.addListener(_eqSheetChanged);
     _listenForJamLinks();
     _startFollow();
     _friendsSub = ref
@@ -265,7 +290,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         FriendsNoticeKind.request => '${n.username} quiere ser tu amigo',
       }),
       label: 'Ver',
-      onAction: () => _navigate(14),
+      onAction: () {
+        _friendsChat.value = n.peerId;
+        _navigate(14);
+      },
     );
   }
 
@@ -343,6 +371,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _syncVisualization();
   }
 
+  void _eqSheetChanged() {
+    if (mounted) _syncVisualization();
+  }
+
   void _syncVisualization() {
     final c = ref.read(controllerProvider);
     final enabled =
@@ -373,7 +405,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     WindowControls.guardClose(false);
     _jam?.removeListener(_jamChanged);
     _jam?.dispose();
+    _friendsChat.dispose();
     _spotifyAdderCache?.dispose();
+    equalizerSheetsOpen.removeListener(_eqSheetChanged);
     if (_analysisEnabled) _audio.setVisualizationEnabled(false);
     _updates.dispose();
     _search.dispose();
@@ -393,7 +427,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _jamChanged();
   }
 
-  Future<void> _navigate(int value, {bool fromRequest = false}) async {
+  Future<void> _navigate(
+    int value, {
+    bool fromRequest = false,
+    bool recordBack = true,
+  }) async {
     if (value == 10 &&
         !fromRequest &&
         ref.read(controllerProvider).usesOfficialYouTubeMusic) {
@@ -413,6 +451,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ref.read(controllerProvider).cancelRecommendationDiscovery();
       }
       setState(() {
+        if (value == 0) {
+          _backStack.clear();
+        } else if (value != _section && recordBack) {
+          _backStack.add(_section);
+          if (_backStack.length > 20) _backStack.removeAt(0);
+        }
         _section = value;
         if (value == 9) _jamVisited = true;
         _musicVisited = value == 10;
@@ -421,6 +465,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         _likesSelected = false;
       });
       _guardWebClose();
+      _syncVisualization();
       if (value != 10 && ref.read(controllerProvider).youtubeMusicActive) {
         ref.read(controllerProvider).closeYouTubeMusic();
       }
@@ -429,7 +474,35 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     }
   }
 
-  double _volumeBeforeMute = 0.7;
+  bool _handleBack(AppController c) {
+    // «Atrás» en un chat abierto vuelve a la lista sin salir de Amigos.
+    if (_section == 14 && _friendsChat.value != null) {
+      _friendsChat.value = null;
+      return true;
+    }
+    if (_section == 1 && c.searchDetail != null) {
+      c.openSearchEntry(null);
+      return true;
+    }
+    if (_playlist != null || _likesSelected) {
+      setState(() {
+        _playlist = null;
+        _likesSelected = false;
+      });
+      return true;
+    }
+    if (_backStack.isNotEmpty) {
+      _navigate(_backStack.removeLast(), recordBack: false);
+      return true;
+    }
+    if (_section != 0) {
+      _navigate(0);
+      return true;
+    }
+    return false;
+  }
+
+  final _mute = MuteMemory();
 
   // Con Jam activa el controlador decide (host alterna, invitado con permiso
   // enruta al host); sin permiso muestra su mensaje en vez de silencio.
@@ -442,9 +515,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     await jam.togglePlayback();
     final message = jam.error;
     if (message != null && mounted) {
-      ScaffoldMessenger.maybeOf(
-        context,
-      )?.showSnackBar(SnackBar(content: Text(message)));
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(message));
     }
   }
 
@@ -462,12 +533,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       case ShortcutId.repeat:
         c.cycleRepeat();
       case ShortcutId.mute:
-        if (c.audio.volume > 0) {
-          _volumeBeforeMute = c.audio.volume;
-          c.setVolume(0);
-        } else {
-          c.setVolume(_volumeBeforeMute);
-        }
+        _mute.toggle(c);
       case ShortcutId.volumeUp:
         c.setVolume(c.audio.volume + 0.05);
       case ShortcutId.volumeDown:
@@ -652,7 +718,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 children: [
                                   if (!(brasa && rail) &&
                                       !(slushBar && _section == 0) &&
-                                      (!wide || ![0, 3, 6].contains(_section)))
+                                      (!wide || ![0, 3].contains(_section)))
                                     _header(c, rail),
                                   if (!c.ready || c.busy)
                                     const LinearProgressIndicator(minHeight: 2),
@@ -662,7 +728,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                     isPlaying: () => c.audio.isPlaying,
                                   ),
                                   Expanded(
-                                    child: isModern(context)
+                                    child:
+                                        isModern(context) && !isSlush(context)
                                         ? Align(
                                             alignment: Alignment.topCenter,
                                             child: ConstrainedBox(
@@ -671,7 +738,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                                     const [
                                                       4,
                                                       5,
-                                                      6,
                                                       9,
                                                       10,
                                                       11,
@@ -713,65 +779,39 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                           ],
                         ),
                       ),
-                      if (_section == 10 && c.usesOfficialYouTubeMusic ||
-                          (!rail && isSlush(context) && !c.jamPlaybackActive))
-                        const SizedBox.shrink()
-                      else if (slushBar && !c.jamPlaybackActive)
-                        SlushPlayerBar(
-                          controller: c,
-                          onLyrics: () => _showLyrics(c),
-                          onVinyl: () => _navigate(4),
-                          onQueue: () => _navigate(5),
-                          onEqualizer: () => _navigate(13),
-                          onSettings: () => _navigate(7),
-                          onOpenPlayer: () => _showPlayer(c),
-                        )
-                      else
-                        StudioTransport(
-                          shortcuts: ref.watch(shortcutServiceProvider),
-                          jam: _jam,
-                          onJam: _openJamPanel,
-                          onStartJam: _startJam,
-                          controller: c,
-                          onLyrics: () => _showLyrics(c),
-                          onVinyl: () => _navigate(4),
-                          onQueue: () => _navigate(5),
-                          onOpenPlayer: () => _showPlayer(c),
-                        ),
+                      _miniPlayer(c, rail, MiniPlayerPlacement.body),
                     ],
                   ),
                 ),
                 bottomNavigationBar: rail
                     ? null
                     : isSlush(context)
-                    ? SlushBottomBar(
-                        icons: [
-                          for (final s in _primarySections)
-                            switch (s) {
-                              8 => Icons.auto_awesome,
-                              2 => Icons.queue_music,
-                              _ => _icons[s],
-                            },
-                        ],
-                        labels: [
-                          for (final s in _primarySections) _sections[s],
-                        ],
-                        selected: math.max(
-                          0,
-                          _primarySections.indexOf(_section),
+                    ? MediaQuery.withClampedTextScaling(
+                        maxScaleFactor: 1.3,
+                        child: SlushBottomBar(
+                          icons: [
+                            for (final s in _slushPrimarySections)
+                              switch (s) {
+                                2 => Icons.queue_music,
+                                8 => Icons.auto_awesome,
+                                9 => Icons.groups_outlined,
+                                _ => _icons[s],
+                              },
+                          ],
+                          labels: [
+                            for (final s in _slushPrimarySections) _sections[s],
+                          ],
+                          selected: _slushPrimarySections.indexOf(_section),
+                          onSelect: (i) => _navigate(_slushPrimarySections[i]),
+                          mini: _miniPlayer(
+                            c,
+                            rail,
+                            MiniPlayerPlacement.bottomBar,
+                          ),
                         ),
-                        onSelect: (i) => _navigate(_primarySections[i]),
-                        mini:
-                            c.jamPlaybackActive ||
-                                (_section == 10 && c.usesOfficialYouTubeMusic)
-                            ? null
-                            : SlushMiniPlayer(
-                                controller: c,
-                                onOpen: () => _showPlayer(c),
-                                onToggle: () => _togglePlay(c),
-                              ),
                       )
                     : NavigationBar(
+                        height: 64,
                         selectedIndex: math.max(
                           0,
                           _primarySections.indexOf(_section),
@@ -783,7 +823,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         backgroundColor: brasa
                             ? Brasa.void_
                             : isSlush(context)
-                            ? Slush.ink
+                            ? context.slush.ink
                             : isModern(context)
                             ? Theme.of(context).colorScheme.surfaceContainerLow
                             : null,
@@ -794,9 +834,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                           (i) => NavigationDestination(
                             icon: Icon(_icons[_primarySections[i]]),
                             selectedIcon: brasa
-                                ? Icon(
-                                    _icons[_primarySections[i]],
-                                    color: Brasa.void_,
+                                ? SizedBox(
+                                    width: 64,
+                                    height: 32,
+                                    child: DecoratedBox(
+                                      decoration: const ShapeDecoration(
+                                        color: Brasa.cream,
+                                        shape: StadiumBorder(),
+                                      ),
+                                      child: Icon(
+                                        _icons[_primarySections[i]],
+                                        color: Brasa.void_,
+                                      ),
+                                    ),
                                   )
                                 : null,
                             label: _primarySections[i] == 3
@@ -812,12 +862,43 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       ),
     );
-    if (web == null) return shell;
+    final guarded = PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // La página de YouTube Music gestiona su propio atrás.
+        if (_section == 10 && _musicKey.currentState != null) return;
+        if (!_handleBack(c)) SystemNavigator.pop();
+      },
+      child: shell,
+    );
+    // Modo mini y Modo artista sustituyen a todo el shell (que conserva su
+    // estado, incluida la sección) mientras están activos.
+    final content = _miniWindow
+        ? MiniWindowView(
+            controller: c,
+            jam: _jam,
+            onTogglePlay: () => _togglePlay(c),
+            onExit: () => unawaited(_setMiniWindow(false)),
+          )
+        : _section == 6
+        ? Scaffold(
+            body: ArtistModePage(
+              controller: c,
+              jam: _jam,
+              onTogglePlay: () => _togglePlay(c),
+              onClose: () {
+                if (!_handleBack(c)) _navigate(0);
+              },
+            ),
+          )
+        : guarded;
+    if (web == null) return content;
     return ListenableBuilder(
       listenable: web,
       builder: (context, _) => Stack(
         fit: StackFit.expand,
-        children: [shell, ..._webEngineLayers(web)],
+        children: [content, ..._webEngineLayers(web)],
       ),
     );
   }
@@ -1074,7 +1155,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     return !rail &&
             isSlush(context) &&
             ((_section == 0 && _playlist == null) || _slushOwned)
-        ? SlushMobileTopBar(onSettings: () => _navigate(7), onMore: _navigate)
+        ? SlushMobileTopBar(
+            onSettings: () => _navigate(7),
+            onMore: _navigate,
+            friendsBadge: _friendsBadge,
+          )
         : _headerBar(c, rail);
   }
 
@@ -1156,17 +1241,21 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   }
 
   Widget _headerBar(AppController c, bool rail) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      rail ? 32 : 20,
-      isModern(context) ? 28 : 18,
-      rail ? 32 : 20,
-      isModern(context) ? 20 : 12,
-    ),
+    padding: rail
+        ? EdgeInsets.fromLTRB(
+            32,
+            isModern(context) ? 28 : 18,
+            32,
+            isModern(context) ? 20 : 12,
+          )
+        : const EdgeInsets.fromLTRB(16, 8, 8, 4),
     child: Row(
       children: [
         if (!rail) ...[const AuroraLogo(size: 28), const SizedBox(width: 10)],
         Expanded(
-          child: isModern(context)
+          child: !rail && isModern(context)
+              ? const SizedBox.shrink()
+              : isModern(context)
               ? _modernTitle(
                   (_playlist == null
                           ? null
@@ -1192,11 +1281,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   ),
                 ),
         ),
-        IconButton(
-          tooltip: 'Importar archivos de audio',
-          onPressed: c.ready ? c.importFiles : null,
-          icon: const Icon(Icons.create_new_folder_outlined),
-        ),
+        if (rail)
+          IconButton(
+            tooltip: 'Importar archivos de audio',
+            onPressed: c.ready ? c.importFiles : null,
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
         if (_section != 1)
           IconButton(
             tooltip: 'Buscar música',
@@ -1209,12 +1299,42 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             onPressed: () => _navigate(7),
             icon: const Icon(Icons.tune),
           ),
+        if (!rail && _section == 4 && !isSlush(context) && c.nowTrack != null)
+          Builder(
+            builder: (b) => IconButton(
+              tooltip: 'Más acciones',
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: () {
+                final box = b.findRenderObject() as RenderBox;
+                showSongCard(
+                  context,
+                  c,
+                  c.nowTrack!,
+                  box.localToGlobal(box.size.bottomLeft(Offset.zero)),
+                  openQueue: () => _navigate(5),
+                );
+              },
+            ),
+          ),
         if (!rail)
           PopupMenuButton<int>(
             tooltip: 'Más vistas',
-            icon: const Icon(Icons.more_horiz),
-            onSelected: _navigate,
-            itemBuilder: (_) => const [
+            icon: Badge(
+              isLabelVisible: _friendsBadge > 0,
+              label: Text('$_friendsBadge'),
+              child: const Icon(Icons.more_horiz),
+            ),
+            onSelected: (v) =>
+                v == -1 ? (c.ready ? c.importFiles() : null) : _navigate(v),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: -1,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.create_new_folder_outlined),
+                  title: Text('Importar archivos'),
+                ),
+              ),
               PopupMenuItem(
                 value: 12,
                 child: ListTile(
@@ -1237,6 +1357,18 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.groups_outlined),
                   title: Text('Jam'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 14,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Badge(
+                    isLabelVisible: _friendsBadge > 0,
+                    label: Text('$_friendsBadge'),
+                    child: const Icon(Icons.people_outline),
+                  ),
+                  title: const Text('Amigos'),
                 ),
               ),
               PopupMenuItem(
@@ -1378,7 +1510,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   Widget _content(AppController c) => Stack(
     fit: StackFit.expand,
     children: [
-      Offstage(offstage: [9, 10, 11].contains(_section), child: _page(c)),
+      Offstage(
+        offstage: [9, 10, 11].contains(_section),
+        child: isSlush(context)
+            ? _SlushSectionFade(section: _section, child: _page(c))
+            : _page(c),
+      ),
       if (_musicVisited && c.usesOfficialYouTubeMusic)
         YouTubeMusicPage(
           key: _musicKey,
@@ -1442,33 +1579,24 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           controller: c,
           follow: ref.read(followServiceProvider),
           onSection: _navigate,
+          onBack: () => _handleBack(ref.read(controllerProvider)),
+          jam: _jam,
         );
       case 5:
-        if (isSlush(context) && MediaQuery.sizeOf(context).width >= 900) {
+        if (isSlush(context)) {
           return SlushEqQueue(
             controller: c,
             onNavigate: _navigate,
-            showQueueTab: true,
+            queueFirst: true,
           );
         }
         return _slushTabs(c, 5, QueuePanel(controller: c));
-      case 6:
-        return _slushTabs(
-          c,
-          6,
-          LyricsPanel(
-            controller: c,
-            jam: _jam,
-            shortcuts: ref.read(shortcutServiceProvider),
-            onClose: () => _navigate(0),
-          ),
-        );
       case 7:
         return _slushPage(c, _settings(c));
       case 8:
         return DjDiscoveryPage(controller: c, onSearch: () => _navigate(1));
       case 13:
-        if (isSlush(context) && MediaQuery.sizeOf(context).width >= 900) {
+        if (isSlush(context)) {
           return SlushEqQueue(controller: c, onNavigate: _navigate);
         }
         return _slushTabs(
@@ -1499,6 +1627,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           c,
           FriendsPage(
             controller: c,
+            openChat: _friendsChat,
+            jam: _jam,
             onSettings: () => _navigate(7),
             onJoinJam: (code) => _joinJamLink('aurora://jam/$code'),
           ),
@@ -1556,16 +1686,46 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     ],
   );
 
-  /// ChoiceChip; en Modern: 8 px de radio, activo en azul marino.
-  Widget _chip(String label, bool selected, VoidCallback onSelected) {
+  /// Punto de color de un chip de acento (el color real) o, en «Automático»,
+  /// una estrella: así cada opción se reconoce sin leer su nombre.
+  Widget? _swatch(Color? color, bool auto, Color ring) {
+    if (color == null && !auto) return null;
+    if (auto) return Icon(Icons.auto_awesome, size: 16, color: ring);
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: ring, width: 1.5),
+      ),
+    );
+  }
+
+  /// ChoiceChip; en Modern: 8 px de radio, activo en azul marino. [swatch] /
+  /// [auto]: chip de acento con su color a la vista.
+  Widget _chip(
+    String label,
+    bool selected,
+    VoidCallback onSelected, {
+    Color? swatch,
+    bool auto = false,
+  }) {
     if (isBrasa(context)) {
+      final dot = _swatch(swatch, auto, selected ? Brasa.void_ : Brasa.cloud);
       return ChoiceChip(
+        avatar: dot,
         label: Text(label),
         selected: selected,
         showCheckmark: false,
         selectedColor: Brasa.cream,
         backgroundColor: Brasa.graphite,
-        side: BorderSide.none,
+        // Contorno visible también sin seleccionar (si no, el chip se funde
+        // con la tarjeta); seleccionado, grueso y del color del acento.
+        side: BorderSide(
+          color: selected ? (swatch ?? Brasa.accent) : Brasa.steel,
+          width: selected ? 2.5 : 1,
+        ),
         shape: const StadiumBorder(),
         labelStyle: TextStyle(
           fontSize: 14,
@@ -1575,17 +1735,33 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         onSelected: (_) => onSelected(),
       );
     }
-    // Slush y el tema base usan el chip del tema (contorno, color vivo).
-    if (!isModern(context) || isSlush(context)) {
-      return ChoiceChip(
-        label: Text(label),
+    // Slush: chip propio de 44; el tema base usa el chip del tema. Los de
+    // acento van rellenos de su color.
+    if (isSlush(context)) {
+      return SlushChip(
+        label,
         selected: selected,
-        showCheckmark: isSlush(context) ? false : null,
-        onSelected: (_) => onSelected(),
+        color: swatch ?? Slush.yellow,
+        icon: auto ? Icons.auto_awesome : null,
+        onTap: onSelected,
       );
     }
     final colors = Theme.of(context).colorScheme;
+    final dot = _swatch(
+      swatch,
+      auto,
+      selected && isModern(context) ? colors.onPrimary : colors.onSurface,
+    );
+    if (!isModern(context)) {
+      return ChoiceChip(
+        avatar: dot,
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+      );
+    }
     return ChoiceChip(
+      avatar: dot,
       label: Text(label),
       selected: selected,
       showCheckmark: false,
@@ -1601,51 +1777,72 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     );
   }
 
-  Widget _searchPage(AppController c) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Wrap(
-            spacing: 8,
-            children: [
-              _chip(
-                c.usesOfficialYouTubeMusic
-                    ? 'Biblioteca local'
-                    : 'Audio · YouTube',
-                !_spotifySearch,
-                () => setState(() => _spotifySearch = false),
-              ),
-              _chip(
-                'Metadatos · Spotify',
-                _spotifySearch,
-                () => setState(() => _spotifySearch = true),
-              ),
-              if (c.usesOfficialYouTubeMusic)
-                ActionChip(
-                  label: const Text('YouTube Music'),
-                  avatar: const Icon(Icons.music_video_outlined),
-                  onPressed: () => _navigate(10),
-                ),
-            ],
+  /// Margen lateral de las páginas: el de Slush por ancho, 24 en el resto.
+  double get _pagePad => isSlush(context)
+      ? SlushSpacing.margin(MediaQuery.sizeOf(context).width)
+      : 24;
+
+  Widget _searchPage(AppController c) {
+    final chips = [
+      _chip(
+        c.usesOfficialYouTubeMusic ? 'Biblioteca local' : 'Audio · YouTube',
+        !_spotifySearch,
+        () => setState(() => _spotifySearch = false),
+      ),
+      _chip(
+        'Metadatos · Spotify',
+        _spotifySearch,
+        () => setState(() => _spotifySearch = true),
+      ),
+      if (c.usesOfficialYouTubeMusic)
+        ActionChip(
+          label: const Text('YouTube Music'),
+          avatar: const Icon(Icons.music_video_outlined),
+          onPressed: () => _navigate(10),
+        ),
+    ];
+    final column = Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: _pagePad, vertical: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            // Slush: una sola línea con scroll horizontal (no 3 líneas).
+            child: isSlush(context)
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(spacing: 8, children: chips),
+                  )
+                : Wrap(spacing: 8, children: chips),
           ),
         ),
-      ),
-      Expanded(
-        child: _spotifySearch
-            ? SpotifyBrowserPanel(adder: _spotifyAdder)
-            : _audioSearchPage(c),
-      ),
-    ],
-  );
+        Expanded(
+          child: _spotifySearch
+              ? SpotifyBrowserPanel(adder: _spotifyAdder)
+              : _audioSearchPage(c),
+        ),
+      ],
+    );
+    return _scrollIfShort(column);
+  }
+
+  /// Con texto muy grande el cuerpo queda casi sin alto: la pantalla se
+  /// desplaza en vez de desbordar.
+  Widget _scrollIfShort(Widget column) {
+    if (MediaQuery.textScalerOf(context).scale(14) <= 18) return column;
+    return LayoutBuilder(
+      builder: (_, box) => box.maxHeight >= 480
+          ? column
+          : SingleChildScrollView(child: SizedBox(height: 480, child: column)),
+    );
+  }
 
   Widget _audioSearchPage(AppController c) => Column(
     children: [
       // Brasa en pantalla ancha: la búsqueda vive en la barra superior.
       if (!(isBrasa(context) && MediaQuery.sizeOf(context).width >= 600))
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          padding: EdgeInsets.fromLTRB(_pagePad, 8, _pagePad, 8),
           child: TextField(
             controller: _search,
             focusNode: _searchFocus,
@@ -1677,7 +1874,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: _pagePad),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -1709,7 +1906,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: _pagePad),
           child: Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
@@ -1720,23 +1917,29 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         ),
       Expanded(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final hasSidebar = constraints.maxWidth >= 900;
-            final results = c.searchDetail != null
-                ? _searchDetail(c, c.searchDetail!)
-                : _searchFocus.hasFocus && _search.text.trim().isEmpty
-                ? _recentSearchList(c)
-                : _searchResults(c);
-            if (!hasSidebar) return results;
-            return Row(
-              children: [
-                SizedBox(width: 220, child: _recentSearchList(c)),
-                const VerticalDivider(width: 1),
-                Expanded(child: results),
-              ],
-            );
-          },
+        // Las bandas de ListTile pintan en el Material más cercano: sin este
+        // recorte la lista (Slush) se dibuja encima de pestañas y campo.
+        child: Material(
+          type: MaterialType.transparency,
+          clipBehavior: Clip.hardEdge,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final hasSidebar = constraints.maxWidth >= 900;
+              final results = c.searchDetail != null
+                  ? _searchDetail(c, c.searchDetail!)
+                  : _searchFocus.hasFocus && _search.text.trim().isEmpty
+                  ? _recentSearchList(c)
+                  : _searchResults(c);
+              if (!hasSidebar) return results;
+              return Row(
+                children: [
+                  SizedBox(width: 220, child: _recentSearchList(c)),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: results),
+                ],
+              );
+            },
+          ),
         ),
       ),
     ],
@@ -1896,69 +2099,61 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   Widget _searchDetail(AppController c, SearchEntry entry) {
     final tracks = c.searchDetailTracks;
-    return Column(
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: 'Volver a los resultados',
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => c.openSearchEntry(null),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Volver a los resultados',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => c.openSearchEntry(null),
+            ),
+            Expanded(
+              child: Text(
+                entry.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              Expanded(
-                child: Text(
-                  entry.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
         if (entry.kind == SearchKind.artists)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FollowButton(
-                service: ref.read(followServiceProvider),
-                name: entry.title,
-                browseId: entry.browseId,
-                imageUrl: entry.artworkUrl,
-              ),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: FollowButton(
+              service: ref.read(followServiceProvider),
+              name: entry.title,
+              browseId: entry.browseId,
+              imageUrl: entry.artworkUrl,
             ),
           ),
         if (c.searchDetailLoading) const LinearProgressIndicator(minHeight: 2),
         if (tracks.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  FilledButton.icon(
-                    onPressed: () => c.playTrack(tracks.first, context: tracks),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Reproducir todo'),
-                  ),
-                  TrackBatchButtons(controller: c, tracks: tracks),
-                ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              FilledButton.icon(
+                onPressed: () => c.playTrack(tracks.first, context: tracks),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Reproducir todo'),
               ),
-            ),
+              TrackBatchButtons(controller: c, tracks: tracks),
+            ],
           ),
-        Expanded(
-          child: tracks.isNotEmpty
-              ? ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: tracks.length,
-                  itemBuilder: (_, i) => _trackTile(c, tracks[i], tracks),
-                )
-              : c.searchDetailLoading
+      ],
+    );
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: tracks.isEmpty ? 2 : tracks.length + 1,
+      itemBuilder: (_, i) {
+        if (i == 0) return header;
+        if (tracks.isNotEmpty) return _trackTile(c, tracks[i - 1], tracks);
+        return SizedBox(
+          height: 320,
+          child: c.searchDetailLoading
               ? _empty(Icons.album_outlined, 'Cargando…', entry.title)
               : _empty(
                   c.searchDetailError != null
@@ -1969,8 +2164,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                       : 'Sin canciones',
                   c.searchDetailError ?? 'Este resultado no tiene canciones.',
                 ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -1994,152 +2189,157 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 )
                 .whereType<Track>()
                 .toList();
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () => setState(() {
-                    _playlist = null;
-                    _likesSelected = false;
-                  }),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Todas las listas'),
-                ),
-                if (_likesSelected)
-                  Text(
-                    'Me gusta',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                if (items.isNotEmpty)
-                  TrackBatchButtons(controller: c, tracks: items),
-                if (playlist != null) ...[
-                  PlaylistPhotoMenu(
-                    controller: c,
-                    playlist: playlist,
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: PlaylistCover(
-                            playlist: playlist,
-                            tracks: playlistCoverTracks(c, playlist),
-                            size: 72,
-                          ),
-                        ),
-                        Positioned(
-                          right: 2,
-                          bottom: 2,
-                          child: Tooltip(
-                            message: 'Cambiar foto',
-                            child: GestureDetector(
-                              key: const ValueKey('playlist-cover-camera'),
-                              onTap: () =>
-                                  changePlaylistPhoto(context, c, playlist),
-                              child: const CircleAvatar(
-                                radius: 12,
-                                backgroundColor: Colors.black54,
-                                child: Icon(
-                                  Icons.photo_camera,
-                                  size: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    key: const ValueKey('playlist-change-photo'),
-                    onPressed: () => changePlaylistPhoto(context, c, playlist),
-                    icon: const Icon(Icons.photo_outlined),
-                    label: const Text('Cambiar foto'),
-                  ),
-                  if (playlist.photoPath != null)
-                    TextButton(
-                      key: const ValueKey('playlist-remove-photo'),
-                      onPressed: () => c.setPlaylistPhoto(playlist, null),
-                      child: const Text('Quitar foto'),
-                    ),
-                  PlaylistSendButton(controller: c, playlist: playlist),
-                  OutlinedButton(
-                    onPressed: () async {
-                      final name = await _askText(
-                        'Renombrar lista',
-                        'Nombre',
-                        initial: playlist.name,
-                      );
-                      if (name != null) c.renamePlaylist(playlist, name);
-                    },
-                    child: const Text('Renombrar'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      if (await _confirm(
-                        'Eliminar lista',
-                        'Se eliminará «${playlist.name}». Tus archivos permanecerán en la biblioteca.',
-                      )) {
-                        c.deletePlaylist(playlist);
-                        setState(() => _playlist = null);
-                      }
-                    },
-                    child: const Text('Eliminar'),
-                  ),
-                ],
-              ],
+      final header = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _playlist = null;
+                _likesSelected = false;
+              }),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Todas las listas'),
             ),
-          ),
-          Expanded(
-            child: items.isEmpty
-                ? _empty(
-                    _likesSelected ? Icons.favorite_border : Icons.playlist_add,
-                    _likesSelected
-                        ? 'Aún no hay canciones que te gusten'
-                        : 'Esta lista está esperando música',
-                    _likesSelected
-                        ? 'Marca una canción con Me gusta para verla aquí.'
-                        : 'Añade canciones desde el menú de cualquier resultado o canción.',
-                  )
-                : PlaylistDetailTools(
-                    tracks: items,
-                    onPlay: (v) => c.playTrack(v.first, context: v),
-                    builder: (v, canReorder) => playlist == null || !canReorder
-                        ? ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: v.length,
-                            itemBuilder: (_, i) => _trackTile(
-                              c,
-                              v[i],
-                              v,
-                              key: ValueKey('${playlist?.id}-${v[i].id}'),
-                              playlist: playlist,
-                            ),
-                          )
-                        : ReorderableListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: v.length,
-                            onReorder: (oldIndex, newIndex) =>
-                                c.reorderPlaylist(playlist, oldIndex, newIndex),
-                            itemBuilder: (_, i) => _trackTile(
-                              c,
-                              v[i],
-                              v,
-                              key: ValueKey('${playlist.id}-${v[i].id}'),
-                              playlist: playlist,
+            if (_likesSelected)
+              Text('Me gusta', style: Theme.of(context).textTheme.titleMedium),
+            if (items.isNotEmpty)
+              TrackBatchButtons(controller: c, tracks: items),
+            if (playlist != null) ...[
+              PlaylistPhotoMenu(
+                controller: c,
+                playlist: playlist,
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: PlaylistCover(
+                        playlist: playlist,
+                        tracks: playlistCoverTracks(c, playlist),
+                        size: 72,
+                      ),
+                    ),
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: Tooltip(
+                        message: 'Cambiar foto',
+                        child: GestureDetector(
+                          key: const ValueKey('playlist-cover-camera'),
+                          onTap: () =>
+                              changePlaylistPhoto(context, c, playlist),
+                          child: const CircleAvatar(
+                            radius: 12,
+                            backgroundColor: Colors.black54,
+                            child: Icon(
+                              Icons.photo_camera,
+                              size: 14,
+                              color: Colors.white,
                             ),
                           ),
-                  ),
-          ),
-        ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('playlist-change-photo'),
+                onPressed: () => changePlaylistPhoto(context, c, playlist),
+                icon: const Icon(Icons.photo_outlined),
+                label: const Text('Cambiar foto'),
+              ),
+              if (playlist.photoPath != null)
+                TextButton(
+                  key: const ValueKey('playlist-remove-photo'),
+                  onPressed: () => c.setPlaylistPhoto(playlist, null),
+                  child: const Text('Quitar foto'),
+                ),
+              PlaylistSendButton(controller: c, playlist: playlist),
+              OutlinedButton(
+                onPressed: () async {
+                  final name = await _askText(
+                    'Renombrar lista',
+                    'Nombre',
+                    initial: playlist.name,
+                  );
+                  if (name != null) c.renamePlaylist(playlist, name);
+                },
+                child: const Text('Renombrar'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (await _confirm(
+                    'Eliminar lista',
+                    'Se eliminará «${playlist.name}». Tus archivos permanecerán en la biblioteca.',
+                  )) {
+                    c.deletePlaylist(playlist);
+                    setState(() => _playlist = null);
+                  }
+                },
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ],
+        ),
+      );
+      if (items.isEmpty) {
+        return ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            header,
+            SizedBox(
+              height: 320,
+              child: _empty(
+                _likesSelected ? Icons.favorite_border : Icons.playlist_add,
+                _likesSelected
+                    ? 'Aún no hay canciones que te gusten'
+                    : 'Esta lista está esperando música',
+                _likesSelected
+                    ? 'Marca una canción con Me gusta para verla aquí.'
+                    : 'Añade canciones desde el menú de cualquier resultado o canción.',
+              ),
+            ),
+          ],
+        );
+      }
+      return PlaylistDetailTools(
+        tracks: items,
+        onPlay: (v) => c.playTrack(v.first, context: v),
+        header: header,
+        builder: (v, canReorder) => playlist == null || !canReorder
+            ? ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: v.length + 1,
+                itemBuilder: (_, i) => i == 0
+                    ? header
+                    : _trackTile(
+                        c,
+                        v[i - 1],
+                        v,
+                        key: ValueKey('${playlist?.id}-${v[i - 1].id}'),
+                        playlist: playlist,
+                      ),
+              )
+            : ReorderableListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                header: header,
+                itemCount: v.length,
+                onReorder: (oldIndex, newIndex) =>
+                    c.reorderPlaylist(playlist, oldIndex, newIndex),
+                itemBuilder: (_, i) => _trackTile(
+                  c,
+                  v[i],
+                  v,
+                  key: ValueKey('${playlist.id}-${v[i].id}'),
+                  playlist: playlist,
+                ),
+              ),
       );
     }
-    return Column(
+    final column = Column(
       children: [
         if (!isSlush(context))
           Padding(
@@ -2156,7 +2356,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(
+              horizontal: isSlush(context)
+                  ? SlushSpacing.margin(MediaQuery.sizeOf(context).width)
+                  : 24,
+            ),
             children: [
               Align(
                 alignment: Alignment.centerLeft,
@@ -2236,6 +2440,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ),
       ],
     );
+    return _scrollIfShort(column);
   }
 
   Widget _trackTile(
@@ -2283,13 +2488,16 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         final tile = ListTile(
           shape: isSlush(context)
               ? RoundedRectangleBorder(
-                  side: Slush.border,
-                  borderRadius: BorderRadius.circular(16),
+                  side: active
+                      ? context.slush.border
+                      : context.slush.borderSoft,
+                  borderRadius: BorderRadius.circular(SlushRadius.r16),
                 )
               : active
               ? auroraSelectedShape(context)
               : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           selectedTileColor: isSlush(context) ? Slush.mint : null,
+          selectedColor: isSlush(context) ? Slush.ink : null,
           selected: active,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
@@ -2331,12 +2539,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         _time(t.duration),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-              TrackMenuButton(
-                controller: c,
-                track: t,
-                extras: extras,
-                quickAdd: true,
-                quickAddVisible: hot,
+              IconButtonTheme(
+                data: isSlush(context) && active
+                    ? IconButtonThemeData(
+                        style: IconButton.styleFrom(foregroundColor: Slush.ink),
+                      )
+                    : IconButtonTheme.of(context),
+                child: TrackMenuButton(
+                  controller: c,
+                  track: t,
+                  extras: extras,
+                  quickAdd: true,
+                  quickAddVisible: hot,
+                ),
               ),
             ],
           ),
@@ -2364,7 +2579,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   // Por título; lo no listado (herramientas y diagnóstico) cae en Avanzado.
   int _settingsTabOf(String title) => switch (title) {
-    'Identidad y tema' || 'Color de acento' || 'Movimiento' => 0,
+    'Identidad y tema' ||
+    'Color de acento' ||
+    'Fondo de portada' ||
+    'Movimiento' => 0,
     'Reproducción' ||
     'Reproducción experimental' ||
     'Ecualizador' ||
@@ -2561,6 +2779,28 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             value: c.autoRefill,
             onChanged: c.setAutoRefill,
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Calidad de audio',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (q, label) in const [
+                (AudioQuality.high, 'Alta'),
+                (AudioQuality.normal, 'Normal'),
+                (AudioQuality.saver, 'Ahorro de datos'),
+              ])
+                _chip(label, c.audioQuality == q, () => c.setAudioQuality(q)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Alta: Opus ~160 kbps. Normal: AAC ~128 kbps. Ahorro de datos: ~50 kbps. Se aplica desde la siguiente canción que se cargue.',
+          ),
         ],
       ),
       (
@@ -2593,12 +2833,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           const SizedBox(height: 16),
           Text('Modo', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          if (c.themeKind == 'brasa' || c.themeKind == 'slush')
-            Text(
-              c.themeKind == 'slush'
-                  ? 'Slush es siempre claro.'
-                  : 'Brasa es siempre oscuro.',
-            )
+          if (c.themeKind == 'brasa')
+            const Text('Brasa es siempre oscuro.')
           else
             Wrap(
               spacing: 8,
@@ -2637,6 +2873,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   entry.value,
                   c.accentPalette == entry.key,
                   () => c.setAccentPalette(entry.key),
+                  swatch: AppController.accentPaletteColors[entry.key],
+                  auto: entry.key == 'automatic',
                 ),
             ],
           ),
@@ -2671,6 +2909,22 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         ],
       ),
+      if (WindowControls.supported)
+        (
+          title: 'Mini reproductor',
+          subtitle: 'Ventana compacta siempre visible',
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Mini reproductor'),
+              subtitle: const Text(
+                'Reduce la ventana a una tarjeta siempre visible con la portada, el progreso y los controles. Se sale con el botón de la tarjeta.',
+              ),
+              value: _miniWindow,
+              onChanged: (on) => unawaited(_setMiniWindow(on)),
+            ),
+          ],
+        ),
       if (WindowControls.supported || DuvetPresence.platformSupported)
         (
           title: WindowControls.supported ? 'Ventana y bandeja' : 'Duvet',
@@ -2913,452 +3167,25 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     );
   }
 
-  Widget _seekBar(AppController c, {bool compact = false}) {
-    final length = c.audio.duration.inMilliseconds;
-    final position = c.audio.position.inMilliseconds.clamp(
-      0,
-      math.max(0, length),
-    );
-    return Semantics(
-      label: 'Posición de reproducción',
-      child: SliderTheme(
-        data: SliderTheme.of(context).copyWith(
-          trackHeight: compact ? 2 : 3,
-          thumbShape: RoundSliderThumbShape(
-            enabledThumbRadius: compact ? 4 : 7,
-          ),
-          overlayShape: RoundSliderOverlayShape(
-            overlayRadius: compact ? 8 : 18,
-          ),
-        ),
-        child: Slider(
-          value: position.toDouble(),
-          max: math.max(1, length).toDouble(),
-          onChanged: length > 0
-              ? (v) => c.seek(Duration(milliseconds: v.round()))
-              : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _playButton(AppController c, {double size = 64}) => SizedBox(
-    width: size,
-    height: size,
-    child: IconButton.filled(
-      style: IconButton.styleFrom(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      tooltip: c.audio.isPlaying
-          ? 'Pausar'
-          : c.audio.isBuffering
-          ? 'Cancelar carga de audio'
-          : 'Reproducir',
-      onPressed: c.currentTrack == null
-          ? null
-          : () {
-              if (c.audio.isBuffering && !c.audio.isPlaying) {
-                c.stopPlayback();
-              } else {
-                c.togglePlayback();
-              }
-            },
-      icon: c.audio.isBuffering && !c.audio.isPlaying
-          ? const SizedBox(
-              width: 30,
-              height: 30,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CircularProgressIndicator(strokeWidth: 2),
-                  Icon(Icons.close, size: 16),
-                ],
-              ),
-            )
-          : Icon(
-              c.audio.isPlaying
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-              size: size * .6,
-            ),
-    ),
-  );
-
-  Future<void> _showPlayer(AppController c) async {
-    _playerOpen = true;
-    _syncVisualization();
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final player = ref.watch(controllerProvider);
-          final t = player.currentTrack;
-          if (t == null) return const SizedBox.shrink();
-          return SizedBox(
-            height: MediaQuery.sizeOf(context).height * .92,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: RepaintBoundary(
-                      child: _AmbientView(
-                        values: player.audio.spectrum,
-                        color: Theme.of(context).colorScheme.primary,
-                        animated:
-                            player.audio.isPlaying &&
-                            !player.reducedMotion &&
-                            !MediaQuery.disableAnimationsOf(context),
-                      ),
-                    ),
-                  ),
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 680),
-                      child: Column(
-                        children: [
-                          Column(
-                            children: [
-                              Row(
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Cerrar reproductor',
-                                    onPressed: () => Navigator.pop(context),
-                                    icon: const Icon(Icons.keyboard_arrow_down),
-                                  ),
-                                  const Expanded(
-                                    child: Text(
-                                      'AHORA SUENA',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        letterSpacing: 2,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Tooltip(
-                                    message: 'Letras',
-                                    child: TextButton.icon(
-                                      onPressed: player.currentTrack == null
-                                          ? null
-                                          : () => _showLyrics(player),
-                                      icon: const Icon(Icons.mic_none_outlined),
-                                      label: const Text('Letras'),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Cola de reproducci\u00f3n',
-                                    onPressed: () => _showQueue(player),
-                                    icon: const Icon(Icons.queue_music),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          Artwork(
-                            track: t,
-                            artworkContext: ArtworkContext.player,
-                            radius: 24,
-                          ),
-                          const SizedBox(height: 28),
-                          Text(
-                            t.title,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -.6,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            player.adPlaying
-                                ? 'Anuncio · tu canción sigue después'
-                                : t.artist,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          SpectrumView(
-                            values: player.audio.spectrum,
-                            color: Theme.of(context).colorScheme.primary,
-                            enabled:
-                                player.audio.isPlaying &&
-                                !player.reducedMotion &&
-                                !MediaQuery.disableAnimationsOf(context),
-                          ),
-                          const SizedBox(height: 16),
-                          _seekBar(player),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _time(player.audio.position),
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  _time(player.audio.duration),
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 8,
-                            children: [
-                              IconButton(
-                                tooltip: 'Aleatorio',
-                                isSelected: player.shuffle,
-                                onPressed: () =>
-                                    player.setShuffle(!player.shuffle),
-                                icon: const Icon(Icons.shuffle),
-                              ),
-                              IconButton(
-                                tooltip: 'Anterior',
-                                onPressed: player.previous,
-                                icon: const Icon(
-                                  Icons.skip_previous_rounded,
-                                  size: 36,
-                                ),
-                              ),
-                              _playButton(player),
-                              IconButton(
-                                tooltip: 'Siguiente',
-                                onPressed: player.next,
-                                icon: const Icon(
-                                  Icons.skip_next_rounded,
-                                  size: 36,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip:
-                                    'Repetición: ${player.repeat == RepeatMode.off
-                                        ? 'desactivada'
-                                        : player.repeat == RepeatMode.one
-                                        ? 'una canción'
-                                        : 'toda la cola'}',
-                                isSelected: player.repeat != RepeatMode.off,
-                                onPressed: player.cycleRepeat,
-                                icon: Icon(
-                                  player.repeat == RepeatMode.one
-                                      ? Icons.repeat_one
-                                      : Icons.repeat,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 16,
-                            runSpacing: 8,
-                            children: [
-                              IconButton(
-                                tooltip: player.favoriteIds.contains(t.id)
-                                    ? 'Quitar de favoritos'
-                                    : 'Añadir a favoritos',
-                                onPressed: () => player.toggleFavorite(t),
-                                icon: Icon(
-                                  player.favoriteIds.contains(t.id)
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Compartir',
-                                onPressed: () =>
-                                    TrackActions(context, player).share(t),
-                                icon: const Icon(Icons.share_outlined),
-                              ),
-                              SendToFriendButton(track: t),
-                              IconButton(
-                                tooltip: 'Añadir a una lista',
-                                onPressed: () => _addToPlaylist(player, t),
-                                icon: const Icon(Icons.playlist_add),
-                              ),
-                              TransportEqualizerButton(
-                                controller: player,
-                                size: 24,
-                              ),
-                              IconButton(
-                                tooltip: 'Temporizador de sueño',
-                                onPressed: () => _sleepTimer(player),
-                                icon: const Icon(Icons.bedtime_outlined),
-                              ),
-                              if (player.canDownloadTrack(t))
-                                IconButton(
-                                  tooltip: 'Descargar audio',
-                                  onPressed: () => player.downloadTrack(t),
-                                  icon: const Icon(Icons.download_outlined),
-                                ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              const Icon(Icons.volume_down_outlined),
-                              Expanded(
-                                child: Slider(
-                                  value: player.audio.volume.clamp(0, 1),
-                                  onChanged: player.setVolume,
-                                ),
-                              ),
-                              const Icon(Icons.volume_up_outlined),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-    _playerOpen = false;
-    if (mounted) _syncVisualization();
-  }
-
-  Future<void> _showLyrics(AppController c) => showDialog<void>(
-    context: context,
-    useRootNavigator: true,
-    builder: (_) => Dialog.fullscreen(
-      child: LyricsPanel(
-        controller: c,
-        jam: _jam,
-        shortcuts: ref.read(shortcutServiceProvider),
-      ),
-    ),
-  );
-
-  Future<void> _showQueue(AppController c) => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (context) => Consumer(
-      builder: (context, ref, _) {
-        final player = ref.watch(controllerProvider);
-        return SizedBox(
-          height: MediaQuery.sizeOf(context).height * .75,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'A continuación',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Cerrar cola',
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: player.queue.isEmpty
-                    ? _empty(
-                        Icons.queue_music,
-                        'La cola está vacía',
-                        'Añade canciones desde su menú.',
-                      )
-                    : ReorderableListView.builder(
-                        itemCount: player.queue.length,
-                        onReorder: player.reorderQueue,
-                        itemBuilder: (_, i) => ListTile(
-                          key: ValueKey('${player.queue[i].id}-$i'),
-                          selected: i == player.queueIndex,
-                          shape: i == player.queueIndex
-                              ? auroraSelectedShape(context, radius: 8)
-                              : null,
-                          leading: Artwork(
-                            track: player.queue[i],
-                            artworkContext: ArtworkContext.thumbnailCompact,
-                          ),
-                          title: Text(
-                            player.queue[i].title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            player.queue[i].artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () => player.playQueueAt(i),
-                          trailing: Padding(
-                            padding: const EdgeInsets.only(right: 28),
-                            child: PopupMenuButton<String>(
-                              tooltip: 'Opciones de cola',
-                              onSelected: (value) {
-                                if (value == 'remove') {
-                                  player.removeFromQueue(i);
-                                }
-                                if (value == 'up' && i > 0) {
-                                  player.reorderQueue(i, i - 1);
-                                }
-                                if (value == 'down' &&
-                                    i < player.queue.length - 1) {
-                                  player.reorderQueue(i, i + 2);
-                                }
-                              },
-                              itemBuilder: (_) => [
-                                if (i > 0)
-                                  const PopupMenuItem(
-                                    value: 'up',
-                                    child: Text('Subir'),
-                                  ),
-                                if (i < player.queue.length - 1)
-                                  const PopupMenuItem(
-                                    value: 'down',
-                                    child: Text('Bajar'),
-                                  ),
-                                const PopupMenuItem(
-                                  value: 'remove',
-                                  child: Text('Quitar de la cola'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
+  /// Mini reproductor / barra de transporte (ver `mini_player_host.dart`).
+  Widget _miniPlayer(
+    AppController c,
+    bool rail,
+    MiniPlayerPlacement placement,
+  ) => MiniPlayerHost(
+    controller: c,
+    section: _section,
+    rail: rail,
+    placement: placement,
+    jam: _jam,
+    onOpenPlayer: () => _navigate(4),
+    onTogglePlay: () => _togglePlay(c),
+    onOpenQueue: () => _navigate(5),
+    onOpenLyrics: () => _navigate(6),
+    onOpenMini: WindowControls.supported
+        ? () => unawaited(_setMiniWindow(true))
+        : null,
+    mute: _mute,
   );
 
   Future<void> _sleepTimer(AppController c) async {
@@ -3399,15 +3226,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     final created = c.playlists.where((p) => p.name == name.trim()).lastOrNull;
     if (created == null || !mounted) return;
     // Paso opcional: ofrecer la foto justo al crear.
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Lista «${created.name}» creada'),
-        action: SnackBarAction(
-          label: 'Añadir foto',
-          onPressed: () => changePlaylistPhoto(context, c, created),
-        ),
-      ),
+    showUndoSnackBar(
+      ScaffoldMessenger.of(context),
+      Text('Lista «${created.name}» creada'),
+      label: 'Añadir foto',
+      onAction: () => changePlaylistPhoto(context, c, created),
+      duration: const Duration(seconds: 6),
     );
   }
 
@@ -3495,9 +3319,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     if (!mounted) return;
     if (result == null) {
       if (c.error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(c.error!)));
+        showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(c.error!));
         c.clearError();
       }
       return;
@@ -3508,9 +3330,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       onImport: c.importSpotifyPlaylists,
     );
     if (!mounted || c.error == null) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(c.error!)));
+    showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(c.error!));
     c.clearError();
   }
 
@@ -3640,78 +3460,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   );
 }
 
-class _AmbientView extends StatefulWidget {
-  const _AmbientView({
-    required this.values,
-    required this.color,
-    required this.animated,
-  });
-  final ValueListenable<List<double>> values;
-  final Color color;
-  final bool animated;
-  @override
-  State<_AmbientView> createState() => _AmbientViewState();
-}
-
-class _AmbientViewState extends State<_AmbientView> {
-  late _AmbientPainter _painter = _AmbientPainter(
-    widget.values,
-    widget.color,
-    widget.animated,
-  );
-
-  @override
-  void didUpdateWidget(_AmbientView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.color != oldWidget.color ||
-        widget.animated != oldWidget.animated ||
-        widget.values != oldWidget.values) {
-      _painter = _AmbientPainter(
-        widget.values,
-        widget.color,
-        widget.animated,
-        energy: _painter.energy,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => CustomPaint(painter: _painter);
-}
-
-class _AmbientPainter extends CustomPainter {
-  _AmbientPainter(this.values, this.color, this.animated, {this.energy = 0})
-    : super(repaint: animated ? values : null);
-  final ValueListenable<List<double>> values;
-  final Color color;
-  final bool animated;
-  double energy;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final bins = values.value;
-    final target = bins.isEmpty
-        ? 0.0
-        : bins.fold<double>(
-                0,
-                (sum, value) =>
-                    sum + (value.isFinite ? value.clamp(0.0, 1.0) : 0),
-              ) /
-              bins.length;
-    // Low pass the genuine FFT energy. The tint stays between 2 and 8 percent.
-    energy += (target - energy) * .08;
-    final opacity = animated ? .02 + energy.clamp(0.0, 1.0) * .06 : .025;
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = color.withValues(alpha: opacity),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_AmbientPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.animated != animated;
-}
-
 class SpectrumView extends StatelessWidget {
   const SpectrumView({
     super.key,
@@ -3788,4 +3536,41 @@ String _time(Duration value) {
   final seconds = math.max(0, value.inSeconds);
   final minutes = seconds ~/ 60;
   return '${minutes.toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+}
+
+/// Slush: entrada de sección (opacidad + 8 px, 220 ms `easeOut`) al cambiar de
+/// pestaña. El hijo conserva su estado; con movimiento reducido es un corte.
+class _SlushSectionFade extends StatefulWidget {
+  const _SlushSectionFade({required this.section, required this.child});
+  final int section;
+  final Widget child;
+
+  @override
+  State<_SlushSectionFade> createState() => _SlushSectionFadeState();
+}
+
+class _SlushSectionFadeState extends State<_SlushSectionFade>
+    with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(
+    vsync: this,
+    duration: SlushMotion.sectionIn,
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(_SlushSectionFade old) {
+    super.didUpdateWidget(old);
+    if (old.section != widget.section && !SlushMotion.reduce(context)) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SlushMotion.fadeSlide(_c, widget.child);
 }

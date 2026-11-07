@@ -46,33 +46,41 @@ class _JamScannerDialogState extends State<JamScannerDialog> {
             ),
           ),
           Flexible(
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: MobileScanner(
-                controller: _scanner,
-                onDetect: (capture) {
-                  if (_finished) return;
-                  final code = capture.barcodes
-                      .map((barcode) => barcode.rawValue)
-                      .whereType<String>()
-                      .firstOrNull;
-                  if (code != null && code.length <= 2048) {
-                    _finished = true;
-                    Navigator.pop(context, code);
-                  }
-                },
-                errorBuilder: (_, _) => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.no_photography_outlined, size: 40),
-                      SizedBox(height: 16),
-                      Text(
-                        'No se pudo abrir la cámara. Puedes importar una imagen QR o pegar la invitación.',
-                        textAlign: TextAlign.center,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: MobileScanner(
+                    controller: _scanner,
+                    onDetect: (capture) {
+                      if (_finished) return;
+                      final code = capture.barcodes
+                          .map((barcode) => barcode.rawValue)
+                          .whereType<String>()
+                          .firstOrNull;
+                      if (code != null && code.length <= 2048) {
+                        _finished = true;
+                        Navigator.pop(context, code);
+                      }
+                    },
+                    errorBuilder: (_, _) => const Center(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.no_photography_outlined, size: 40),
+                            SizedBox(height: 16),
+                            Text(
+                              'No se pudo abrir la cámara. Puedes importar una imagen QR o pegar la invitación.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

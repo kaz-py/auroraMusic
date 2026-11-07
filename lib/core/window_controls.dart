@@ -48,6 +48,34 @@ abstract final class WindowControls {
 
   static Future<bool> guardClose(bool enabled) => invoke('guardClose', enabled);
 
+  /// Tamaño lógico de la ventana del modo mini.
+  static const miniWindowSize = Size(380, 150);
+
+  /// Modo mini: ventana compacta y siempre visible abajo a la derecha; al
+  /// desactivarlo la ventana vuelve a su sitio y tamaño. `false` si no hay
+  /// ventana nativa que cambiar (fuera de Windows).
+  static Future<bool> setMiniWindow(bool enabled) => invoke('setMini', {
+    'enabled': enabled,
+    'width': miniWindowSize.width.round(),
+    'height': miniWindowSize.height.round(),
+  });
+
+  /// Pantalla completa: ventana nativa en Windows, modo inmersivo en Android.
+  static bool get fullscreenSupported =>
+      Platform.isWindows || Platform.isAndroid;
+
+  /// `false` si no hay nada que cambiar (otras plataformas o fallo nativo).
+  static Future<bool> setFullscreen(bool enabled) async {
+    if (Platform.isAndroid) {
+      await SystemChrome.setEnabledSystemUIMode(
+        enabled ? SystemUiMode.immersiveSticky : SystemUiMode.manual,
+        overlays: enabled ? null : SystemUiOverlay.values,
+      );
+      return true;
+    }
+    return invoke('setFullscreen', {'enabled': enabled});
+  }
+
   static Future<bool> invoke(String operation, [Object? arguments]) async {
     if (!Platform.isWindows) return false;
     _install();

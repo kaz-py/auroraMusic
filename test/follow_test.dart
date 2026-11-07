@@ -480,5 +480,70 @@ void main() {
       expect(page.releases, isEmpty);
       expect(page.name, isNull);
     });
+
+    // Forma real (sondeo de «Bad Bunny», 2026-10): carrusel «Puede que
+    // también te guste» con filas de tipo artista; «Destacado en» son listas.
+    test('extrae los artistas afines sin duplicados', () {
+      final page = InnerTubeSource.parseArtistPage({
+        'contents': {
+          'singleColumnBrowseResultsRenderer': {
+            'tabs': [
+              {
+                'tabRenderer': {
+                  'content': {
+                    'sectionListRenderer': {
+                      'contents': [
+                        {
+                          'musicCarouselShelfRenderer': {
+                            'header': {
+                              'musicCarouselShelfBasicHeaderRenderer': {
+                                'title': {
+                                  'runs': [
+                                    {'text': 'Destacado en'},
+                                  ],
+                                },
+                              },
+                            },
+                            'contents': [
+                              two('VLPL1', 'Lista', [
+                                'Lista',
+                              ], page: 'MUSIC_PAGE_TYPE_PLAYLIST'),
+                            ],
+                          },
+                        },
+                        {
+                          'musicCarouselShelfRenderer': {
+                            'header': {
+                              'musicCarouselShelfBasicHeaderRenderer': {
+                                'title': {
+                                  'runs': [
+                                    {'text': 'Puede que también te guste'},
+                                  ],
+                                },
+                              },
+                            },
+                            'contents': [
+                              for (final n in ['Ozuna', 'Anuel AA', 'Lunay'])
+                                two('UC$n', n, [
+                                  '1 M de suscriptores',
+                                ], page: 'MUSIC_PAGE_TYPE_ARTIST'),
+                              two('UCdup', 'Ozuna', [
+                                '',
+                              ], page: 'MUSIC_PAGE_TYPE_ARTIST'),
+                            ],
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      });
+      expect(page.relatedArtists, ['Ozuna', 'Anuel AA', 'Lunay']);
+      expect(page.releases, isEmpty);
+    });
   });
 }

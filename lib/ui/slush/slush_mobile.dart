@@ -9,11 +9,11 @@ import 'slush_decor.dart';
 
 const _bagel = 'Bagel Fat One';
 
-Widget _circle(Widget child) => DecoratedBox(
+Widget _circle(BuildContext context, Widget child) => DecoratedBox(
   decoration: BoxDecoration(
-    color: Colors.white,
+    color: context.slush.paper,
     shape: BoxShape.circle,
-    border: Border.fromBorderSide(Slush.border),
+    border: Border.fromBorderSide(context.slush.border),
   ),
   child: Center(child: child),
 );
@@ -24,14 +24,16 @@ class SlushMobileTopBar extends StatelessWidget {
     super.key,
     required this.onSettings,
     required this.onMore,
+    this.friendsBadge = 0,
   });
   final VoidCallback onSettings;
   final ValueChanged<int> onMore;
+  final int friendsBadge;
 
   static const _more = <(int, IconData, String)>[
+    (3, Icons.download_outlined, 'Descargas'),
     (12, Icons.mic_none_rounded, 'Artistas'),
     (11, Icons.video_file_outlined, 'Descargar vídeos'),
-    (9, Icons.groups_outlined, 'Jam'),
     (14, Icons.people_outline, 'Amigos'),
     (4, Icons.album_outlined, 'Modo Vinilo'),
     (5, Icons.queue_music, 'Cola de reproducción'),
@@ -45,8 +47,9 @@ class SlushMobileTopBar extends StatelessWidget {
     child: Row(
       children: [
         SizedBox.square(
-          dimension: 40,
+          dimension: SlushControl.touch,
           child: _circle(
+            context,
             const Text('A', style: TextStyle(fontFamily: _bagel, fontSize: 20)),
           ),
         ),
@@ -55,8 +58,15 @@ class SlushMobileTopBar extends StatelessWidget {
           tooltip: 'Más vistas',
           onSelected: onMore,
           child: SizedBox.square(
-            dimension: 40,
-            child: _circle(const Icon(Icons.more_horiz, size: 20)),
+            dimension: SlushControl.touch,
+            child: _circle(
+              context,
+              Badge(
+                isLabelVisible: friendsBadge > 0,
+                label: Text('$friendsBadge'),
+                child: const Icon(Icons.more_horiz, size: 20),
+              ),
+            ),
           ),
           itemBuilder: (_) => [
             for (final m in _more)
@@ -64,21 +74,28 @@ class SlushMobileTopBar extends StatelessWidget {
                 value: m.$1,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(m.$2),
+                  leading: m.$1 == 14
+                      ? Badge(
+                          isLabelVisible: friendsBadge > 0,
+                          label: Text('$friendsBadge'),
+                          child: Icon(m.$2),
+                        )
+                      : Icon(m.$2),
                   title: Text(m.$3),
                 ),
               ),
           ],
         ),
         const SizedBox(width: 8),
-        Semantics(
-          button: true,
-          label: 'Ajustes',
-          child: GestureDetector(
-            onTap: onSettings,
-            child: SizedBox.square(
-              dimension: 40,
-              child: _circle(const Icon(Icons.dark_mode_outlined, size: 20)),
+        SlushPressable(
+          elevation: SlushElevation.none,
+          semanticLabel: 'Ajustes',
+          onTap: onSettings,
+          child: SizedBox.square(
+            dimension: SlushControl.touch,
+            child: _circle(
+              context,
+              const Icon(Icons.dark_mode_outlined, size: 20),
             ),
           ),
         ),
@@ -172,8 +189,8 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
             decoration: BoxDecoration(
               color: Slush.lilac,
               borderRadius: BorderRadius.circular(22),
-              border: Border.fromBorderSide(Slush.border),
-              boxShadow: Slush.hardShadow,
+              border: Border.fromBorderSide(context.slush.border),
+              boxShadow: context.slush.shadows,
             ),
             child: Padding(
               padding: const EdgeInsets.all(10),
@@ -182,7 +199,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                   SizedBox.square(
                     dimension: 64,
                     child: cover == null
-                        ? _circle(const Icon(Icons.music_note))
+                        ? _circle(context, const Icon(Icons.music_note))
                         : Artwork(track: cover, size: 64, radius: 14),
                   ),
                   const SizedBox(width: 12),
@@ -195,6 +212,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
+                            color: Slush.ink,
                           ),
                         ),
                         Text(
@@ -204,6 +222,7 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
+                            color: Slush.ink,
                           ),
                         ),
                       ],
@@ -212,8 +231,8 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                   IconButton.filled(
                     tooltip: 'Reproducir mix',
                     style: IconButton.styleFrom(
-                      backgroundColor: Slush.ink,
-                      foregroundColor: Colors.white,
+                      backgroundColor: context.slush.ink,
+                      foregroundColor: context.slush.paper,
                     ),
                     onPressed: pool.isEmpty
                         ? widget.onSearch
@@ -275,7 +294,9 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
                             DecoratedBox(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.fromBorderSide(Slush.border),
+                                border: Border.fromBorderSide(
+                                  context.slush.border,
+                                ),
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(14),
@@ -310,87 +331,9 @@ class _SlushMobileHomeState extends State<SlushMobileHome> {
   }
 }
 
-/// Mini reproductor negro en píldora.
-class SlushMiniPlayer extends StatelessWidget {
-  const SlushMiniPlayer({
-    super.key,
-    required this.controller,
-    required this.onOpen,
-    required this.onToggle,
-  });
-  final AppController controller;
-  final VoidCallback onOpen, onToggle;
-
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
-    builder: (context, _) {
-      final t = controller.currentTrack;
-      if (t == null) return const SizedBox.shrink();
-      final playing = controller.audio.isPlaying;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Material(
-          color: Slush.ink,
-          shape: const StadiumBorder(),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: onOpen,
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Row(
-                children: [
-                  ClipOval(child: Artwork(track: t, size: 40, radius: 0)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          t.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          t.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton.filled(
-                    tooltip: playing ? 'Pausar' : 'Reproducir',
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Slush.ink,
-                    ),
-                    onPressed: onToggle,
-                    icon: Icon(
-                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
-
 /// Zona inferior de Slush en móvil: mini reproductor (opcional) y barra de
-/// iconos en píldora blanca; el destino activo va en círculo negro.
+/// iconos en píldora de papel; el destino activo va en círculo de tinta
+/// (claro) o píldora amarilla (oscuro).
 class SlushBottomBar extends StatelessWidget {
   const SlushBottomBar({
     super.key,
@@ -407,57 +350,116 @@ class SlushBottomBar extends StatelessWidget {
   final Widget? mini;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ?mini,
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.fromBorderSide(Slush.border),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  for (var i = 0; i < icons.length; i++)
-                    Semantics(
-                      button: true,
-                      selected: i == selected,
-                      label: labels[i],
-                      child: Tooltip(
-                        message: labels[i],
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => onSelect(i),
-                          child: Container(
-                            width: 48,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: i == selected ? Slush.ink : null,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Icon(
-                              icons[i],
-                              size: 22,
-                              color: i == selected ? Colors.white : Slush.ink,
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final scaler = MediaQuery.textScalerOf(context);
+    final showLabels = scaler.scale(14) / 14 >= 1.3;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ?mini,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: p.paper,
+                borderRadius: BorderRadius.circular(SlushRadius.pill),
+                border: Border.fromBorderSide(p.border),
+                boxShadow: p.shadowsFor(SlushElevation.control),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < icons.length; i++)
+                      Expanded(
+                        child: Semantics(
+                          button: true,
+                          selected: i == selected,
+                          label: labels[i],
+                          child: Tooltip(
+                            message: labels[i],
+                            child: Center(
+                              child: SlushPressable(
+                                elevation: SlushElevation.none,
+                                onTap: () => onSelect(i),
+                                child: _BottomTab(
+                                  icon: icons[i],
+                                  label: showLabels ? labels[i] : null,
+                                  fill: i != selected
+                                      ? Colors.transparent
+                                      : dark
+                                      ? Slush.yellow
+                                      : p.ink,
+                                  color: i != selected
+                                      ? p.ink
+                                      : dark
+                                      ? Slush.ink
+                                      : p.paper,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _BottomTab extends StatelessWidget {
+  const _BottomTab({
+    required this.icon,
+    required this.fill,
+    required this.color,
+    this.label,
+  });
+  final IconData icon;
+  final String? label;
+  final Color fill, color;
+
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: SlushMotion.select,
+    curve: SlushMotion.easeOut,
+    alignment: Alignment.center,
+    constraints: const BoxConstraints(
+      minWidth: SlushControl.bar,
+      minHeight: SlushControl.touch,
+    ),
+    padding: label == null
+        ? EdgeInsets.zero
+        : const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+    decoration: BoxDecoration(
+      color: fill,
+      borderRadius: BorderRadius.circular(SlushRadius.pill),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 24, color: color),
+        if (label != null)
+          Text(
+            label!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+      ],
     ),
   );
 }

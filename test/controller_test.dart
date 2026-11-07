@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/sources/innertube_source.dart';
+import 'package:aurora_music/sources/stream/stream_orchestrator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fakes.dart';
@@ -123,6 +125,21 @@ void main() {
       expect(source.applied, isTrue);
     },
   );
+
+  test('audio quality is saved, restored and applied to InnerTube', () async {
+    final source = InnerTubeSource(FakeSource());
+    final controller = await createTestController(
+      source: source,
+      preferences: const {'audioQuality': 'normal'},
+    );
+    addTearDown(() => closeTestController(controller));
+
+    expect(controller.audioQuality, AudioQuality.normal);
+    expect(source.audioQuality, AudioQuality.normal);
+    controller.setAudioQuality(AudioQuality.saver);
+    expect(controller.preferences.getString('audioQuality'), 'saver');
+    expect(source.audioQuality, AudioQuality.saver);
+  });
 
   test('changing progressive playback only configures next tracks', () async {
     final source = _ProgressiveSource();
@@ -956,6 +973,49 @@ void main() {
       expect(controller.busy, false);
     },
   );
+  test(
+    'a proxy 410 while opening the stream re-resolves once and plays',
+    () async {
+      final source = FakeSource();
+      final audio = FakeAudio()
+        ..loadErrors.add(
+          StateError(
+            '[in#0 @ 000001] Error opening input: Server returned 4XX Client '
+            'Error, but not one of 40{0,1,3,4}',
+          ),
+        );
+      final controller = await createTestController(
+        source: source,
+        audio: audio,
+      );
+      addTearDown(() => closeTestController(controller));
+      await controller.playTrack(first);
+      expect(source.resolved, ['one', 'one']);
+      expect(audio.loadCount, 1);
+      expect(controller.error, isNull);
+      expect(audio.isPlaying, true);
+    },
+  );
+  test('the open retry happens once and only for stream errors', () async {
+    final source = FakeSource();
+    final audio = FakeAudio()
+      ..loadErrors.addAll([
+        StateError(
+          'Server returned 4XX Client Error, but not one of 40{0,1,3,4}',
+        ),
+        StateError(
+          'Server returned 4XX Client Error, but not one of 40{0,1,3,4}',
+        ),
+      ]);
+    final controller = await createTestController(source: source, audio: audio);
+    addTearDown(() => closeTestController(controller));
+    await controller.playTrack(first);
+    expect(source.resolved, ['one', 'one']);
+    expect(controller.error, contains('4XX'));
+    audio.loadErrors.add(StateError('Formato de audio no compatible'));
+    await controller.playTrack(first);
+    expect(source.resolved, ['one', 'one', 'one']);
+  });
   test('status digits in an audio path never report a YouTube block', () async {
     final source = FakeSource();
     final audio = FakeAudio();

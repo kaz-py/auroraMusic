@@ -1,14 +1,23 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/friends/friends_providers.dart';
+import 'package:aurora_music/friends/friends_service.dart';
+import 'package:aurora_music/theme/modern_widgets.dart';
+import 'package:aurora_music/ui/friends_page.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/queue_panel.dart';
-import 'package:aurora_music/ui/studio/studio_transport.dart';
+import 'package:aurora_music/ui/mini_player/atelier_mini_player.dart';
+import 'package:aurora_music/core/source_backend.dart';
+import 'package:aurora_music/ui/follow_widgets.dart';
+import 'package:aurora_music/ui/home_music_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fakes.dart';
+import 'support/friends_fakes.dart';
 
 const _long =
     'Un título extremadamente largo para comprobar que se recorta con puntos suspensivos en móvil';
@@ -92,7 +101,7 @@ void main() {
           expect(tester.takeException(), isNull, reason: 'home');
 
           // Mini transport: ellipsized title, tappable controls with labels.
-          final transport = find.byType(StudioTransport);
+          final transport = find.byType(AtelierMiniPlayer);
           expect(transport, findsOneWidget);
           final mini = find.descendant(
             of: transport,
@@ -106,38 +115,17 @@ void main() {
           );
           expect(find.byTooltip('Reproducir'), findsWidgets);
 
-          // Full player.
+          // Tapping the mini opens the full player (vinyl page, section 4)
+          // and the mini steps aside.
           await tester.tap(mini);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull, reason: 'player');
-          expect(find.text('AHORA SUENA'), findsOneWidget);
+          expect(find.byType(AtelierMiniPlayer), findsNothing);
           expect(find.text(_long), findsWidgets);
-          expect(find.byType(Slider), findsAtLeastNWidgets(3));
-          for (final tip in const [
-            'Aleatorio',
-            'Anterior',
-            'Siguiente',
-            'Añadir a favoritos',
-            'Cerrar reproductor',
-          ]) {
+          for (final tip in const ['Anterior', 'Siguiente']) {
             expect(find.byTooltip(tip), findsWidgets, reason: tip);
           }
-          expect(find.byTooltip(RegExp('^Repetición')), findsOneWidget);
-          final sheetButtons = find.descendant(
-            of: find.byType(BottomSheet),
-            matching: find.byType(IconButton),
-          );
-          for (var i = 0; i < sheetButtons.evaluate().length; i++) {
-            await tester.ensureVisible(sheetButtons.at(i));
-            _expectTargets(tester, sheetButtons.at(i));
-          }
           expect(tester.takeException(), isNull, reason: 'player controls');
-
-          // Queue sheet opened from the player.
-          await tester.ensureVisible(find.byTooltip('Cola de reproducción'));
-          await tester.tap(find.byTooltip('Cola de reproducción'));
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull, reason: 'queue sheet');
         });
       }
     }
@@ -173,6 +161,195 @@ void main() {
       }
     }
   });
+
+  Future<AppController> pumpPhone(
+    WidgetTester tester, {
+    FriendsService? friends,
+    String? theme,
+    bool play = false,
+  }) async {
+    final controller = (await tester.runAsync(
+      () => createTestController(
+        tracks: _tracks,
+        audio: FakeAudio(),
+        preferences: {'themeKind': ?theme},
+      ),
+    ))!;
+    addTearDown(() => tester.runAsync(() => closeTestController(controller)));
+    if (play) {
+      controller.queue = [..._tracks];
+      await tester.runAsync(() => controller.playQueueAt(0));
+      await controller.audio.pause();
+    }
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          controllerProvider.overrideWith((ref) => controller),
+          if (friends != null)
+            friendsServiceProvider.overrideWith((ref) => friends),
+        ],
+        child: const AuroraApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return controller;
+  }
+
+  testWidgets('artist detail header scrolls away on phones', (tester) async {
+    final controller = await pumpPhone(tester);
+    controller.searchDetail = const SearchEntry(
+      kind: SearchKind.artists,
+      browseId: 'UC1',
+      title: 'Artista',
+    );
+    controller.searchDetailTracks = [
+      for (var i = 0; i < 30; i++)
+        Track(id: 't$i', title: 'Canción $i', artist: 'Artista'),
+    ];
+    await tester.tap(find.byTooltip('Buscar música'));
+    await tester.pumpAndSettle();
+    expect(find.byType(FollowButton), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(find.byType(FollowButton, skipOffstage: true), findsNothing);
+  });
+
+  testWidgets('system back from Buscar returns to Inicio', (tester) async {
+    await pumpPhone(tester);
+    await tester.tap(find.byTooltip('Buscar música'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Buscar música'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeMusicPage), findsOneWidget);
+  });
+
+  testWidgets('back from another section ignores a hidden search detail', (
+    tester,
+  ) async {
+    final controller = await pumpPhone(tester);
+    controller.searchDetail = const SearchEntry(
+      kind: SearchKind.artists,
+      browseId: 'UC1',
+      title: 'Artista',
+    );
+    await tester.tap(find.byTooltip('Buscar música'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Biblioteca').last);
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(controller.searchDetail, isNotNull);
+    expect(find.byTooltip('Volver a los resultados'), findsOneWidget);
+  });
+
+  testWidgets('atrás cierra el chat de Amigos sin salir de la sección', (
+    tester,
+  ) async {
+    await pumpPhone(tester, friends: seededFriendsService());
+    await _openFriends(tester);
+    await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('friends-chat-u1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-back')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-back')), findsNothing);
+    expect(find.byKey(const ValueKey('friends-tab-2')), findsOneWidget);
+  });
+
+  for (final theme in const ['atelier', 'modern', 'brasa', 'slush']) {
+    testWidgets('$theme: «Más vistas» → Amigos abre FriendsPage', (
+      tester,
+    ) async {
+      await pumpPhone(tester, theme: theme, friends: seededFriendsService());
+      await _openFriends(tester);
+      expect(find.byType(FriendsPage), findsOneWidget);
+    });
+
+    testWidgets('$theme: «Más vistas» muestra la insignia de Amigos', (
+      tester,
+    ) async {
+      await pumpPhone(tester, theme: theme, friends: seededFriendsService());
+      final badge = find.descendant(
+        of: find.byTooltip('Más vistas'),
+        matching: find.byType(Badge),
+      );
+      expect(badge, findsOneWidget);
+      expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
+    });
+
+    testWidgets('$theme: ⋯ del reproductor abre la tarjeta de acciones', (
+      tester,
+    ) async {
+      await pumpPhone(
+        tester,
+        theme: theme,
+        friends: seededFriendsService(),
+        play: true,
+      );
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(MiniPlayerHost),
+              matching: find.text(_long),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Más acciones'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reproducir a continuación'), findsNothing);
+      if (theme != 'slush') {
+        expect(find.text('Cola de reproducción'), findsOneWidget);
+      }
+      for (final label in const ['Añadir a la cola', 'Enviar a un amigo']) {
+        final tile = find.text(label);
+        expect(tile, findsOneWidget, reason: label);
+        expect(tester.getRect(tile).bottom, lessThanOrEqualTo(640));
+      }
+    });
+  }
+
+  testWidgets('Modern: el reproductor abre con la portada sola y más botones', (
+    tester,
+  ) async {
+    await pumpPhone(tester, theme: 'modern', play: true);
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(MiniPlayerHost),
+            matching: find.text(_long),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
+    for (final tip in const ['Aleatorio', 'Repetir', 'Anterior', 'Siguiente']) {
+      expect(find.byTooltip(tip), findsOneWidget, reason: tip);
+    }
+  });
+
+  testWidgets('Modern en móvil no muestra titular ni saludo en Inicio', (
+    tester,
+  ) async {
+    await pumpPhone(tester, theme: 'modern');
+    expect(find.byType(ModernHeadline), findsNothing);
+    expect(find.textContaining('siempre'), findsNothing);
+    expect(find.text('Encontrar música'), findsOneWidget);
+  });
+}
+
+Future<void> _openFriends(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Más vistas'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Amigos'));
+  await tester.pumpAndSettle();
 }
 
 void _expectTargets(WidgetTester tester, Finder buttons) {

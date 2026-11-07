@@ -4,28 +4,47 @@ Aurora funciona en Linux x64 (Ubuntu 22.04 o posterior, o una distribución equi
 
 ## Instalar desde una versión publicada
 
-1. Descarga `Aurora-<versión>-linux-x64.tar.gz` y `checksums.txt` desde
-   [Releases](https://github.com/kaz-py/auroraMusic/releases).
-2. Comprueba el archivo:
+Descarga desde [Releases](https://github.com/kaz-py/auroraMusic/releases) el paquete
+que prefieras y `checksums.txt`. Comprueba la descarga:
 
-   ```bash
-   sha256sum -c checksums.txt --ignore-missing
-   ```
+```bash
+sha256sum -c checksums.txt --ignore-missing
+```
 
-3. Instala las bibliotecas que necesita la app:
+### Paquete .deb (Debian, Ubuntu y derivadas)
 
-   ```bash
-   sudo apt-get install libgtk-3-0 libsecret-1-0 libasound2 libopus0 libogg0 ffmpeg
-   ```
+```bash
+sudo apt install ./aurora-music_<versión>_amd64.deb
+```
 
-   En Ubuntu 24.04, el paquete de audio se llama `libasound2t64`.
+apt instala las dependencias. La app queda en `/opt/aurora-music`, se abre con
+`aurora-music` y aparece en el menú de aplicaciones.
 
-4. Extrae el archivo y abre la app:
+### Archivo tar.gz con install.sh (cualquier distribución)
 
-   ```bash
-   mkdir -p ~/aurora && tar -xzf Aurora-<versión>-linux-x64.tar.gz -C ~/aurora
-   ~/aurora/aurora_music
-   ```
+```bash
+tar -xzf Aurora-<versión>-linux-x64.tar.gz
+bash Aurora-<versión>-linux-x64/install.sh
+```
+
+`install.sh` no necesita root. Copia la app a `~/.local/share/aurora-music`, crea
+`~/.local/bin/aurora-music` y añade la entrada del menú y el icono. Después comprueba
+las bibliotecas del sistema y, si falta alguna, dice qué paquete instalar con apt, dnf
+o pacman. También avisa si faltan `ffmpeg` o `yt-dlp`.
+
+Para desinstalar: `bash ~/.local/share/aurora-music/install.sh --uninstall`.
+
+Bibliotecas del sistema que necesita la app:
+
+```bash
+sudo apt-get install libgtk-3-0 libsecret-1-0 libasound2 ffmpeg
+```
+
+En Ubuntu 24.04, el paquete de audio se llama `libasound2t64`. Los códecs (FLAC, Opus,
+Ogg, Vorbis) van incluidos en la app.
+
+Si al abrir Aurora falta una biblioteca, la app muestra cuál es. Instálala, o usa el
+.deb o `install.sh`, que comprueban las dependencias.
 
 Para actualizar, repite estos pasos con la versión nueva. En Linux, Aurora no tiene
 actualizador integrado.
@@ -34,9 +53,10 @@ actualizador integrado.
 
 ```bash
 sudo apt-get install clang cmake ninja-build pkg-config lld libgtk-3-dev liblzma-dev \
-  libstdc++-12-dev libsecret-1-dev libjsoncpp-dev libasound2-dev libopus-dev libogg-dev
+  libstdc++-12-dev libsecret-1-dev libasound2-dev
 flutter pub get
 flutter build linux --release
+bash scripts/linux/check_bundle.sh build/linux/x64/release/bundle
 ```
 
 El resultado queda en `build/linux/x64/release/bundle/`. Usa Flutter 3.38.8, la misma
@@ -56,6 +76,10 @@ en un archivo JSON fuera del repositorio y pásalo con
   (`sudo apt-get install yt-dlp ffmpeg`), o la carpeta que elijas en Ajustes.
 - **Llavero del sistema**: la sesión de tu cuenta y la de Last.fm se guardan con
   libsecret. Necesitas un llavero activo, como GNOME Keyring o KWallet.
+- **Selector de archivos**: los diálogos para importar música y elegir carpetas usan
+  `xdg-desktop-portal` (por ejemplo, `xdg-desktop-portal-gtk`).
+- **Audio**: sale por ALSA. Con PipeWire instala `pipewire-alsa`; con PulseAudio, el
+  plugin ALSA de PulseAudio.
 
 ## Diferencias con Windows
 

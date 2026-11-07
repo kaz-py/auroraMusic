@@ -9,7 +9,7 @@ abstract final class Brasa {
   static const obsidian = Color(0xff17110e);
   static const graphite = Color(0xff231b16);
   static const ash = Color(0xff3a2e26);
-  static const steel = Color(0xff8a7b6e);
+  static const steel = Color(0xffb3a598);
   static const cloud = Color(0xffc8b8aa);
   static const cream = Color(0xfffff4e8);
   static const amber = Color(0xffffb04a);
@@ -140,6 +140,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 40),
+        visualDensity: VisualDensity.standard,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
@@ -150,6 +151,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 40),
+        visualDensity: VisualDensity.standard,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         textStyle: t(14, 1.2, FontWeight.w700),
         shape: pill,
@@ -159,6 +161,7 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(0, 40),
+        visualDensity: VisualDensity.standard,
         textStyle: t(14, 1.2, FontWeight.w700),
         shape: pill,
       ).copyWith(overlayColor: overlay),
@@ -171,6 +174,11 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
       elevation: 0,
       color: scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    ),
+    // El tema usa densidad compacta: sin este padding los chips quedan en 32 px
+    // y en móvil se exige >= 40.
+    chipTheme: const ChipThemeData(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -220,6 +228,21 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
       thumbColor: scheme.onSurface,
       inactiveTrackColor: scheme.outlineVariant,
       overlayColor: scheme.onSurface.withValues(alpha: .12),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      elevation: 0,
+      backgroundColor: Brasa.graphite,
+      contentTextStyle: const TextStyle(
+        color: Brasa.cream,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: Brasa.cream,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Colors.white.withValues(alpha: .08)),
+      ),
     ),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),

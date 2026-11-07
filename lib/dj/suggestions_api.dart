@@ -7,6 +7,7 @@
 //   participants   List<ParticipantTaste>  perfiles (1 = personal, N = Jam);
 //                                          el perfil NUNCA sale del dispositivo
 //   mode / current / queueTail / recentKeys / skippedArtists / favoriteArtists
+//   listenedArtists  artistas escuchados hace poco (semilla de coherencia)
 //   library        candidatos locales (relleno y respaldo sin red)
 //   extraCandidates  candidatos ya traídos por el llamador (p. ej. radio de
 //                  YouTube de la pista actual); entran en la mezcla
@@ -14,11 +15,13 @@
 //   remember       false = vista previa que no consume la memoria
 //   filters, limit (se admiten lotes grandes, p. ej. 30), now
 //
-// Candidatos: `sources` (por cubo: similar 50 %, adjacent 30 %, discovery 15 %,
-// classics 5 %, configurables en `mix`) + `fetchCandidates` (compat.) +
+// Candidatos: `sources` (por cubo: similar 50 %, adjacent 30 %, discovery 5 %,
+// configurables en `mix`) + `fetchCandidates` (compat.) +
 // `extraCandidates`. Si todo falla se usa la última lista de la misma sesión y
 // después `library`; nunca se devuelve vacío mientras quede algo que ofrecer.
 //
+// Coherencia: vecindario de artistas (ArtistGraph) y géneros de la semilla;
+// lo no relacionado solo entra si no hay bastante relacionado.
 // Ranking: relevancia con el perfil + novedad (memoria anti-repetición de 300
 // pistas / 7 días persistida) + diversidad (MMR, tope por artista, género y
 // década) + exploración (ε-greedy con muestreo ponderado). Si el pool se agota
@@ -30,13 +33,14 @@ import 'dart:typed_data';
 
 import '../core/models.dart';
 import 'ai_dj.dart';
+import 'artist_graph.dart';
 import 'coherence.dart';
 import 'dj_modes.dart';
 import 'recommendations.dart';
 import 'reco_memory.dart';
 
 /// Peso de la coherencia de artista en la relevancia.
-const djCoherenceWeight = 0.8;
+const djCoherenceWeight = 1.2;
 
 class ParticipantTaste {
   const ParticipantTaste(this.id, this.profile, {this.weight = 1});
@@ -54,6 +58,7 @@ class SessionContext {
     this.recentKeys = const {},
     this.skippedArtists = const {},
     this.favoriteArtists = const {},
+    this.listenedArtists = const {},
     this.library = const [],
     this.extraCandidates = const [],
     this.filters = const DjFilters(),
@@ -68,6 +73,9 @@ class SessionContext {
   final Track? current;
   final List<Track> queueTail;
   final Set<String> recentKeys, skippedArtists, favoriteArtists;
+
+  /// Artistas escuchados hace poco (entran en la semilla de coherencia).
+  final Set<String> listenedArtists;
   final List<Track> library;
   final List<DjCandidate> extraCandidates;
   final DjFilters filters;
@@ -120,8 +128,7 @@ class RecSource {
 const defaultRecMix = <RecBucket, double>{
   RecBucket.similar: 0.50,
   RecBucket.adjacent: 0.30,
-  RecBucket.discovery: 0.15,
-  RecBucket.classics: 0.05,
+  RecBucket.discovery: 0.05, // fuera de perfil a propósito: cuota mínima
   RecBucket.lastfm: 0.08, // cuota pequeña: el perfil local manda
   RecBucket.radio:
       0.20, // radio de YouTube del llamador: sin cuota se penalizaba
@@ -155,13 +162,102 @@ TasteProfile combineTasteProfiles(List<ParticipantTaste> parts) {
 
 /// Claves de característica más fuertes del perfil con el prefijo dado
 /// (`a:` artistas, `g:` géneros), de mayor a menor peso.
-List<String> tasteTop(TasteProfile profile, String prefix, int count) {
+List<String> tasteTop(TasteProfile profile, String prefix, int count) =>
+    _featureTop(profile.features, prefix, count);
+
+List<String> _featureTop(
+  Map<String, double> features,
+  String prefix,
+  int count,
+) {
   final entries =
-      profile.features.entries
+      features.entries
           .where((e) => e.key.startsWith(prefix) && e.value > 0)
           .toList()
         ..sort((a, b) => b.value.compareTo(a.value));
   return [for (final e in entries.take(count)) e.key.substring(prefix.length)];
+}
+
+/// Artistas de la semilla de mayor a menor peso: la pista actual, el perfil,
+/// lo escuchado hace poco y los favoritos. La cola NO entra (evita la deriva).
+List<String> _seedArtists(
+  Map<String, double> features,
+  Set<String> favoriteArtists,
+  Set<String> listenedArtists,
+  Track? current,
+) => {
+  if (current != null) ...coherenceArtists(current),
+  ..._featureTop(features, 'a:', 12),
+  ...listenedArtists,
+  ...favoriteArtists,
+}.toList();
+
+/// Artistas a precalentar en el grafo antes de rankear (actual + 8 primeros).
+List<String> seedGraphArtists({
+  required Map<String, double> features,
+  Set<String> favoriteArtists = const {},
+  Set<String> listenedArtists = const {},
+  Track? current,
+}) => {
+  if (current != null) djPrimaryArtist(current),
+  ..._seedArtists(features, favoriteArtists, listenedArtists, current).take(8),
+}.where((a) => a.isNotEmpty).toList();
+
+/// Vecinos de primer salto más los artistas que aparecen en las listas de al
+/// menos dos de ellos (segundo salto). Solo caché: sin red.
+Set<String> _withSecondHop(ArtistGraph graph, Set<String> first) {
+  final counts = <String, int>{};
+  for (final n in first) {
+    for (final m in graph.neighborsOf(n)) {
+      counts.update(m, (c) => c + 1, ifAbsent: () => 1);
+    }
+  }
+  return {
+    ...first,
+    for (final e in counts.entries)
+      if (e.value >= 2) e.key,
+  };
+}
+
+/// Contexto de coherencia común a cola, motor y DJ: artistas del perfil, la
+/// pista actual, favoritos y lo escuchado; vecinos y etiquetas del [graph].
+CoherenceContext seedCoherence({
+  required Map<String, double> features,
+  Set<String> favoriteArtists = const {},
+  Set<String> listenedArtists = const {},
+  Track? current,
+  ArtistGraph? graph,
+}) {
+  final artists = _seedArtists(
+    features,
+    favoriteArtists,
+    listenedArtists,
+    current,
+  );
+  final currentArtist = current == null ? null : djPrimaryArtist(current);
+  return CoherenceContext(
+    artists: artists,
+    neighbors: graph == null
+        ? const []
+        : _withSecondHop(graph, {
+            for (final a in seedGraphArtists(
+              features: features,
+              favoriteArtists: favoriteArtists,
+              listenedArtists: listenedArtists,
+              current: current,
+            ))
+              ...graph.neighborsOf(a),
+          }),
+    genres: {
+      ..._featureTop(features, 'g:', 6),
+      ...?current?.genres,
+      if (graph != null) ...[
+        if (currentArtist != null) ...graph.tagsOf(currentArtist),
+        for (final a in _featureTop(features, 'a:', 3)) ...graph.tagsOf(a),
+      ],
+    },
+    decade: current == null ? null : djDecade(current),
+  );
 }
 
 String _title(String s) => s
@@ -234,8 +330,12 @@ class SuggestionsApi {
     this.sourceTimeout = const Duration(seconds: 6),
     this.budget = const Duration(seconds: 9),
     math.Random? random,
+    this.graph,
   }) : memory = memory ?? RecsMemory.shared,
        _random = random ?? math.Random();
+
+  /// Vecindario de artistas y etiquetas de género (opcional).
+  final ArtistGraph? graph;
 
   /// Compatibilidad: una sola fuente que cuenta como cubo `similar`.
   final Future<List<DjCandidate>> Function(SessionContext ctx)? fetchCandidates;
@@ -302,10 +402,23 @@ class SuggestionsApi {
     final rnd = math.Random(ctx.seed ?? _random.nextInt(1 << 30));
     final clock = Stopwatch()..start();
     await memory.ensureLoaded();
+    final combined = combineTasteProfiles(ctx.participants);
+    // Vecindario de la semilla, en paralelo con las fuentes y dentro del
+    // presupuesto total; tiene que estar antes de rankear.
+    final warming = graph?.warm(
+      seedGraphArtists(
+        features: combined.features,
+        favoriteArtists: ctx.favoriteArtists,
+        listenedArtists: ctx.listenedArtists,
+        current: ctx.current,
+      ),
+      budget: _shorter(const Duration(seconds: 3), budget),
+    );
     var candidates = await _gather(
       ctx,
       timeout: _shorter(sourceTimeout, budget - clock.elapsed),
     );
+    await warming;
     if (candidates.isNotEmpty) {
       if (_cache.length >= 16) _cache.remove(_cache.keys.first);
       _cache[key] = candidates;
@@ -469,32 +582,24 @@ class SuggestionsApi {
 
     diag.afterFilters = items.length;
 
-    // Coherencia de ARTISTA con la semilla (nunca por título): baja la
-    // puntuación; el rechazo duro solo si quedan suficientes alternativas.
-    final seedArtists = <String>{
-      ...ctx.favoriteArtists,
-      ...tasteTop(combined, 'a:', 12),
-      for (final t in [?ctx.current, ...ctx.queueTail.take(3)])
-        ...coherenceArtists(t),
-    };
-    final coh = CoherenceContext(
-      artists: seedArtists,
-      genres: {...tasteTop(combined, 'g:', 6), ...?ctx.current?.genres},
-      decade: ctx.current == null ? null : djDecade(ctx.current!),
+    // Coherencia de ARTISTA con la semilla (nunca por título). Puerta dura: lo
+    // no relacionado (bajo djRelatedThreshold) solo entra si falta relacionado.
+    final coh = seedCoherence(
+      features: combined.features,
+      favoriteArtists: ctx.favoriteArtists,
+      listenedArtists: ctx.listenedArtists,
+      current: ctx.current,
+      graph: graph,
     );
     final cohOf = <_Item, CoherenceResult>{
-      for (final i in items) i: scoreCoherence(i.track, coh, decade: i.decade),
-    };
-    final soft = [
       for (final i in items)
-        if (!cohOf[i]!.hardReject) i,
-    ];
-    if (soft.length >= ctx.limit) {
-      items.retainWhere(soft.contains);
-    } else if (soft.length < items.length) {
-      diag.coherenceRelaxed = true; // pocas alternativas: no se rechaza nada
-    }
-    diag.afterCoherence = items.length;
+        i: scoreCoherence(
+          i.track,
+          coh,
+          decade: i.decade,
+          genres: graph?.tagsOf(i.artist) ?? const [],
+        ),
+    };
 
     // Con cuota, lo que ya está en la biblioteca cuenta como «ya oído» y se
     // enfría con una ventana corta (djHeardCooldown) en vez de la de 7 días.
@@ -518,13 +623,29 @@ class SuggestionsApi {
         }())
           i,
     ];
+    // La puerta de coherencia corre sobre lo elegible de cada tramo: si fuese
+    // antes, recortaría a ~limit y la relajación de memoria traería de vuelta
+    // lo oído en la ventana en vez de otros candidatos.
     var pool = const <_Item>[];
     for (final tier in const [1.0, 0.5, 0.25, 0.0]) {
       pool = eligible(tier);
       diag.memoryTier = tier;
+      diag.afterMemory = pool.length;
+      if (!coh.isEmpty && pool.isNotEmpty) {
+        final gate = coherenceGate(
+          pool,
+          result: (i) => cohOf[i]!,
+          artist: (i) => i.artist,
+          limit: ctx.limit,
+          artistCap: math.max(1, (ctx.limit / 5).ceil()),
+          lastResort: (i) => i.candidate.bucket == RecBucket.discovery,
+        );
+        diag.coherenceRelaxed = gate.relaxed;
+        pool = gate.kept;
+      }
+      diag.afterCoherence = pool.length;
       if (pool.length >= ctx.limit) break;
     }
-    diag.afterMemory = pool.length;
 
     for (final i in pool) {
       final age = memory.ageOf(i.track, now);
@@ -674,7 +795,6 @@ class SuggestionsApi {
               ? 'Artistas parecidos a tus gustos'
               : 'Artistas parecidos a ${_title(topArtist)}',
         RecBucket.discovery => 'Descubrimiento',
-        RecBucket.classics => 'Un clásico imprescindible',
         RecBucket.radio => 'Radio de YouTube',
         RecBucket.lastfm => 'Recomendado por Last.fm',
       };

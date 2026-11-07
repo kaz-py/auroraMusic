@@ -23,6 +23,8 @@ Use standard Dart formatting with two-space indentation. Name files `snake_case.
 
 Use `flutter_test`; name files `*_test.dart`. Test queue transitions, persistence, extraction validation, cancellation, and recovery from failures. Widget tests should cover narrow layouts and enlarged text. Hardware playback, Bluetooth controls, background audio, and native packaging require device checks in addition to automated tests. Document untested hardware rather than claiming universal compatibility.
 
+UI changes (`lib/ui/`, `lib/theme/`, `lib/main.dart`) are covered by the UI guard in `test/ui_guard/`: a theme × mode × width × text-scale × screen matrix that fails on overflow, contrast below 3:1, touch targets under 40x40 on phones, and content cut by the screen edge. `flutter test` runs the `quick` tier; run the full matrix with `flutter test test/ui_guard --dart-define=UI_GUARD=full`. Accepted failures live in `test/ui_guard/known_issues.dart` and may only shrink. Optional pre-commit hook: `scripts/install_hooks.ps1` / `scripts/install_hooks.sh`. See `docs/ui_guard.md`.
+
 ## Commit & Pull Request Guidelines
 
 Git history began with `Initial commit`; no established message convention exists. Use short, imperative subjects describing the change. Pull requests should explain behavior, include validation commands and results, link relevant issues, and attach screenshots for interface changes.

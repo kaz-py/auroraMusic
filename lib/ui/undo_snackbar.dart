@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../theme/brasa_theme.dart';
-import '../theme/modern_theme.dart';
-import '../theme/modern_widgets.dart';
-
-/// SnackBar con el estilo del tema: en Modern fondo navy, texto blanco, radio 8
-/// y acción menta; en Atelier el predeterminado.
+/// SnackBar flotante que SIEMPRE se cierra solo. El color, el texto y la forma
+/// salen del `snackBarTheme` de cada tema; aquí solo van el ancho y la acción.
 SnackBar auroraSnackBar(
   BuildContext context,
   Widget content, {
@@ -13,50 +9,16 @@ SnackBar auroraSnackBar(
   VoidCallback? onAction,
   Duration duration = const Duration(seconds: 4),
 }) {
-  if (isBrasa(context)) {
-    return SnackBar(
-      content: DefaultTextStyle.merge(
-        style: const TextStyle(color: Brasa.cream),
-        child: content,
-      ),
-      duration: duration,
-      persist: false,
-      backgroundColor: Brasa.graphite,
-      behavior: SnackBarBehavior.floating,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      action: label == null
-          ? null
-          : SnackBarAction(
-              label: label,
-              textColor: Brasa.cream,
-              onPressed: onAction ?? () {},
-            ),
-    );
-  }
-  final modern = isModern(context);
   return SnackBar(
-    content: modern
-        ? DefaultTextStyle.merge(
-            style: const TextStyle(color: Colors.white),
-            child: content,
-          )
-        : content,
+    content: content,
     duration: duration,
     persist: false,
-    backgroundColor: modern ? Tracky.navy : null,
-    behavior: modern ? SnackBarBehavior.floating : null,
-    elevation: modern ? 0 : null,
-    shape: modern
-        ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-        : null,
+    behavior: SnackBarBehavior
+        .floating, // width exige flotante; también sin snackBarTheme (tests con MaterialApp pelado)
+    width: MediaQuery.sizeOf(context).width >= 600 ? 420 : null,
     action: label == null
         ? null
-        : SnackBarAction(
-            label: label,
-            textColor: modern ? Tracky.mint : null,
-            onPressed: onAction ?? () {},
-          ),
+        : SnackBarAction(label: label, onPressed: onAction ?? () {}),
   );
 }
 

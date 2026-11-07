@@ -25,6 +25,7 @@ enum TrayCommand {
   kCmdPrevious,
   kCmdQuit,
 };
+bool g_fullscreen = false;
 }  // namespace
 
 // Sin marco nativo: el redimensionado se resuelve en los bordes de la ventana.
@@ -51,7 +52,8 @@ static LRESULT CALLBACK EdgeSubclassProc(HWND h, UINT msg, WPARAM w, LPARAM l,
                                          UINT_PTR, DWORD_PTR) {
   if (msg == WM_NCHITTEST) {
     HWND host = GetParent(h);
-    if (host && !IsZoomed(host) && EdgeHit(host, l) != HTCLIENT) {
+    if (host && !IsZoomed(host) && !g_fullscreen &&
+        EdgeHit(host, l) != HTCLIENT) {
       return HTTRANSPARENT;
     }
   }
@@ -180,6 +182,79 @@ bool FlutterWindow::OnCreate() {
             result->Error("autostart", "No se pudo cambiar el inicio con Windows");
             return;
           }
+        } else if (name == "setMini") {
+          // Modo mini: ventana compacta siempre visible, abajo a la derecha del
+          // monitor; al salir se restaura la posicion y el tamano previos.
+          const auto* map =
+              args ? std::get_if<flutter::EncodableMap>(args) : nullptr;
+          auto number = [map](const char* key, int fallback) {
+            if (!map) return fallback;
+            auto it = map->find(flutter::EncodableValue(key));
+            const auto* v =
+                it == map->end() ? nullptr : std::get_if<int32_t>(&it->second);
+            return v ? static_cast<int>(*v) : fallback;
+          };
+          const bool enabled = [map] {
+            if (!map) return false;
+            auto it = map->find(flutter::EncodableValue("enabled"));
+            const auto* b =
+                it == map->end() ? nullptr : std::get_if<bool>(&it->second);
+            return b && *b;
+          }();
+          if (enabled) {
+            if (!mini_active_) {
+              mini_restore_.length = sizeof(mini_restore_);
+              GetWindowPlacement(host, &mini_restore_);
+              mini_active_ = true;
+              SetMiniMode(true);
+              if (IsZoomed(host) || IsIconic(host)) ShowWindow(host, SW_RESTORE);
+              UINT dpi = GetDpiForWindow(host);
+              if (dpi < 96) dpi = 96;
+              const int w = MulDiv(number("width", 380), dpi, 96);
+              const int h = MulDiv(number("height", 150), dpi, 96);
+              MONITORINFO mi{sizeof(mi)};
+              GetMonitorInfoW(MonitorFromWindow(host, MONITOR_DEFAULTTONEAREST),
+                              &mi);
+              const int margin = MulDiv(16, dpi, 96);
+              SetWindowPos(host, HWND_TOPMOST, mi.rcWork.right - w - margin,
+                           mi.rcWork.bottom - h - margin, w, h, SWP_SHOWWINDOW);
+            }
+          } else if (mini_active_) {
+            mini_active_ = false;
+            SetMiniMode(false);
+            SetWindowPos(host, HWND_NOTOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            SetWindowPlacement(host, &mini_restore_);
+          }
+        } else if (name == "setFullscreen") {
+          // Pantalla completa: cubre todo el monitor (tambien la barra de
+          // tareas); al salir se restaura la colocacion previa.
+          const auto* map =
+              args ? std::get_if<flutter::EncodableMap>(args) : nullptr;
+          const bool enabled = [map] {
+            if (!map) return false;
+            auto it = map->find(flutter::EncodableValue("enabled"));
+            const auto* b =
+                it == map->end() ? nullptr : std::get_if<bool>(&it->second);
+            return b && *b;
+          }();
+          if (enabled && !g_fullscreen && !mini_active_) {
+            fullscreen_restore_.length = sizeof(fullscreen_restore_);
+            GetWindowPlacement(host, &fullscreen_restore_);
+            g_fullscreen = true;
+            // SW_MAXIMIZE lo limita al area de trabajo (deja la barra de tareas).
+            if (IsZoomed(host)) ShowWindow(host, SW_RESTORE);
+            MONITORINFO mi{sizeof(mi)};
+            GetMonitorInfoW(MonitorFromWindow(host, MONITOR_DEFAULTTONEAREST),
+                            &mi);
+            SetWindowPos(host, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                         mi.rcMonitor.right - mi.rcMonitor.left,
+                         mi.rcMonitor.bottom - mi.rcMonitor.top,
+                         SWP_FRAMECHANGED | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
+          } else if (!enabled && g_fullscreen) {
+            g_fullscreen = false;
+            SetWindowPlacement(host, &fullscreen_restore_);
+          }
         } else {
           result->NotImplemented();
           return;
@@ -212,10 +287,9 @@ bool FlutterWindow::OnCreate() {
 void FlutterWindow::ArmExitWatchdog(bool save_geometry) {
   if (watchdog_armed_) return;
   watchdog_armed_ = true;
-  const HWND host = GetHandle();
   const NOTIFYICONDATAW tray = tray_;
   const RECT rect = normal_rect_;
-  const bool maximized = IsZoomed(host) != FALSE;
+  const bool maximized = SavedZoomed();
   std::thread([tray, rect, maximized, save_geometry]() {
     Sleep(3000);
     if (save_geometry) SaveGeometry(rect, maximized);
@@ -308,8 +382,15 @@ void FlutterWindow::RestoreFromTray() {
   }
 }
 
+// En pantalla completa la ventana no esta «maximizada» para Windows: el estado
+// a guardar es el que tenia antes de entrar.
+bool FlutterWindow::SavedZoomed() {
+  return g_fullscreen ? fullscreen_restore_.showCmd == SW_SHOWMAXIMIZED
+                      : IsZoomed(GetHandle()) != FALSE;
+}
+
 void FlutterWindow::HideToTray() {
-  SaveGeometry(normal_rect_, IsZoomed(GetHandle()));
+  SaveGeometry(normal_rect_, SavedZoomed());
   ShowWindow(GetHandle(), SW_HIDE);
 }
 
@@ -411,7 +492,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       return 0;
     }
   } else if (message == WM_CLOSE) {
-    SaveGeometry(normal_rect_, IsZoomed(hwnd));
+    SaveGeometry(normal_rect_, SavedZoomed());
   } else if (message == WM_TIMER && wparam == kCloseTimer) {
     KillTimer(hwnd, kCloseTimer);
     if (close_request_pending_) {
@@ -460,7 +541,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     return DefWindowProc(hwnd, message, wparam, -1);
   } else if (message == WM_NCPAINT) {
     return 0;  // no hay marco no cliente que pintar
-  } else if (message == WM_NCHITTEST && !IsZoomed(hwnd)) {
+  } else if (message == WM_NCHITTEST && !IsZoomed(hwnd) && !g_fullscreen) {
     const LRESULT hit = DefWindowProc(hwnd, message, wparam, lparam);
     return hit != HTCLIENT ? hit : EdgeHit(hwnd, lparam);
   } else if (message == WM_NCCALCSIZE && wparam) {
@@ -468,7 +549,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     // (ni arriba ni a los lados) que DWM pinte al activar o redimensionar.
     return 0;
   } else if ((message == WM_MOVE || message == WM_SIZE) && IsWindowVisible(hwnd) &&
-             !IsZoomed(hwnd) && !IsIconic(hwnd)) {
+             !IsZoomed(hwnd) && !IsIconic(hwnd) && !mini_active_ &&
+             !g_fullscreen) {
     GetWindowRect(hwnd, &normal_rect_);
   }
 

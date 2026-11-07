@@ -27,9 +27,13 @@ class _JamQrPainter extends CustomPainter {
     final scale = (size.shortestSide / cells).floorToDouble().clamp(1.0, 100.0);
     final left = (size.width - scale * cells) / 2;
     final top = (size.height - scale * cells) / 2;
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    // Fijos en cualquier tema: un QR solo se escanea en negro sobre blanco.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xffffffff),
+    );
     final ink = Paint()
-      ..color = Colors.black
+      ..color = const Color(0xff000000)
       ..isAntiAlias = false;
     for (var y = 0; y < matrix.height; y++) {
       for (var x = 0; x < matrix.width; x++) {

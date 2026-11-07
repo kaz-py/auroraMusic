@@ -180,14 +180,22 @@ ThemeData modernTheme(Brightness brightness, Color accent) {
       backgroundColor: scheme.surfaceContainerHighest,
       selectedColor: scheme.primary,
       checkmarkColor: scheme.onPrimary,
+      // Seleccionado el fondo es primary: el texto pasa a onPrimary (también
+      // en FilterChip, que no usa secondaryLabelStyle).
       labelStyle: TextStyle(
-        color: scheme.onSurface,
+        color: WidgetStateColor.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? scheme.onPrimary
+              : scheme.onSurface,
+        ),
         fontWeight: FontWeight.w500,
       ),
       secondaryLabelStyle: TextStyle(
         color: scheme.onPrimary,
         fontWeight: FontWeight.w500,
       ),
+      // Alto >= 40 para el toque en móvil (el texto mide 14: 14 + 2 * 13 = 40).
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
       side: BorderSide(color: scheme.outline, width: 1.5),
       shape: shape(8),
     ),
@@ -282,6 +290,18 @@ ThemeData modernTheme(Brightness brightness, Color accent) {
       thumbColor: scheme.tertiary,
       inactiveTrackColor: scheme.outline.withValues(alpha: .5),
       overlayColor: scheme.tertiary.withValues(alpha: .14),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      elevation: 0,
+      backgroundColor: navy,
+      contentTextStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: mint,
+      shape: shape(8),
     ),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),

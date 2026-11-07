@@ -1,0 +1,5 @@
+scripts/linux/*.sh text eol=lf
+linux/packaging/*.desktop text eol=lf
+
+scripts/hooks/* text eol=lf
+scripts/install_hooks.sh text eol=lf

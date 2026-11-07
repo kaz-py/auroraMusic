@@ -12,8 +12,11 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/ui/studio/home_introduction.dart';
 import 'package:aurora_music/main.dart';
+import 'package:aurora_music/ui/artist_mode.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/jam/jam_page.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
+import 'package:aurora_music/ui/vinyl_player.dart';
 
 import 'support/fakes.dart';
 
@@ -75,7 +78,14 @@ void main() {
     }
   });
 
-  Future<void> mount(WidgetTester tester, Size size, {double scale = 1}) async {
+  // [animated]: deja las animaciones del sistema activas (el análisis del
+  // espectro las exige); el vinilo gira sin fin, así que no se "asienta".
+  Future<void> mount(
+    WidgetTester tester,
+    Size size, {
+    double scale = 1,
+    bool animated = false,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     tester.platformDispatcher.textScaleFactorTestValue = scale;
@@ -89,6 +99,9 @@ void main() {
           data: MediaQueryData(
             size: size,
             textScaler: TextScaler.linear(scale),
+            // El vinilo del mini gira sin fin al sonar: sin animaciones el
+            // giro se detiene y pumpAndSettle termina.
+            disableAnimations: !animated,
           ),
           child: const RepaintBoundary(
             key: ValueKey('ui-review'),
@@ -97,7 +110,19 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    animated
+        ? await tester.pump(const Duration(milliseconds: 500))
+        : await tester.pumpAndSettle();
+  }
+
+  // Móvil sin carril: cola, letras y EQ salen del menú «Más vistas».
+  Future<void> openFromMoreViews(WidgetTester tester, String view) async {
+    await tester.tap(find.byTooltip('Más vistas'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text(view).last);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
   }
 
   Future<void> reveal(WidgetTester tester, Finder target) async {
@@ -411,10 +436,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Letras').first);
     await tester.pumpAndSettle();
-    expect(find.text('Volver'), findsOneWidget);
-    await tester.tap(find.text('Volver'));
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    await tester.tap(find.byTooltip('Salir del modo letra'));
     await tester.pumpAndSettle();
-    expect(find.text('Madrugada acústica'), findsOneWidget);
+    expect(find.byType(ArtistModePage), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -502,10 +527,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Letras'));
     await tester.pumpAndSettle();
-    expect(find.text('Volver'), findsOneWidget);
-    await tester.tap(find.text('Volver'));
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    await tester.tap(find.byTooltip('Salir del modo letra'));
     await tester.pumpAndSettle();
-    expect(find.text('Madrugada acústica'), findsOneWidget);
+    expect(find.byType(ArtistModePage), findsNothing);
     await tester.tap(find.byTooltip('Ajustes'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Cuenta y servicios').first);
@@ -845,18 +870,21 @@ void main() {
         () => controller.playTrack(one, context: [one, two, one]),
       );
       await mount(tester, const Size(320, 800));
-      await tester.tap(find.byType(Artwork).last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Cola de reproducción'));
-      await tester.pumpAndSettle();
+      await openFromMoreViews(tester, 'Cola de reproducción');
       final rows = find.descendant(
         of: find.byType(ReorderableListView),
         matching: find.byType(ListTile),
       );
-      expect(rows, findsNWidgets(2));
+      // El panel muestra la actual aparte y solo «A continuación» en la lista:
+      // con la cola deduplicada [one, two] queda una fila (sin dedupe, dos).
+      expect(controller.queue.map((track) => track.id), ['one', 'two']);
+      expect(find.text('1 canciones'), findsOneWidget);
+      expect(rows, findsNWidgets(1));
       expect(tester.takeException(), isNull);
+      await tester.ensureVisible(rows.at(0));
+      await tester.pumpAndSettle();
       await tester.runAsync(() async {
-        await tester.tap(rows.at(1));
+        await tester.tap(rows.at(0));
         for (var attempt = 0; attempt < 200 && controller.busy; attempt++) {
           await Future<void>.delayed(const Duration(milliseconds: 10));
         }
@@ -879,22 +907,18 @@ void main() {
         context: controller.tracks,
       ),
     );
-    await mount(tester, const Size(320, 800), scale: 2);
+    await mount(tester, const Size(320, 800), scale: 2, animated: true);
     expect(audio.analysisEnabled, isFalse);
-    await tester.tap(find.byType(Artwork).last);
-    await tester.pumpAndSettle();
-    expect(find.text('AHORA SUENA'), findsOneWidget);
-    expect(find.byTooltip('Letras'), findsNWidgets(2));
-    final lyricsButton = find.byTooltip('Letras').last;
-    await tester.ensureVisible(lyricsButton);
-    await tester.tap(lyricsButton);
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text('Letras').last, findsOneWidget);
-    expect(find.text('Volver'), findsOneWidget);
-    final closeLyrics = find.text('Volver');
-    await tester.ensureVisible(closeLyrics);
-    await tester.tap(closeLyrics);
-    await tester.pumpAndSettle();
+    // Tocar el mini abre el reproductor (sección 4, Vinilo).
+    await tester.tap(
+      find.descendant(
+        of: find.byType(MiniPlayerGestures),
+        matching: find.byType(Artwork),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(VinylPlayer), findsOneWidget);
+    expect(find.byType(MiniPlayerGestures), findsNothing);
     expect(audio.analysisEnabled, isTrue);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
@@ -903,32 +927,32 @@ void main() {
     await tester.pump();
     expect(audio.analysisEnabled, isTrue);
     controller.setReducedMotion(true);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(audio.analysisEnabled, isFalse);
     controller.setReducedMotion(false);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(audio.analysisEnabled, isTrue);
     expect(tester.takeException(), isNull);
-    await tester.drag(
-      find.byType(SingleChildScrollView).last,
-      const Offset(0, -650),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Ecualizador'));
-    await tester.pumpAndSettle();
+    // Letras: modo artista (sección 6) y salida con «Salir del modo letra».
+    await openFromMoreViews(tester, 'Letras');
+    expect(audio.analysisEnabled, isFalse);
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    final closeLyrics = find.byTooltip('Salir del modo letra');
+    expect(closeLyrics, findsOneWidget);
+    await tester.tap(closeLyrics);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.takeException(), isNull);
+    // Ecualizador: sus bandas reales caben en 320 dp a 200 % de texto.
+    await openFromMoreViews(tester, 'Ecualizador');
+    expect(audio.analysisEnabled, isTrue);
     expect(find.text('60'), findsOneWidget);
     expect(find.text('12k'), findsOneWidget);
     expect(find.text('Almacenamiento y biblioteca'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('Cerrar ecualizador'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-      find.byType(SingleChildScrollView).last,
-      const Offset(0, 1000),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Cola de reproducción'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(audio.analysisEnabled, isFalse);
+    await openFromMoreViews(tester, 'Cola de reproducción');
     expect(find.text('A continuación'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

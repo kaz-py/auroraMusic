@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Aurora Music
+Comment=Reproductor de música
+Exec=aurora-music %U
+Icon=com.aurora.aurora_music
+Categories=AudioVideo;Audio;Player;
+StartupWMClass=com.aurora.aurora_music
+Terminal=false

@@ -102,7 +102,9 @@ está entre las últimas 20 reproducidas ni si ya está en la cola de esta
 sesión; las nuevas siguen con la ventana de 7 días de la memoria
 anti-repetición. La cuota se aplica en el motor (`SessionContext.heardShare`,
 la Jam no la usa) y en `rankDjCandidates`. El perfil local sigue mandando en
-la puntuación y el filtro de coherencia de artista no cambia.
+la puntuación; la coherencia de artista (`coherenceGate`, umbral
+`djRelatedThreshold` 0,55, peso `djCoherenceWeight` 1,2) filtra lo no
+relacionado con la semilla tanto en el motor como en `rankDjCandidates`.
 
 ## Variedad de artistas
 

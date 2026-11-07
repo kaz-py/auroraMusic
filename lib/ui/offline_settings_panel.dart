@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../core/models.dart';
+import '../theme/slush_theme.dart';
 
 class OfflineSettingsPanel extends StatelessWidget {
   const OfflineSettingsPanel({
@@ -88,6 +89,7 @@ class _OfflineTrackPickerState extends State<_OfflineTrackPicker> {
           ),
         )
         .toList();
+    final slush = isSlush(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -95,46 +97,67 @@ class _OfflineTrackPickerState extends State<_OfflineTrackPicker> {
         16,
         MediaQuery.viewInsetsOf(context).bottom + 16,
       ),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .65,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Descargar para escuchar sin conexión',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Filtrar canciones',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (value) => setState(() => query = value),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: matches.isEmpty
-                  ? const Center(child: Text('No hay canciones que coincidan.'))
-                  : ListView.builder(
-                      itemCount: matches.length,
-                      itemBuilder: (context, index) {
-                        final track = matches[index];
-                        return ListTile(
-                          title: Text(track.title),
-                          subtitle: Text(track.artist),
-                          trailing: const Icon(Icons.download_outlined),
-                          enabled: !submitting,
-                          onTap: () async {
-                            setState(() => submitting = true);
-                            await widget.onDownload(track);
-                            if (context.mounted) Navigator.pop(context);
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: slush ? 560 : double.infinity,
+            maxHeight: MediaQuery.sizeOf(context).height * .65,
+          ),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .65,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Descargar para escuchar sin conexión',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Filtrar canciones',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) => setState(() => query = value),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: matches.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No hay canciones que coincidan.',
+                            style: slush
+                                ? TextStyle(color: context.slush.ink2)
+                                : null,
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: matches.length,
+                          itemBuilder: (context, index) {
+                            final track = matches[index];
+                            return ListTile(
+                              minTileHeight: 56,
+                              title: Text(track.title),
+                              subtitle: Text(
+                                track.artist,
+                                style: slush
+                                    ? TextStyle(color: context.slush.ink2)
+                                    : null,
+                              ),
+                              trailing: const Icon(Icons.download_outlined),
+                              enabled: !submitting,
+                              onTap: () async {
+                                setState(() => submitting = true);
+                                await widget.onDownload(track);
+                                if (context.mounted) Navigator.pop(context);
+                              },
+                            );
                           },
-                        );
-                      },
-                    ),
+                        ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

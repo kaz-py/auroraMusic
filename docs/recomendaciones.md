@@ -57,7 +57,7 @@ inexistente rechazada correctamente.
   y señales completó/saltó con decaimiento de 14 días; repetir suma). Si los
   `Track` traen géneros de Spotify, entran como características `g:`.
 * **Candidatos** por cubo (cuotas configurables en `mix`): similar 50 %,
-  adjacent 30 %, discovery 15 %, classics 5 %, más la radio de YouTube de la
+  adjacent 30 %, discovery 0,05 (el cubo `classics` se eliminó), más la radio de YouTube de la
   pista actual (`extraCandidates`, cubo `radio`, sin cuota).
   `spotifyRecSources()` (`lib/metadata/spotify_recs.dart`) los alimenta con
   Spotify y los empareja con YouTube: top tracks de tus artistas, artistas del
@@ -141,20 +141,50 @@ del título, alias opcionales, género/década de los metadatos que ya haya
 MusicBrainz ni co-ocurrencia global (requieren red/datos externos).
 
 **Implementación** (`lib/dj/coherence.dart`): `scoreCoherence(track, ctx)` →
-`CoherenceResult(score 0..1, reason, hardReject)`; `CoherenceFilter.rank(
-candidates, ctx)` acepta candidatos de cualquier cubo (radio incluida), ordena y
-solo descarta rechazos duros (artista distinto, el nombre semilla solo en el
-título y sin género común) mientras quede alguno; nunca vacía. `SuggestionsApi`
-la aplica a todo (cola, DJ, Jam): `djCoherenceWeight` en la relevancia y
-`Suggestion.coherence`/`coherenceReason`; el rechazo duro solo actúa si quedan
-≥ `limit` candidatos limpios.
+`CoherenceResult(score 0..1, reason, hardReject)`. Puntuaciones: artista
+principal 0,95; colaboración 0,85; vecino del grafo 0,75 («Artista afín»);
+género compartido 0,60; sin relación 0,25; la década suma/resta ±0,05. Umbral
+de «relacionado»: `djRelatedThreshold` = 0,55. La coherencia pesa en la
+relevancia con `djCoherenceWeight` = 1,2 (`weight·(score−0,5)`) y se expone en
+`Suggestion.coherence`/`coherenceReason`.
+
+`coherenceGate` (compartida por `SuggestionsApi` y `rankDjCandidates`): lo
+relacionado (≥ umbral) entra siempre; lo no relacionado, sin rechazos duros,
+entra solo en el número exacto que falta para completar `limit`, con tope por
+artista. Nunca vacía. `seedCoherence` construye el contexto de la semilla
+(pista actual, favoritos, escuchados, vecinos y etiquetas del grafo); ya no
+usa `queueTail`.
+
+**Relleno relajado (1.5.0)**: al completar con no relacionados, `coherenceGate`
+recibe `lastResort` (cubo `discovery`): esos van al final y solo entran si no
+queda otro candidato no relacionado (radio/similar/adjacent/lastfm primero);
+dentro de cada grupo, mayor puntuación y luego posición original. Así el
+descubrimiento de Spotify (fuera de perfil a propósito) ya no desplaza a la
+radio del mismo género.
+
+**Segundo salto**: `seedCoherence` añade como vecinos a los artistas que salen
+en las listas de 2+ vecinos de la semilla. Solo lee la caché del grafo (cero
+red extra); tiene efecto cuando esos vecinos ya están calentados. Género
+compartido de Spotify ya puntuaba como relacionado (`Track.genres`).
+
+**`ArtistGraph`** (`lib/dj/artist_graph.dart`): vecinos por artista desde
+artistas relacionados de YT Music y similares + etiquetas de Last.fm. Caché en
+prefs (`artistGraph`): TTL 14 d, fallos 1 h, máx. 400 entradas (se purgan las
+más antiguas). Calentamiento con presupuesto de 3 s. `learnCoListened(seed,
+artists)` añade vecinos por coescucha y nunca quita. Los «vecinos» que son etiquetas o
+palabras sueltas (`reggaeton urbano`, `latino`, `sky`, `icon`, `fuego`, nombres
+terminados en urbano/latino/songs/hits/playlist; `isGenericArtistName`) se
+descartan al ingerir, al cargar la caché y en las consultas de descubrimiento
+del DJ (`djDiscoveryQueries`). `parseArtistPage` ya solo toma tarjetas
+`MUSIC_PAGE_TYPE_ARTIST`; las etiquetas llegan porque YT las expone como
+canales de artista.
 
 ## Escalera de relajación y diagnóstico (2026-10-19)
 
 `SuggestionsApi.getSuggestions` nunca devuelve menos de lo posible. Escalones, en
 orden: (1) memoria anti-repetición por tramos 1, 1/2, 1/4, 0 de la ventana;
-(2) coherencia: el rechazo duro solo actúa si quedan ≥ `limit` candidatos
-limpios (si no, `coherenceRelaxed`); (3) si faltan pistas, se vuelven a pedir
+(2) coherencia: `coherenceGate` deja entrar lo no relacionado solo para
+completar (si no, `coherenceRelaxed`); (3) si faltan pistas, se vuelven a pedir
 las fuentes con `want` x3 (`ladder: fuentes x3`); (4) se añade TODA la
 biblioteca (`ladder: biblioteca completa`). Repetir lo ya sonado es el tramo 0
 de memoria. `api.lastDiagnostics` (`SuggestionsDiagnostics`) cuenta candidatos

@@ -64,8 +64,10 @@ class _ModernCardState extends State<ModernCard> {
       decoration: BoxDecoration(
         color: fill,
         borderRadius: radius,
-        border: isSlush(context) ? Border.fromBorderSide(Slush.border) : null,
-        boxShadow: isSlush(context) ? Slush.hardShadow : Tracky.warmShadow,
+        border: isSlush(context)
+            ? Border.fromBorderSide(context.slush.border)
+            : null,
+        boxShadow: isSlush(context) ? context.slush.shadows : Tracky.warmShadow,
       ),
       child: Material(
         type: MaterialType.transparency,

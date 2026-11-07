@@ -33,6 +33,9 @@ void SaveGeometry(const RECT& normal_rect, bool maximized);
 // actual (sin tapar la barra de tareas, incluso autoocultada) y tamano minimo.
 void FillMinMaxInfo(HWND hwnd, MINMAXINFO* info);
 
+// Activa el tamano minimo del modo mini (ventana compacta) en FillMinMaxInfo.
+void SetMiniMode(bool enabled);
+
 std::wstring WideFromUtf8(const std::string& utf8);
 
 #endif  // RUNNER_DESKTOP_FEATURES_H_

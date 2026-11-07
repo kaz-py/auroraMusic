@@ -184,12 +184,17 @@ class StudioTitleBar extends StatelessWidget {
                             : colors.outline,
                       ),
                       const SizedBox(width: 4),
-                      StudioStamp(sessionText),
+                      StudioStamp(
+                        sessionText,
+                        color: modern && activeSession ? Tracky.navy : null,
+                      ),
                       const SizedBox(width: 4),
                       Icon(
                         Icons.circle,
                         size: 6,
-                        color: activeSession
+                        color: modern && activeSession
+                            ? Tracky.navy
+                            : activeSession
                             ? colors.primaryContainer
                             : colors.outline,
                       ),
@@ -581,13 +586,13 @@ class StudioSidebar extends StatelessWidget {
                           style: TextButton.styleFrom(
                             alignment: Alignment.centerLeft,
                             foregroundColor: isSlush(context)
-                                ? Slush.ink
+                                ? context.slush.ink
                                 : colors.onSurfaceVariant,
                             backgroundColor: isSlush(context)
-                                ? Colors.white
+                                ? context.slush.paper
                                 : null,
                             shape: isSlush(context)
-                                ? const StadiumBorder(side: Slush.border)
+                                ? StadiumBorder(side: context.slush.border)
                                 : null,
                           ),
                           onPressed: () => onPlaylist(playlist),
@@ -850,7 +855,7 @@ class StudioSidebar extends StatelessWidget {
     if (isModern(context)) {
       final slush = isSlush(context);
       final fg = slush
-          ? Slush.ink
+          ? (chosen ? Slush.ink : context.slush.ink)
           : chosen
           ? colors.onPrimary
           : colors.onSurfaceVariant;
@@ -860,18 +865,18 @@ class StudioSidebar extends StatelessWidget {
           message: tooltip,
           child: Material(
             color: slush
-                ? (chosen ? Slush.mint : Colors.white)
+                ? (chosen ? Slush.mint : context.slush.paper)
                 : chosen
                 ? colors.primary
                 : Colors.transparent,
             shape: slush
-                ? const StadiumBorder(side: Slush.border)
+                ? StadiumBorder(side: context.slush.border)
                 : const StadiumBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: () => onNavigate(index),
               child: Container(
-                constraints: const BoxConstraints(minHeight: 42),
+                constraints: BoxConstraints(minHeight: slush ? 44 : 42),
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: [
@@ -895,8 +900,8 @@ class StudioSidebar extends StatelessWidget {
                       Text(
                         shortcut,
                         style: TextStyle(
-                          fontSize: 11,
-                          color: fg.withValues(alpha: slush ? 1 : .6),
+                          fontSize: slush ? 12 : 11,
+                          color: fg.withValues(alpha: slush ? 1 : .8),
                         ),
                       ),
                   ],

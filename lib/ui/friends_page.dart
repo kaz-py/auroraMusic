@@ -8,7 +8,12 @@ import '../core/models.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
 import '../theme/slush_theme.dart';
+import '../theme/slush_widgets.dart';
+import 'slush/slush_decor.dart';
+import 'slush/slush_pages.dart';
 import 'undo_snackbar.dart';
+import '../jam/jam_controller.dart';
+import 'friends_chat/friend_chat_views.dart';
 
 /// Avatar genérico (silueta tintada con el acento) cuando no hay foto.
 class FriendAvatar extends StatelessWidget {
@@ -19,10 +24,11 @@ class FriendAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final slush = isSlush(context);
     final fallback = Icon(
       Icons.person,
       size: size * .6,
-      color: isSlush(context) ? Slush.ink : colors.primary,
+      color: slush ? Slush.ink : colors.primary,
     );
     final url = user.avatarUrl;
     return Semantics(
@@ -34,8 +40,10 @@ class FriendAvatar extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.primary.withValues(alpha: .16),
-          border: isSlush(context) ? Border.fromBorderSide(Slush.border) : null,
+          color: slush ? Slush.lilac : colors.primary.withValues(alpha: .16),
+          border: isSlush(context)
+              ? Border.fromBorderSide(context.slush.border)
+              : null,
         ),
         child: url == null
             ? fallback
@@ -63,14 +71,33 @@ String friendsAgo(DateTime t, [DateTime? now]) {
 void _say(BuildContext context, String text) =>
     showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
 
+/// Botón primario Slush: menta con tinta y contorno de control, 44 mínimo.
+ButtonStyle? _mint(BuildContext context) => isSlush(context)
+    ? FilledButton.styleFrom(
+        backgroundColor: Slush.mint,
+        foregroundColor: Slush.ink,
+        minimumSize: const Size(SlushControl.touch, SlushControl.touch),
+        side: context.slush.border,
+      )
+    : null;
+
 class FriendsPage extends ConsumerStatefulWidget {
   const FriendsPage({
     super.key,
     required this.controller,
+    required this.openChat,
     this.onSettings,
     this.onJoinJam,
+    this.jam,
   });
   final AppController controller;
+
+  /// Id del amigo con el chat abierto; `null`, la lista. Lo comparte el shell
+  /// (avisos y «atrás»).
+  final ValueNotifier<String?> openChat;
+
+  /// Jam en curso, para invitar desde el chat.
+  final JamController? jam;
 
   /// Une a la Jam con ese código (la resuelve el shell).
   final Future<void> Function(String code)? onJoinJam;
@@ -86,15 +113,26 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
   int _tab = 0;
   final _query = TextEditingController();
   Timer? _debounce;
-  Timer? _seenTimer;
   List<FriendUser> _results = const [];
   bool _searching = false;
   int _searchToken = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Abrir un chat desde fuera (aviso, botón de un amigo) lleva a «Chats».
+    if (widget.openChat.value != null) _tab = 2;
+    widget.openChat.addListener(_onOpenChat);
+  }
+
+  void _onOpenChat() {
+    if (widget.openChat.value != null && _tab != 2) setState(() => _tab = 2);
+  }
+
+  @override
   void dispose() {
+    widget.openChat.removeListener(_onOpenChat);
     _debounce?.cancel();
-    _seenTimer?.cancel();
     _query.dispose();
     super.dispose();
   }
@@ -132,28 +170,49 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
     if (error != null && mounted) _say(context, error);
   }
 
-  /// Marca como vistas las recibidas tras dos segundos en la pestaña.
-  void _scheduleSeen(FriendsService f) {
-    if (_tab != 2 || f.unseenCount == 0 || _seenTimer?.isActive == true) return;
-    _seenTimer = Timer(const Duration(seconds: 2), () {
-      if (_tab == 2) {
-        f.markSeen([
-          for (final i in f.inbox)
-            if (!i.seen) i.id,
-        ]);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final f = ref.watch(friendsServiceProvider);
     if (!f.signedIn) return _SignedOut(onSettings: widget.onSettings);
-    _scheduleSeen(f);
+    return ValueListenableBuilder<String?>(
+      valueListenable: widget.openChat,
+      builder: (context, openId, _) {
+        final peer = openId == null
+            ? null
+            : f.friends.where((u) => u.id == openId).firstOrNull;
+        if (openId != null && peer == null && !f.loading) {
+          // Ya no es amigo (con la carga hecha): se vuelve a la lista.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.openChat.value == openId) {
+              widget.openChat.value = null;
+            }
+          });
+        }
+        if (peer == null) return _list(f);
+        return FriendChatThread(
+          key: ValueKey('chat-thread-${peer.id}'),
+          friends: f,
+          peer: peer,
+          controller: widget.controller,
+          jam: widget.jam,
+          onJoinJam: widget.onJoinJam,
+          onBack: () => widget.openChat.value = null,
+        );
+      },
+    );
+  }
+
+  Widget _list(FriendsService f) {
     final searching = _query.text.trim().length >= 3;
     return LayoutBuilder(
       builder: (context, box) => ListView(
-        padding: EdgeInsets.all(box.maxWidth >= 700 ? 24 : 16),
+        padding: EdgeInsets.all(
+          isSlush(context)
+              ? SlushSpacing.margin(box.maxWidth)
+              : box.maxWidth >= 700
+              ? 24
+              : 16,
+        ),
         children: [
           Wrap(
             spacing: 8,
@@ -161,7 +220,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             children: [
               _chip(0, 'Amigos'),
               _chip(1, 'Solicitudes', f.incoming.length),
-              _chip(2, 'Recibidas', f.unseenCount),
+              _chip(2, 'Chats', f.unseenCount),
             ],
           ),
           const SizedBox(height: 16),
@@ -191,31 +250,68 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             if (searching) ..._searchResults(f) else ..._friendRows(f),
           ] else if (_tab == 1)
             ..._requestRows(f)
+          else if (f.friends.isEmpty)
+            _empty(
+              'Añade amigos para empezar a chatear.',
+              title: 'Sin chats',
+              icon: Icons.forum_outlined,
+            )
           else
-            ..._inboxRows(f),
+            FriendChatList(
+              friends: f,
+              onOpen: (id) => widget.openChat.value = id,
+            ),
         ],
       ),
     );
   }
 
-  Widget _chip(int i, String label, [int badge = 0]) => ChoiceChip(
-    key: ValueKey('friends-tab-$i'),
-    selected: _tab == i,
-    label: Text(badge > 0 ? '$label · $badge' : label),
-    onSelected: (_) => setState(() {
-      _tab = i;
-      _seenTimer?.cancel();
-    }),
-  );
+  Widget _chip(int i, String label, [int badge = 0]) {
+    final text = badge > 0 ? '$label · $badge' : label;
+    void select() => setState(() => _tab = i);
+    if (isSlush(context)) {
+      return SlushChip(
+        text,
+        key: ValueKey('friends-tab-$i'),
+        color: context.slush.paper,
+        selected: _tab == i,
+        onTap: select,
+      );
+    }
+    return ChoiceChip(
+      key: ValueKey('friends-tab-$i'),
+      selected: _tab == i,
+      label: Text(text),
+      onSelected: (_) => select(),
+    );
+  }
 
-  Widget _empty(String text) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 32),
-    child: Text(
-      text,
-      textAlign: TextAlign.center,
-      style: Theme.of(context).textTheme.bodyMedium,
-    ),
-  );
+  Widget _empty(
+    String text, {
+    String title = 'Nada por aquí',
+    IconData icon = Icons.people_outline,
+  }) {
+    if (isSlush(context)) {
+      final h = (MediaQuery.sizeOf(context).height * .6).clamp(320.0, 520.0);
+      return SizedBox(
+        height: h,
+        child: SlushEmpty(
+          icon: icon,
+          title: title,
+          message: text,
+          sticker: 'VACÍO',
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+    );
+  }
 
   List<Widget> _searchResults(FriendsService f) {
     if (_searching) {
@@ -226,15 +322,30 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         ),
       ];
     }
-    if (_results.isEmpty) return [_empty('Nadie con ese nombre.')];
+    if (_results.isEmpty) {
+      return [
+        _empty(
+          'Nadie con ese nombre.',
+          title: 'Sin resultados',
+          icon: Icons.person_search_outlined,
+        ),
+      ];
+    }
     return [
       for (final u in _results)
         _UserRow(
           user: u,
           trailing: switch (f.relationTo(u.id)) {
-            'friend' => const Text('Amigos'),
-            'sent' => const Text('Enviada'),
+            'friend' =>
+              isSlush(context)
+                  ? const SlushPill('Amigos', color: Slush.lilac)
+                  : const Text('Amigos'),
+            'sent' =>
+              isSlush(context)
+                  ? const SlushPill('Enviada', color: Slush.yellow)
+                  : const Text('Enviada'),
             'incoming' => FilledButton.tonal(
+              style: _mint(context),
               onPressed: () => _act(() async {
                 final r = f.incoming.firstWhere((r) => r.user.id == u.id);
                 return f.accept(r.id);
@@ -243,6 +354,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
             ),
             _ => FilledButton.tonal(
               key: ValueKey('friends-add-${u.id}'),
+              style: _mint(context),
               onPressed: () => _act(() => f.sendRequest(u.id)),
               child: const Text('Añadir'),
             ),
@@ -257,6 +369,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         _empty(
           'Aún no tienes amigos. Busca a alguien por su nombre de usuario '
           'para enviarle una solicitud.',
+          title: 'Aún sin amigos',
         ),
       ];
     }
@@ -264,11 +377,23 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       for (final u in f.friends)
         _UserRow(
           user: u,
-          trailing: PopupMenuButton<int>(
-            tooltip: 'Opciones de ${u.username}',
-            onSelected: (_) => _confirmRemove(f, u),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 0, child: Text('Eliminar de amigos')),
+          onTap: () => widget.openChat.value = u.id,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: ValueKey('friends-open-chat-${u.id}'),
+                tooltip: 'Abrir chat',
+                icon: const Icon(Icons.chat_bubble_outline),
+                onPressed: () => widget.openChat.value = u.id,
+              ),
+              PopupMenuButton<int>(
+                tooltip: 'Opciones de ${u.username}',
+                onSelected: (_) => _confirmRemove(f, u),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Eliminar de amigos')),
+                ],
+              ),
             ],
           ),
         ),
@@ -300,7 +425,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 
   List<Widget> _requestRows(FriendsService f) {
     if (f.incoming.isEmpty && f.outgoing.isEmpty) {
-      return [_empty('No tienes solicitudes pendientes.')];
+      return [
+        _empty(
+          'No tienes solicitudes pendientes.',
+          title: 'Sin solicitudes',
+          icon: Icons.mark_email_unread_outlined,
+        ),
+      ];
     }
     return [
       for (final r in f.incoming)
@@ -317,6 +448,13 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
                 onPressed: () => _act(() => f.decline(r.id)),
               ),
               IconButton.filledTonal(
+                style: isSlush(context)
+                    ? IconButton.styleFrom(
+                        backgroundColor: Slush.mint,
+                        foregroundColor: Slush.ink,
+                        side: context.slush.border,
+                      )
+                    : null,
                 key: ValueKey('friends-accept-${r.id}'),
                 tooltip: 'Aceptar',
                 icon: const Icon(Icons.check),
@@ -336,316 +474,90 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
         ),
     ];
   }
-
-  List<Widget> _inboxRows(FriendsService f) {
-    if (f.inbox.isEmpty) {
-      return [
-        _empty(
-          'Aquí aparecerán las canciones, listas e invitaciones que te envíen tus amigos.',
-        ),
-      ];
-    }
-    final c = widget.controller;
-    return [
-      for (final item in f.inbox)
-        ListenableBuilder(
-          listenable: c,
-          builder: (context, _) => switch (item.kind) {
-            SharedKind.track => _InboxRow(
-              item: item,
-              liked: c.favoriteIds.contains(item.track.id),
-              onPlay: () => c.playTrack(item.track),
-              onQueue: () async {
-                await c.addToQueue(item.track);
-                if (context.mounted) _say(context, 'Añadida a la cola');
-              },
-              onLike: () => c.toggleFavorite(item.track),
-            ),
-            SharedKind.playlist => _InboxCard(
-              item: item,
-              title: item.playlist!.name,
-              subtitle: '${item.playlist!.tracks.length} canciones',
-              artworkUrl: item.playlist!.artworkUrl,
-              icon: Icons.queue_music,
-              actions: [
-                IconButton(
-                  key: ValueKey('inbox-play-${item.id}'),
-                  tooltip: 'Reproducir',
-                  icon: const Icon(Icons.play_arrow),
-                  onPressed: () => c.playTrack(
-                    item.playlist!.tracks.first,
-                    context: item.playlist!.tracks,
-                  ),
-                ),
-                FilledButton.tonalIcon(
-                  key: ValueKey('inbox-save-${item.id}'),
-                  icon: const Icon(Icons.library_add_outlined, size: 18),
-                  label: const Text('Guardar en mi biblioteca'),
-                  onPressed: () async {
-                    await c.savePlaylistCopy(
-                      item.playlist!.name,
-                      item.playlist!.tracks,
-                    );
-                    if (context.mounted) _say(context, 'Lista guardada');
-                  },
-                ),
-              ],
-            ),
-            SharedKind.jam => _InboxCard(
-              item: item,
-              title: '${item.from.username} te invita a su Jam',
-              subtitle: item.jamExpired()
-                  ? 'Invitación caducada'
-                  : 'Jam en vivo',
-              icon: Icons.groups_outlined,
-              actions: [
-                if (!item.jamExpired() && widget.onJoinJam != null)
-                  FilledButton.icon(
-                    key: ValueKey('inbox-join-${item.id}'),
-                    icon: const Icon(Icons.login, size: 18),
-                    label: const Text('Unirse'),
-                    onPressed: () => widget.onJoinJam!(item.jamCode!),
-                  ),
-              ],
-            ),
-          },
-        ),
-      if (f.hasMoreInbox)
-        Center(
-          child: TextButton(
-            key: const ValueKey('friends-more'),
-            onPressed: f.loadMoreInbox,
-            child: const Text('Cargar más'),
-          ),
-        ),
-    ];
-  }
 }
 
 class _UserRow extends StatelessWidget {
-  const _UserRow({required this.user, this.subtitle, this.trailing});
+  const _UserRow({
+    required this.user,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
   final FriendUser user;
   final String? subtitle;
   final Widget? trailing;
 
-  @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: FriendAvatar(user: user),
-    title: Text(user.username, maxLines: 1, overflow: TextOverflow.ellipsis),
-    subtitle: subtitle == null ? null : Text(subtitle!),
-    trailing: trailing,
-  );
-}
-
-class _InboxRow extends StatelessWidget {
-  const _InboxRow({
-    required this.item,
-    required this.liked,
-    required this.onPlay,
-    required this.onQueue,
-    required this.onLike,
-  });
-  final SharedItem item;
-  final bool liked;
-  final VoidCallback onPlay;
-  final VoidCallback onQueue;
-  final VoidCallback onLike;
+  /// Pulsar en cualquier parte de la fila (los botones del final actúan solos).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final t = item.track;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              FriendAvatar(user: item.from, size: 28),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${item.from.username} · ${friendsAgo(item.createdAt)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.labelMedium,
-                ),
-              ),
-              if (!item.seen)
-                Semantics(
-                  label: 'Nueva',
-                  child: Icon(
-                    Icons.circle,
-                    size: 10,
-                    color: Theme.of(context).colorScheme.primary,
+    if (isSlush(context)) {
+      final p = context.slush;
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: p.divider, width: SlushStroke.divider),
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 60),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: SlushSpacing.s8),
+              child: Row(
+                children: [
+                  FriendAvatar(user: user, size: 44),
+                  const SizedBox(width: SlushSpacing.s12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 16,
+                            height: 1.25,
+                            fontWeight: FontWeight.w800,
+                            color: p.ink,
+                          ),
+                        ),
+                        if (subtitle != null)
+                          Text(
+                            subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600,
+                              color: p.ink2,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.titleSmall,
-                    ),
-                    Text(
-                      t.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall,
-                    ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: SlushSpacing.s8),
+                    trailing!,
                   ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Reproducir',
-                icon: const Icon(Icons.play_arrow),
-                onPressed: onPlay,
-              ),
-              IconButton(
-                tooltip: 'Añadir a la cola',
-                icon: const Icon(Icons.queue_music),
-                onPressed: onQueue,
-              ),
-              IconButton(
-                tooltip: liked ? 'Quitar de favoritos' : 'Añadir a favoritos',
-                icon: Icon(liked ? Icons.favorite : Icons.favorite_border),
-                onPressed: onLike,
-              ),
-            ],
-          ),
-          if (item.note != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '«${item.note}»',
-                style: text.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+                ],
               ),
             ),
-          const Divider(height: 16),
-        ],
-      ),
-    );
-  }
-}
-
-/// Fila de la bandeja para listas e invitaciones a Jam.
-class _InboxCard extends StatelessWidget {
-  const _InboxCard({
-    required this.item,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.actions,
-    this.artworkUrl,
-  });
-  final SharedItem item;
-  final String title;
-  final String subtitle;
-  final String? artworkUrl;
-  final IconData icon;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final colors = Theme.of(context).colorScheme;
-    final art = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 56,
-        height: 56,
-        child: artworkUrl == null
-            ? ColoredBox(
-                color: colors.primary.withValues(alpha: .16),
-                child: Icon(icon, color: colors.primary),
-              )
-            : Image.network(
-                artworkUrl!,
-                fit: BoxFit.cover,
-                cacheWidth: 168,
-                errorBuilder: (_, _, _) => ColoredBox(
-                  color: colors.primary.withValues(alpha: .16),
-                  child: Icon(icon, color: colors.primary),
-                ),
-              ),
-      ),
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              FriendAvatar(user: item.from, size: 28),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${item.from.username} · ${friendsAgo(item.createdAt)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.labelMedium,
-                ),
-              ),
-              if (!item.seen)
-                Semantics(
-                  label: 'Nueva',
-                  child: Icon(Icons.circle, size: 10, color: colors.primary),
-                ),
-            ],
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              art,
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.titleSmall,
-                    ),
-                    Text(subtitle, style: text.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (actions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: actions,
-              ),
-            ),
-          if (item.note != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '«${item.note}»',
-                style: text.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
-              ),
-            ),
-          const Divider(height: 16),
-        ],
-      ),
+        ),
+      );
+    }
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: FriendAvatar(user: user),
+      title: Text(user.username, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: trailing,
+      onTap: onTap,
     );
   }
 }
@@ -655,33 +567,49 @@ class _SignedOut extends StatelessWidget {
   final VoidCallback? onSettings;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
+  Widget build(BuildContext context) {
+    if (isSlush(context)) {
+      return KeyedSubtree(
         key: const ValueKey('friends-signin-hint'),
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.people_outline, size: 48),
-          const SizedBox(height: 12),
-          Text(
-            'Crea una cuenta para añadir amigos y enviarles canciones.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          const Text('Ve a Ajustes → Cuenta.', textAlign: TextAlign.center),
-          if (onSettings != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onSettings,
-              child: const Text('Abrir Ajustes'),
+        child: SlushEmpty(
+          icon: Icons.people_outline,
+          title: 'Crea una cuenta para añadir amigos',
+          message:
+              'Crea una cuenta para añadir amigos y enviarles canciones. Ve a Ajustes → Cuenta.',
+          sticker: 'AÚN NO',
+          actionLabel: onSettings == null ? null : 'Abrir Ajustes',
+          onAction: onSettings,
+        ),
+      );
+    }
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          key: const ValueKey('friends-signin-hint'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.people_outline, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Crea una cuenta para añadir amigos y enviarles canciones.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: 8),
+            const Text('Ve a Ajustes → Cuenta.', textAlign: TextAlign.center),
+            if (onSettings != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: onSettings,
+                child: const Text('Abrir Ajustes'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Amigos solo si hay sesión; se reconstruye al iniciar/cerrar sesión. Sin

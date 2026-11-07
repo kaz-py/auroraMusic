@@ -88,6 +88,10 @@ class LyricsService {
   static const timeout = Duration(seconds: 3);
   static const negativeTtl = Duration(hours: 24);
   static const maxCacheFiles = 400;
+
+  /// Una letra guardada más reciente que esto se usa sin consultar la red.
+  static const freshTtl = Duration(days: 30);
+  static const _maxMemory = 64;
   // shortcut: versión fija, no se lee de package_info; actualizar al subir de versión.
   static const userAgent =
       'Aurora/1.4.0 (https://github.com/kaz-py/auroraMusic)';
@@ -98,6 +102,16 @@ class LyricsService {
   bool _disposed = false;
   int _generation = 0;
   final Set<HttpClient> _clients = {};
+
+  // Caché en memoria (LRU): reabrir la pista en la sesión no toca el disco.
+  final Map<String, _Cached> _memory = {};
+
+  void _remember(String key, _Cached? c) {
+    _memory.remove(key);
+    if (c == null) return;
+    _memory[key] = c;
+    if (_memory.length > _maxMemory) _memory.remove(_memory.keys.first);
+  }
 
   // ---- LRC ------------------------------------------------------------
 
@@ -192,10 +206,13 @@ class LyricsService {
     );
   }
 
-  /// Cascada: LRCLIB get → LRCLIB search → lyrics.ovh; la caché local solo
-  /// respalda (red caída, o respuesta lenta mediante [onInterim]) y se corrige
-  /// con cada respuesta nueva. Una letra elegida/importada a mano no se pisa.
-  /// Lanza si todo falló por red y no hay caché.
+  /// Caché primero: una letra guardada hace menos de [freshTtl] (o elegida/
+  /// importada a mano, sin caducidad) se entrega al instante, sin red. Una
+  /// negativa reciente ([negativeTtl]) devuelve «sin letra» sin red. Si la
+  /// guardada caducó, o con [force], va la cascada LRCLIB get → LRCLIB search →
+  /// lyrics.ovh; la caducada respalda (red caída, o respuesta lenta mediante
+  /// [onInterim]) y se corrige con cada respuesta nueva. Una letra manual no se
+  /// pisa salvo con [force]. Lanza si todo falló por red y no hay caché.
   Future<LyricsResult> load(
     Track track,
     Directory root, {
@@ -213,6 +230,9 @@ class LyricsService {
         return none; // LRCLIB ya confirmó que no existe hace menos de 24 h
       }
       if (cached.manual && !cached.negative) return cached.result.asCached();
+      if (!cached.negative && now().difference(cached.at) < freshTtl) {
+        return cached.result.asCached();
+      }
     }
     final backup = cached == null || cached.negative
         ? null
@@ -494,6 +514,21 @@ class LyricsService {
       File(p.join(root.path, 'lyrics', '${_hash(track.id)}.json'));
 
   Future<_Cached?> _readCache(Track track, Directory root) async {
+    final mem = _memoryKey(track, root);
+    final hot = _memory[mem];
+    if (hot != null) {
+      _remember(mem, hot); // refresca el orden LRU
+      return hot;
+    }
+    final read = await _readDisk(track, root);
+    _remember(mem, read);
+    return read;
+  }
+
+  String _memoryKey(Track track, Directory root) =>
+      '${root.path}|${_key(track)}';
+
+  Future<_Cached?> _readDisk(Track track, Directory root) async {
     try {
       final file = _file(track, root);
       if (await file.exists() && await file.length() <= maxBytes * 2) {
@@ -545,22 +580,36 @@ class LyricsService {
     LyricsResult r, {
     String? raw,
     bool manual = false,
-  }) => _write(track, root, {
-    if (manual) 'manual': true,
-    'k': _key(track),
-    'at': now().millisecondsSinceEpoch,
-    'source': r.source,
-    'confidence': r.confidence.name,
-    if (r.kind == LyricsKind.instrumental) 'instrumental': true,
-    'synced': r.kind == LyricsKind.synced,
-    'content': raw ?? _serialize(r),
-  });
+  }) {
+    final at = now();
+    _remember(
+      _memoryKey(track, root),
+      r.kind == LyricsKind.notFound ? null : _Cached(r, at, manual: manual),
+    );
+    return _write(track, root, {
+      if (manual) 'manual': true,
+      'k': _key(track),
+      'at': at.millisecondsSinceEpoch,
+      'source': r.source,
+      'confidence': r.confidence.name,
+      if (r.kind == LyricsKind.instrumental) 'instrumental': true,
+      'synced': r.kind == LyricsKind.synced,
+      'content': raw ?? _serialize(r),
+    });
+  }
 
-  Future<void> _writeNegative(Track track, Directory root) => _write(
-    track,
-    root,
-    {'k': _key(track), 'at': now().millisecondsSinceEpoch, 'none': true},
-  );
+  Future<void> _writeNegative(Track track, Directory root) {
+    final at = now();
+    _remember(
+      _memoryKey(track, root),
+      _Cached(const LyricsResult(LyricsKind.notFound), at, negative: true),
+    );
+    return _write(track, root, {
+      'k': _key(track),
+      'at': at.millisecondsSinceEpoch,
+      'none': true,
+    });
+  }
 
   static String _serialize(LyricsResult r) {
     if (r.kind == LyricsKind.synced) {
@@ -606,6 +655,51 @@ class LyricsService {
     }
   }
 
+  // ---- sincronía compartida (modo artista y tarjeta de Vinilo) -----------
+
+  /// Reparte las líneas de una letra sin tiempos a lo largo de la pista (sin el
+  /// 6 % inicial ni el 6 % final). Sin duración no hay nada que repartir.
+  static List<LyricLine> spreadLines(String text, Duration total) {
+    final rows = [
+      for (final r in text.split(RegExp(r'\r?\n')))
+        if (r.trim().isNotEmpty) r.trim(),
+    ];
+    if (rows.isEmpty || total <= Duration.zero) return const [];
+    final ms = total.inMilliseconds;
+    return [
+      for (var i = 0; i < rows.length; i++)
+        LyricLine(
+          Duration(
+            milliseconds: (ms * .06 + ms * .88 * i / rows.length).round(),
+          ),
+          rows[i],
+        ),
+    ];
+  }
+
+  /// La letra llegó sin sincronizar: LRCLIB suele tenerla sincronizada pero la
+  /// descarta si la duración difiere más de 3 s (vídeos con intro). Se busca
+  /// entre los candidatos una sincronizada que case con título, artista y una
+  /// duración razonable (±20 s) y se guarda como elegida a mano. `null` si no
+  /// hay ninguna. Los errores se propagan: quien llama decide.
+  Future<LyricsResult?> upgradeToSynced(Track track, Directory root) async {
+    final found = await candidates(track);
+    final total = track.duration.inSeconds;
+    final fits =
+        found
+            .where(
+              (c) =>
+                  c.synced &&
+                  c.score >= .65 &&
+                  (total == 0 || (c.seconds - total).abs() <= 20),
+            )
+            .toList()
+          ..sort((a, b) => b.score.compareTo(a.score));
+    if (fits.isEmpty) return null;
+    final result = await choose(track, root, fits.first);
+    return result.kind == LyricsKind.synced ? result : null;
+  }
+
   // ---- desfase por pista ------------------------------------------------
 
   File _offsetsFile(Directory root) =>
@@ -618,23 +712,6 @@ class LyricsService {
     } catch (_) {
       return 0;
     }
-  }
-
-  Future<void> saveOffset(Track track, Directory root, int ms) async {
-    try {
-      var map = <String, Object?>{};
-      try {
-        final j = jsonDecode(await _offsetsFile(root).readAsString());
-        if (j is Map<String, dynamic>) map = j;
-      } catch (_) {}
-      map.remove(_hash(track.id));
-      if (ms != 0) map[_hash(track.id)] = ms;
-      while (map.length > 500) {
-        map.remove(map.keys.first);
-      }
-      Directory(p.join(root.path, 'lyrics')).createSync(recursive: true);
-      await _offsetsFile(root).writeAsString(jsonEncode(map), flush: true);
-    } catch (_) {}
   }
 
   // ---- importación manual -------------------------------------------------

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../core/models.dart';
 import '../core/source_backend.dart';
+import '../dj/coherence.dart';
 import '../follow/follow_models.dart';
 import 'stream/audio_proxy.dart';
 import 'stream/resolved_stream.dart';
@@ -32,8 +33,7 @@ class InnerTubeSource extends SourceBackend {
        _webFallbackEnabled = webFallback ?? Platform.isWindows,
        _proxyFactory = proxyFactory ?? AudioProxy.start,
        _orchestratorFactory =
-           orchestratorFactory ??
-           (() => StreamOrchestrator(preferMp4a: Platform.isAndroid));
+           orchestratorFactory ?? (() => StreamOrchestrator());
 
   final SourceBackend delegate;
   final InnerTubePost _post;
@@ -42,6 +42,13 @@ class InnerTubeSource extends SourceBackend {
   final StreamOrchestrator Function() _orchestratorFactory;
   // Created on the first YouTube resolve, never in the constructor.
   StreamOrchestrator? _orchestrator;
+  AudioQuality _quality = AudioQuality.high;
+  AudioQuality get audioQuality => _quality;
+  set audioQuality(AudioQuality q) {
+    _quality = q;
+    _orchestrator?.quality = q;
+  }
+
   Future<AudioProxy>? _proxyFuture;
   AudioProxy? _proxy;
   String? _registeredId;
@@ -365,6 +372,19 @@ class InnerTubeSource extends SourceBackend {
     );
   }
 
+  /// Vacío solo si el artista no aparece; los errores de red o de formato se
+  /// propagan para que [ArtistGraph] los registre como fallo.
+  Future<List<String>> relatedArtists(String artist) async {
+    final norm = coherenceNorm(artist);
+    if (norm.isEmpty) return const [];
+    final page = await searchPage(artist, SearchKind.artists);
+    final hit = page.entries
+        .where((e) => coherenceNorm(e.title) == norm)
+        .firstOrNull;
+    if (hit == null) return const [];
+    return (await artistPage(hit.browseId)).relatedArtists;
+  }
+
   static ArtistPage parseArtistPage(Map<String, dynamic> data) {
     final header = data['header'] as Map? ?? const {};
     final head =
@@ -377,6 +397,8 @@ class InnerTubeSource extends SourceBackend {
             as String?;
     final seen = <String>{};
     final releases = <ArtistRelease>[];
+    final related = <String>[];
+    final relatedKeys = <String>{};
     void walk(Object? node) {
       if (node is Map) {
         final row = node['musicTwoRowItemRenderer'];
@@ -388,6 +410,12 @@ class InnerTubeSource extends SourceBackend {
           final title =
               ((row['title']?['runs'] as List?)?.firstOrNull as Map?)?['text']
                   as String?;
+          if (page == 'MUSIC_PAGE_TYPE_ARTIST' &&
+              title != null &&
+              title.trim().isNotEmpty &&
+              relatedKeys.add(title.trim().toLowerCase())) {
+            related.add(title.trim());
+          }
           if (id != null &&
               page == 'MUSIC_PAGE_TYPE_ALBUM' &&
               title != null &&
@@ -424,6 +452,7 @@ class InnerTubeSource extends SourceBackend {
       name: name,
       imageUrl: _artwork(head?['thumbnail']),
       releases: releases,
+      relatedArtists: related,
     );
   }
 
@@ -577,7 +606,8 @@ class InnerTubeSource extends SourceBackend {
     return id != null && _videoId.hasMatch(id) ? id : null;
   }
 
-  StreamOrchestrator get _orch => _orchestrator ??= _orchestratorFactory();
+  StreamOrchestrator get _orch =>
+      _orchestrator ??= _orchestratorFactory()..quality = _quality;
 
   static Duration? _knownDuration(Track track) =>
       track.duration > Duration.zero ? track.duration : null;
@@ -739,7 +769,13 @@ class InnerTubeSource extends SourceBackend {
   void reportPlaybackFailure(String message) {
     final id = _currentVideoId;
     if (id == null) return;
-    final status = RegExp(r'\b(400|401|403|410)\b').firstMatch(message)?[1];
+    var status = RegExp(r'\b(400|401|403|410)\b').firstMatch(message)?[1];
+    // ffmpeg prints "Server returned 4XX Client Error, but not one of
+    // 40{0,1,3,4}" for the 410 the loopback proxy answers on an upstream failure.
+    if (status == null &&
+        RegExp(r'4xx client error', caseSensitive: false).hasMatch(message)) {
+      status = '410';
+    }
     _orchestrator?.reportFailure(
       id,
       httpStatus: status == null ? null : int.parse(status),

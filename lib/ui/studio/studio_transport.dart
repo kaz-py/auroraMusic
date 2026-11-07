@@ -146,22 +146,29 @@ class _StudioTransportState extends State<StudioTransport> {
                       MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () => c.openArtist(track.artist),
-                          child: Text(
-                            c.adPlaying && !jamAudio
-                                ? 'Anuncio · tu canción sigue después'
-                                : jamAudio
-                                ? '${track.artist} · Jam'
-                                : track.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: brasa
-                                  ? Brasa.steel
-                                  : modern
-                                  ? Tracky.slate
-                                  : colors.onSurfaceVariant,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 40),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                c.adPlaying && !jamAudio
+                                    ? 'Anuncio · tu canción sigue después'
+                                    : jamAudio
+                                    ? '${track.artist} · Jam'
+                                    : track.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: brasa
+                                      ? Brasa.steel
+                                      : modern && !isSlush(context)
+                                      ? Tracky.slate
+                                      : colors.onSurfaceVariant,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -243,9 +250,11 @@ class _StudioTransportState extends State<StudioTransport> {
                   icon: const Icon(StudioSymbols.groups, size: 18),
                 );
           final bar = Container(
+            // Slush: en filas apiladas la cápsula completa recorta tiempos y
+            // botones en las esquinas; allí radio menor y más margen lateral.
             padding: EdgeInsets.symmetric(
-              horizontal: wide ? 24 : 12,
-              vertical: wide ? 8 : 6,
+              horizontal: wide ? 24 : (isSlush(context) ? 20 : 12),
+              vertical: wide ? 8 : (isSlush(context) ? 8 : 6),
             ),
             decoration: brasa
                 ? const BoxDecoration(
@@ -254,9 +263,11 @@ class _StudioTransportState extends State<StudioTransport> {
                   )
                 : isSlush(context)
                 ? BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.fromBorderSide(Slush.border),
+                    color: context.slush.paper,
+                    borderRadius: BorderRadius.circular(
+                      wide ? SlushRadius.pill : SlushRadius.r32,
+                    ),
+                    border: Border.fromBorderSide(context.slush.border),
                   )
                 : modern
                 ? BoxDecoration(
@@ -490,13 +501,13 @@ class _StudioTransportState extends State<StudioTransport> {
         activeTrackColor: brasa || modern ? ink : null,
         inactiveTrackColor: brasa
             ? Brasa.ash
-            : modern
+            : modern && !isSlush(context)
             ? Tracky.slate.withValues(alpha: .28)
             : null,
         thumbColor: brasa
             ? Brasa.cream
             : isSlush(context)
-            ? Slush.yellow
+            ? context.slush.violetAccent
             : modern
             ? Tracky.coral
             : null,
@@ -621,13 +632,13 @@ class TransportPlayButton extends StatelessWidget {
       return Tooltip(
         message: tip,
         child: SizedBox.square(
-          dimension: brasa ? 36 : 40,
+          dimension: isSlush(context) ? SlushControl.touch : 40,
           child: Material(
             color: enabled
                 ? (brasa
                       ? Brasa.cream
                       : isSlush(context)
-                      ? Slush.ink
+                      ? context.slush.ink
                       : Tracky.mint)
                 : colors.surfaceContainerHigh,
             shape: const CircleBorder(),
@@ -643,7 +654,11 @@ class TransportPlayButton extends StatelessWidget {
                       padding: const EdgeInsets.all(11),
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: brasa ? Colors.black : Tracky.navy,
+                        color: brasa
+                            ? Colors.black
+                            : isSlush(context)
+                            ? context.slush.paper
+                            : Tracky.navy,
                       ),
                     )
                   : Icon(
@@ -654,7 +669,7 @@ class TransportPlayButton extends StatelessWidget {
                           ? (brasa
                                 ? Colors.black
                                 : isSlush(context)
-                                ? Colors.white
+                                ? context.slush.paper
                                 : Tracky.navy)
                           : colors.outline,
                       size: brasa ? 22 : 24,

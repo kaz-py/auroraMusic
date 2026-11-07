@@ -2,7 +2,8 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/studio/equalizer_panel.dart';
-import 'package:aurora_music/ui/studio/studio_transport.dart';
+import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
+import 'package:aurora_music/ui/vinyl_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,25 +79,32 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  testWidgets('the button is on home, vinyl, queue, lyrics and Jam', (
-    tester,
-  ) async {
+  // Botón de EQ del mini (carril ancho): tooltip «Ecualizador…».
+  final miniEqButton = find.descendant(
+    of: find.byType(MiniPlayerGestures),
+    matching: find.byWidgetPredicate(
+      (w) => w is Tooltip && (w.message?.startsWith('Ecualizador') ?? false),
+    ),
+  );
+
+  testWidgets('the mini EQ button is on home, queue and Jam', (tester) async {
     await mount(tester, const Size(1400, 900));
     for (final (key, shift) in [
       (LogicalKeyboardKey.digit1, false), // inicio
-      (LogicalKeyboardKey.keyI, false), // vinilo
       (LogicalKeyboardKey.keyQ, true), // cola
-      (LogicalKeyboardKey.keyL, false), // letras (página)
       (LogicalKeyboardKey.keyJ, false), // Jam
     ]) {
       await chord(tester, key, shift: shift);
-      expect(
-        find.byType(TransportEqualizerButton),
-        findsWidgets,
-        reason: 'section for $key',
-      );
+      expect(miniEqButton, findsOneWidget, reason: 'section for $key');
       expect(tester.takeException(), isNull);
     }
+    // Vinilo: el mini se oculta por contrato; Ctrl+E sigue abriendo la hoja.
+    await chord(tester, LogicalKeyboardKey.keyI);
+    expect(find.byType(VinylPlayer), findsOneWidget);
+    expect(find.byType(MiniPlayerGestures), findsNothing);
+    await chord(tester, LogicalKeyboardKey.keyE);
+    expect(find.byType(EqualizerPanel), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -107,16 +115,29 @@ void main() {
     await chord(tester, LogicalKeyboardKey.keyQ, shift: true);
     await chord(tester, LogicalKeyboardKey.keyE);
     expect(find.byType(EqualizerPanel), findsOneWidget);
-    expect(find.byType(StudioTransport), findsOneWidget);
+    expect(find.byType(MiniPlayerGestures), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('the "now playing" sheet reuses the same button', (tester) async {
+  testWidgets('the mini EQ button opens the same EQ sheet', (tester) async {
+    await mount(tester, const Size(1400, 900));
+    await chord(tester, LogicalKeyboardKey.keyQ, shift: true);
+    expect(find.byType(EqualizerPanel), findsNothing);
+    await tester.tap(miniEqButton);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(EqualizerPanel), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('tapping the mini on a phone opens the vinyl player', (
+    tester,
+  ) async {
     await mount(tester, const Size(500, 900));
     await tester.tap(find.text(_song.title).last);
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('AHORA SUENA'), findsOneWidget);
-    expect(find.byType(TransportEqualizerButton), findsWidgets);
+    expect(find.byType(VinylPlayer), findsOneWidget);
+    expect(find.byType(MiniPlayerGestures), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

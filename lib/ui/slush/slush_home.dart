@@ -7,10 +7,11 @@ import '../../core/models.dart';
 import '../../theme/slush_theme.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
-import 'slush_decor.dart';
 
-const _ink = Slush.ink;
 const _display = 'Bagel Fat One';
+
+/// Blanco cálido decorativo de los dibujos (no es texto).
+const _cream = Color(0xfffffdf8);
 
 /// «2 h 04» / «45 min» a partir de la suma de duraciones; null si no hay datos.
 String? slushTotalTime(Iterable<Track> tracks) {
@@ -22,8 +23,10 @@ String? slushTotalTime(Iterable<Track> tracks) {
       : '$m min';
 }
 
-/// Inicio de Slush: «PARA TI.» enorme sobre la onda, pegatinas, tarjeta lila
-/// «Mix del día» y botones en píldora. Todo se dibuja, sin imágenes.
+/// Inicio de Slush: «PARA TI.» enorme sobre la cinta, una pegatina, tarjeta
+/// lila «Mix del día» (la tarjeta héroe) y botones en píldora. Todo se
+/// dibuja, sin imágenes. Con texto grande (>= 1,3×) o menos de 340 px el
+/// layout pasa a columna lineal: titular, mix, texto y botones.
 class SlushHome extends StatelessWidget {
   const SlushHome({
     super.key,
@@ -45,75 +48,89 @@ class SlushHome extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final w = box.maxWidth;
+        // Ancho de contenido (sin la barra lateral): 760 equivale a ~840 de
+        // pantalla con el riel.
         final wide = w >= 760;
-        final h = wide ? (w * .4).clamp(420.0, 470.0) : 430.0;
-        final font = wide
-            ? (h * .5).clamp(120.0, 240.0)
-            : (w * .34).clamp(90.0, 150.0);
+        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        final linear = scale > 1.3 || w < 340;
         final time = slushTotalTime(pool);
         final cardW = (w * .21).clamp(200.0, 300.0);
         final covers = [
           for (final t in [...c.recentTracks, ...pool]) t,
         ];
+        final texts = _Cta(
+          onPlay: playAll,
+          onDj: () => c.startDjSession(),
+          onRefresh: c.refreshRecommendations,
+        );
+        if (linear) {
+          final font = (w * .34).clamp(72.0, 150.0);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Headline(font: font),
+              const SizedBox(height: SlushSpacing.s16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _MixCard(
+                  width: math.min(w - 4, 300),
+                  count: pool.length,
+                  time: time,
+                  cover: covers.firstOrNull,
+                  onPlay: pool.isEmpty ? null : playAll,
+                ),
+              ),
+              const SizedBox(height: SlushSpacing.s24),
+              texts,
+            ],
+          );
+        }
+        final h = wide
+            ? (MediaQuery.sizeOf(context).height * .62).clamp(420.0, 640.0)
+            : 430.0 + (scale - 1) * 160;
+        final font = wide
+            ? (h * .5).clamp(120.0, 240.0)
+            : (w * .34).clamp(90.0, 150.0);
         return SizedBox(
           height: h,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               Positioned.fill(
-                left: -24,
-                right: -24,
+                left: -SlushSpacing.s24,
+                right: -SlushSpacing.s24,
                 child: IgnorePointer(
-                  child: CustomPaint(painter: _RibbonPainter(wide ? .14 : .1)),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: 0,
-                child: Semantics(
-                  header: true,
-                  label: 'Para ti',
-                  child: ExcludeSemantics(
-                    child: Text(
-                      'PARA\nTI.',
-                      style: TextStyle(
-                        fontFamily: _display,
-                        fontSize: font,
-                        height: .8,
-                        letterSpacing: -font * .02,
-                        color: _ink,
-                        shadows: [
-                          for (final o in const [
-                            Offset(2, 0),
-                            Offset(-2, 0),
-                            Offset(0, 2),
-                            Offset(0, -2),
-                          ])
-                            Shadow(color: _ink, offset: o),
-                        ],
-                      ),
+                  child: CustomPaint(
+                    painter: _RibbonPainter(
+                      wide ? .14 : .1,
+                      context.slush.line,
                     ),
                   ),
                 ),
               ),
+              Positioned(left: 0, top: 0, child: _Headline(font: font)),
+              // Una pegatina por debajo de 700 px; con la cinta y el corazón
+              // no pasan de dos en pantallas anchas.
               Positioned(
                 left: wide ? w * .38 : w * .52,
                 top: h * .02,
                 child: const SlushSticker('NUEVO', size: 92, angle: -.25),
               ),
-              Positioned(
-                left: wide ? w * .2 : w * .3,
-                top: h * (wide ? .56 : .46),
-                child: Transform.rotate(
-                  angle: -.12,
-                  child: const SizedBox(
-                    width: 56,
-                    height: 52,
-                    child: CustomPaint(painter: _HeartPainter()),
+              if (wide) ...[
+                Positioned(
+                  left: w * .2,
+                  top: h * .56,
+                  child: Transform.rotate(
+                    angle: -.12,
+                    child: SizedBox(
+                      width: 56,
+                      height: 52,
+                      child: CustomPaint(
+                        painter: _HeartPainter(context.slush.line),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              if (wide) ...[
                 for (final (i, dx, dy, ang, color) in [
                   (1, .06, .1, -.12, Slush.yellow),
                   (2, .03, .2, .2, Slush.mint),
@@ -144,99 +161,8 @@ class SlushHome extends StatelessWidget {
                     ),
                   ),
                 ),
-                Positioned(
-                  right: -w * .01,
-                  top: h * .2,
-                  child: Transform.rotate(
-                    angle: .5,
-                    child: const SizedBox(
-                      width: 52,
-                      height: 60,
-                      child: CustomPaint(painter: _ArrowPainter()),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: w * .5,
-                  top: h * .04,
-                  child: const SlushDecor(SlushShape.bolt, size: 46),
-                ),
-                Positioned(
-                  left: w * .34,
-                  top: h * .6,
-                  child: const SlushDecor(
-                    SlushShape.star,
-                    size: 30,
-                    color: Slush.mint,
-                    angle: .3,
-                  ),
-                ),
-                Positioned(
-                  left: w * .56,
-                  top: h * .58,
-                  child: const SlushDecor(SlushShape.dots, size: 44),
-                ),
-                Positioned(
-                  right: w * .34,
-                  top: h * .08,
-                  child: const SlushDecor(
-                    SlushShape.star,
-                    size: 24,
-                    color: Slush.lilac,
-                  ),
-                ),
-                Positioned(
-                  left: w * .44,
-                  top: h * .8,
-                  child: Transform.rotate(angle: -.14, child: const _DjTag()),
-                ),
-                Positioned(
-                  right: w * .01,
-                  top: h * .84,
-                  child: const _NoteDisc(),
-                ),
               ],
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Una mezcla de tus favoritos, listas y escuchas recientes.',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _PillButton(
-                          'REPRODUCIR TODO',
-                          Icons.play_arrow_rounded,
-                          playAll,
-                          dark: true,
-                        ),
-                        _PillButton(
-                          'ABRIR DJ AUROR',
-                          Icons.auto_awesome,
-                          () => c.startDjSession(),
-                        ),
-                        _PillButton(
-                          'ACTUALIZAR',
-                          Icons.refresh,
-                          c.refreshRecommendations,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              Positioned(left: 0, right: 0, bottom: 0, child: texts),
             ],
           ),
         );
@@ -245,43 +171,147 @@ class SlushHome extends StatelessWidget {
   }
 }
 
-class _PillButton extends StatelessWidget {
-  const _PillButton(this.label, this.icon, this.onTap, {this.dark = false});
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool dark;
+/// «PARA TI.» enorme; el escalado de texto se limita a 1,3×.
+class _Headline extends StatelessWidget {
+  const _Headline({required this.font});
+  final double font;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: dark ? _ink : Colors.white,
-    shape: const StadiumBorder(side: BorderSide(color: _ink, width: 2)),
-    child: InkWell(
-      customBorder: const StadiumBorder(),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: dark ? Colors.white : _ink),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .3,
-                color: dark ? Colors.white : _ink,
-              ),
+  Widget build(BuildContext context) {
+    final ink = context.slush.ink;
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.3,
+      child: Semantics(
+        header: true,
+        label: 'Para ti',
+        child: ExcludeSemantics(
+          child: Text(
+            'PARA\nTI.',
+            style: TextStyle(
+              fontFamily: _display,
+              fontSize: font,
+              height: .8,
+              letterSpacing: -font * .02,
+              color: ink,
+              shadows: [
+                for (final o in const [
+                  Offset(1.5, 0),
+                  Offset(-1.5, 0),
+                  Offset(0, 1.5),
+                  Offset(0, -1.5),
+                ])
+                  Shadow(color: ink, offset: o),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Frase y botones de la parte baja del Inicio.
+class _Cta extends StatelessWidget {
+  const _Cta({
+    required this.onPlay,
+    required this.onDj,
+    required this.onRefresh,
+  });
+  final VoidCallback onPlay;
+  final VoidCallback onDj;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        'Una mezcla de tus favoritos, listas y escuchas recientes.',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+          height: 1.4,
+          color: context.slush.ink,
+        ),
+      ),
+      const SizedBox(height: SlushSpacing.s12),
+      // El hueco extra abajo/derecha deja sitio a la sombra de los botones.
+      Padding(
+        padding: const EdgeInsets.only(right: 3, bottom: 4),
+        child: Wrap(
+          spacing: SlushSpacing.s12,
+          runSpacing: SlushSpacing.s12,
+          children: [
+            _PillButton(
+              'REPRODUCIR TODO',
+              Icons.play_arrow_rounded,
+              onPlay,
+              primary: true,
+            ),
+            _PillButton('ABRIR DJ AUROR', Icons.auto_awesome, onDj),
+            _PillButton('ACTUALIZAR', Icons.refresh, onRefresh),
           ],
         ),
       ),
-    ),
+    ],
   );
 }
 
+/// Botón en píldora de 48 de alto. El primario es menta (una acción
+/// principal por vista); los demás, papel.
+class _PillButton extends StatelessWidget {
+  const _PillButton(this.label, this.icon, this.onTap, {this.primary = false});
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    final fill = primary ? Slush.mint : p.paper;
+    final fg = primary ? Slush.ink : p.ink;
+    return SlushPressable(
+      onTap: onTap,
+      minSize: SlushControl.bar,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: fill,
+          shape: StadiumBorder(side: p.border),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: SlushControl.bar),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: fg),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .3,
+                      color: fg,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta héroe: la única con sombra de color (menta) en oscuro.
 class _MixCard extends StatelessWidget {
   const _MixCard({
     required this.width,
@@ -297,80 +327,108 @@ class _MixCard extends StatelessWidget {
   final VoidCallback? onPlay;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: width,
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Slush.lilac,
-      borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: _ink, width: 2.5),
-      boxShadow: Slush.hardShadow,
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AspectRatio(
-          aspectRatio: 1.08,
-          child: ExcludeSemantics(
-            child: cover == null
-                ? CustomPaint(painter: const _CoverPainter())
-                : LayoutBuilder(
-                    builder: (_, b) => ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Artwork(
-                        track: cover!,
-                        size: b.maxWidth,
-                        radius: 0,
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(SlushSpacing.s12),
+      decoration: BoxDecoration(
+        color: Slush.lilac,
+        borderRadius: BorderRadius.circular(SlushRadius.r32),
+        border: Border.fromBorderSide(p.border),
+        boxShadow: dark
+            ? const [BoxShadow(color: Slush.mint, offset: Offset(3, 4))]
+            : p.shadows,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.08,
+            child: ExcludeSemantics(
+              child: cover == null
+                  ? const CustomPaint(painter: _CoverPainter())
+                  : LayoutBuilder(
+                      builder: (_, b) => ClipRRect(
+                        // Concéntrico: 32 - 12 de padding.
+                        borderRadius: BorderRadius.circular(20),
+                        child: Artwork(
+                          track: cover!,
+                          size: b.maxWidth,
+                          radius: 0,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: SlushSpacing.s12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'MIX DEL DÍA',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.2,
+                        letterSpacing: .3,
+                        fontWeight: FontWeight.w800,
+                        color: Slush.ink,
+                      ),
+                    ),
+                    Text(
+                      time == null
+                          ? '$count canciones'
+                          : '$count canciones · $time',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        fontWeight: FontWeight.w800,
+                        color: Slush.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: SlushSpacing.s8),
+              Tooltip(
+                message: 'Reproducir mix',
+                child: SlushPressable(
+                  onTap: onPlay,
+                  radius: SlushRadius.pill,
+                  elevation: SlushElevation.none,
+                  semanticLabel: 'Reproducir mix',
+                  child: DecoratedBox(
+                    decoration: const ShapeDecoration(
+                      color: Slush.ink,
+                      shape: CircleBorder(),
+                    ),
+                    child: const SizedBox.square(
+                      dimension: SlushControl.touch,
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: _cream,
+                        size: 28,
                       ),
                     ),
                   ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'MIX DEL DÍA',
-                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
-                  ),
-                  Text(
-                    time == null
-                        ? '$count canciones'
-                        : '$count canciones · $time',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Tooltip(
-              message: 'Reproducir mix',
-              child: Material(
-                color: _ink,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: onPlay,
-                  child: const SizedBox.square(
-                    dimension: 40,
-                    child: Icon(Icons.play_arrow_rounded, color: Colors.white),
-                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _StackCard extends StatelessWidget {
@@ -386,72 +444,33 @@ class _StackCard extends StatelessWidget {
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(
       color: color,
-      borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: _ink, width: 2.5),
-      boxShadow: Slush.hardShadow,
+      borderRadius: BorderRadius.circular(SlushRadius.r24),
+      border: Border.fromBorderSide(context.slush.border),
+      boxShadow: context.slush.shadowsFor(SlushElevation.control),
     ),
     child: track == null
         ? null
         : ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Artwork(track: track!, size: width - 20, radius: 0),
+            borderRadius: BorderRadius.circular(SlushRadius.r12),
+            child: Artwork(track: track!, size: width - 24, radius: 0),
           ),
   );
 }
 
-class _DjTag extends StatelessWidget {
-  const _DjTag();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(3),
-    decoration: ShapeDecoration(
-      color: Colors.white,
-      shape: const StadiumBorder(side: BorderSide(color: _ink, width: 2)),
-    ),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-      decoration: ShapeDecoration(
-        color: Slush.lilac,
-        shape: const StadiumBorder(side: BorderSide(color: _ink, width: 2)),
-      ),
-      child: const Text(
-        'DJ AUROR',
-        style: TextStyle(fontFamily: _display, fontSize: 16, color: _ink),
-      ),
-    ),
-  );
-}
-
-class _NoteDisc extends StatelessWidget {
-  const _NoteDisc();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 54,
-    height: 54,
-    decoration: BoxDecoration(
-      color: Slush.yellow,
-      shape: BoxShape.circle,
-      border: Border.all(color: _ink, width: 2.5),
-      boxShadow: Slush.hardShadow,
-    ),
-    child: const Icon(Icons.music_note_rounded, color: _ink, size: 26),
-  );
-}
-
 Paint _fill(Color c) => Paint()..color = c;
-Paint _line(double w) => Paint()
+Paint _line(double w, [Color color = Slush.ink]) => Paint()
   ..style = PaintingStyle.stroke
   ..strokeWidth = w
   ..strokeJoin = StrokeJoin.round
   ..strokeCap = StrokeCap.round
-  ..color = _ink;
+  ..color = color;
 
-/// Cinta azul con bordes negros y líneas blancas, de lado a lado.
+/// Cinta azul con bordes de tinta y una línea clara en el centro, de lado a
+/// lado. Estática.
 class _RibbonPainter extends CustomPainter {
-  const _RibbonPainter(this.thickness);
+  const _RibbonPainter(this.thickness, this.line);
   final double thickness;
+  final Color line;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -465,18 +484,20 @@ class _RibbonPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = width
       ..color = c;
-    canvas.drawPath(path, stroke(t + 8, _ink));
+    canvas.drawPath(path, stroke(t + 8, line));
     canvas.drawPath(path, stroke(t, Slush.blue));
-    canvas.drawPath(path, stroke(t * .55, Colors.white));
+    canvas.drawPath(path, stroke(t * .55, _cream));
     canvas.drawPath(path, stroke(t * .3, Slush.blue));
   }
 
   @override
-  bool shouldRepaint(_RibbonPainter old) => old.thickness != thickness;
+  bool shouldRepaint(_RibbonPainter old) =>
+      old.thickness != thickness || old.line != line;
 }
 
 class _HeartPainter extends CustomPainter {
-  const _HeartPainter();
+  const _HeartPainter(this.line);
+  final Color line;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -487,7 +508,7 @@ class _HeartPainter extends CustomPainter {
       ..cubicTo(w * .9, -h * .1, w * 1.2, h * .5, w / 2, h * .95)
       ..close();
     canvas.drawPath(p, _fill(Slush.orange));
-    canvas.drawPath(p, _line(3));
+    canvas.drawPath(p, _line(3, line));
     canvas.drawArc(
       Rect.fromLTWH(w * .16, h * .2, w * .2, h * .2),
       math.pi,
@@ -497,32 +518,12 @@ class _HeartPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round
-        ..color = Colors.white,
+        ..color = Slush.yellow,
     );
   }
 
   @override
-  bool shouldRepaint(_HeartPainter old) => false;
-}
-
-class _ArrowPainter extends CustomPainter {
-  const _ArrowPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final p = Path()
-      ..moveTo(w * .1, 0)
-      ..lineTo(w, h * .55)
-      ..lineTo(w * .55, h * .62)
-      ..lineTo(w * .4, h)
-      ..close();
-    canvas.drawPath(p, _fill(Slush.violet));
-    canvas.drawPath(p, _line(3));
-  }
-
-  @override
-  bool shouldRepaint(_ArrowPainter old) => false;
+  bool shouldRepaint(_HeartPainter old) => old.line != line;
 }
 
 /// Portada geométrica del mix: ojo concéntrico y sol amarillo.
@@ -533,7 +534,7 @@ class _CoverPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final r = RRect.fromRectAndRadius(
       Offset.zero & size,
-      const Radius.circular(18),
+      const Radius.circular(20),
     );
     canvas.drawRRect(r, _fill(Slush.blue));
     canvas.save();
@@ -541,10 +542,10 @@ class _CoverPainter extends CustomPainter {
     final s = size.shortestSide;
     final c = Offset(size.width * .55, size.height * .58);
     for (final (rad, color, ring) in [
-      (.36, Colors.white, true),
+      (.36, _cream, true),
       (.27, Slush.blue, true),
-      (.2, Colors.white, true),
-      (.1, _ink, false),
+      (.2, _cream, true),
+      (.1, Slush.ink, false),
     ]) {
       canvas.drawCircle(c, s * rad, _fill(color));
       if (ring) canvas.drawCircle(c, s * rad, _line(3));
