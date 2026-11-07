@@ -1,3 +1,5 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RendererBinding;
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/main.dart' show auroraTheme;
 import 'package:aurora_music/ui/mini_player/cover_tone.dart' show coverContrast;
@@ -517,7 +519,7 @@ void main() {
       );
       // La tarjeta (760 px a 900) empieza en x = 70; un cuarto son 190 px.
       final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
-      await tester.tapAt(top + const Offset(70 + 190, 6 + 6));
+      await tester.tapAt(top + const Offset(70 + 190, 6 + 3));
       expect(calls.seeks.single, closeTo(.25, .01));
       expect(
         tester.getSemantics(find.bySemanticsLabel('Posición')),
@@ -540,8 +542,51 @@ void main() {
         state: _state(),
       );
       final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
-      await tester.tapAt(top + const Offset(225, 6));
+      await tester.tapAt(top + const Offset(225, 6 + 3));
       expect(calls.seeks, isEmpty);
+    });
+
+    testWidgets('con el ratón encima la zona de la regla crece a 24 px', (
+      tester,
+    ) async {
+      final calls = await mount(
+        tester,
+        wide: true,
+        width: 900,
+        state: _state(seek: true),
+      );
+      final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+
+      // En reposo la franja es la de la regla: a 18 px no hay zona.
+      await mouse.moveTo(top + const Offset(70 + 190, 6 + 18));
+      await tester.pump(const Duration(milliseconds: 300));
+      await mouse.down(top + const Offset(70 + 190, 6 + 18));
+      await mouse.up();
+      expect(calls.seeks, isEmpty);
+
+      // Sobre la regla: cursor de mano y la zona crece.
+      await mouse.moveTo(top + const Offset(70 + 190, 6 + 3));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.click,
+      );
+      // Con la zona crecida, un clic a 18 px de la regla también busca.
+      await mouse.down(top + const Offset(70 + 190, 6 + 18));
+      await mouse.up();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(calls.seeks.single, closeTo(.25, .01));
+
+      // Fuera de la zona (a 40 px) vuelve a reposo.
+      await mouse.moveTo(top + const Offset(70 + 190, 6 + 40));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        isNot(SystemMouseCursors.click),
+      );
     });
   });
 

@@ -3,6 +3,7 @@ import 'package:aurora_music/theme/modern_theme.dart';
 import 'package:aurora_music/ui/mini_player/cover_tone.dart' show coverContrast;
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/ui/mini_player/modern_mini_player.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -430,6 +431,43 @@ void main() {
       expect(calls.seeks.single, closeTo(.75, .02));
       expect(calls.open, 0);
     });
+
+    testWidgets(
+      'con el ratón encima la zona crece a 24 px y la línea engorda',
+      (tester) async {
+        final calls = await mount(tester);
+        expect(scrubRect(tester).height, 10);
+        double grow() => tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((p) => p.painter)
+            .where((p) => p.runtimeType.toString() == '_LinePainter')
+            .map((p) => (p! as dynamic).grow as double)
+            .single;
+        expect(grow(), 0);
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.moveTo(
+          Offset(scrubRect(tester).center.dx, scrubRect(tester).bottom - 5),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        final r = scrubRect(tester);
+        expect(r.height, 24);
+        expect(grow(), 1);
+        // La línea está a 5 px del borde inferior: 12 px por encima ya es zona.
+        await tester.tapAt(Offset(r.left + r.width * .5, r.bottom - 5 - 12));
+        expect(calls.seeks, hasLength(1));
+        expect(calls.open, 0);
+
+        await mouse.moveTo(Offset.zero);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(scrubRect(tester).height, 10);
+        expect(grow(), 0);
+      },
+    );
 
     testWidgets('arrastrar la línea confirma al soltar y no cambia de pista', (
       tester,

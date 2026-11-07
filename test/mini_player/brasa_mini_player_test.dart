@@ -432,6 +432,26 @@ void main() {
       expect(calls.open, 0);
     });
 
+    testWidgets('con el cursor encima la franja crece y busca más abajo', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls);
+      // Sin cursor: a 17 px de la parte superior ya no es la franja (12 px).
+      await tester.tapAt(top(tester, 111) + const Offset(0, 12));
+      expect(calls.seeks, isEmpty);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(top(tester, 111));
+      await tester.pump(const Duration(milliseconds: 300));
+      await mouse.moveTo(top(tester, 111) + const Offset(0, 12));
+      await mouse.down(top(tester, 111) + const Offset(0, 12));
+      await mouse.up();
+      await tester.pump();
+      expect(calls.seeks.single, closeTo(.25, .001));
+    });
+
     testWidgets('fuera de la franja el deslizamiento sigue saltando de pista', (
       tester,
     ) async {

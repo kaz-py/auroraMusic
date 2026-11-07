@@ -27,6 +27,10 @@ const double _coverRadius = 11;
 const double _target = 44;
 const double _scrubHeight = 10;
 
+/// Alto de la zona táctil de la línea: 24 px abarcan la línea (a 5 px del
+/// borde inferior) y se quedan dentro de la tarjeta.
+const double _scrubZone = 24;
+
 /// Ancho de la tarjeta desde el que el móvil añade «siguiente»; por debajo
 /// basta con deslizar.
 const double _kNextMinInner = 330;
@@ -369,18 +373,12 @@ class _Body extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(
-              left: 14,
-              right: 14,
-              bottom: 0,
-              height: _scrubHeight,
-              child: _ScrubLine(
-                progress: state.progress,
-                canSeek: state.canSeek,
-                onSeek: actions.seek,
-                color: accent,
-                trackColor: scheme.onSurface.withValues(alpha: .14),
-              ),
+            _ScrubStrip(
+              progress: state.progress,
+              canSeek: state.canSeek,
+              onSeek: actions.seek,
+              color: accent,
+              trackColor: scheme.onSurface.withValues(alpha: .14),
             ),
           ],
         );
@@ -468,11 +466,11 @@ class _PressState extends State<_Press> {
   }
 }
 
-/// Línea de progreso de 2 px (4 px con ratón encima o arrastrando, con
-/// tirador). Arrastrar o tocar busca; solo se confirma al soltar, no por
-/// fotograma. Sin permiso de búsqueda (Jam sin ser anfitrión) es solo visual.
-class _ScrubLine extends StatefulWidget {
-  const _ScrubLine({
+/// Franja de la línea de progreso: 10 px en reposo (para no tapar los botones)
+/// y 24 px con el ratón encima, para que adelantar sea fácil. Pegada al borde
+/// inferior; la línea no se mueve al crecer la zona.
+class _ScrubStrip extends StatefulWidget {
+  const _ScrubStrip({
     required this.progress,
     required this.canSeek,
     required this.onSeek,
@@ -486,11 +484,56 @@ class _ScrubLine extends StatefulWidget {
   final Color color, trackColor;
 
   @override
+  State<_ScrubStrip> createState() => _ScrubStripState();
+}
+
+class _ScrubStripState extends State<_ScrubStrip> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: 14,
+    right: 14,
+    bottom: 0,
+    height: widget.canSeek && _hover ? _scrubZone : _scrubHeight,
+    child: _ScrubLine(
+      progress: widget.progress,
+      canSeek: widget.canSeek,
+      onSeek: widget.onSeek,
+      color: widget.color,
+      trackColor: widget.trackColor,
+      hover: _hover,
+      onHover: (v) => setState(() => _hover = v),
+    ),
+  );
+}
+
+/// Línea de progreso de 2 px (4 px con ratón encima o arrastrando, con
+/// tirador, animado 120 ms) y cursor de mano.
+/// Arrastrar o tocar busca; solo se confirma al soltar, no por
+/// fotograma. Sin permiso de búsqueda (Jam sin ser anfitrión) es solo visual.
+class _ScrubLine extends StatefulWidget {
+  const _ScrubLine({
+    required this.progress,
+    required this.canSeek,
+    required this.onSeek,
+    required this.color,
+    required this.trackColor,
+    required this.hover,
+    required this.onHover,
+  });
+
+  final double progress;
+  final bool canSeek, hover;
+  final ValueChanged<double> onSeek;
+  final ValueChanged<bool> onHover;
+  final Color color, trackColor;
+
+  @override
   State<_ScrubLine> createState() => _ScrubLineState();
 }
 
 class _ScrubLineState extends State<_ScrubLine> {
-  bool _hover = false;
   double? _drag;
 
   double _at(Offset local) {
@@ -507,12 +550,19 @@ class _ScrubLineState extends State<_ScrubLine> {
   Widget build(BuildContext context) {
     final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
     final percent = '${(value * 100).round()} %';
-    final line = CustomPaint(
-      painter: _LinePainter(
-        value: value,
-        thick: widget.canSeek && (_hover || _drag != null),
-        color: widget.color,
-        trackColor: widget.trackColor,
+    final active = widget.canSeek && (widget.hover || _drag != null);
+    final line = TweenAnimationBuilder<double>(
+      tween: Tween(end: active ? 1.0 : 0.0),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 120),
+      builder: (_, grow, _) => CustomPaint(
+        painter: _LinePainter(
+          value: value,
+          grow: grow,
+          color: widget.color,
+          trackColor: widget.trackColor,
+        ),
       ),
     );
     return Semantics(
@@ -530,8 +580,9 @@ class _ScrubLineState extends State<_ScrubLine> {
       child: ExcludeSemantics(
         child: widget.canSeek
             ? MouseRegion(
-                onEnter: (_) => setState(() => _hover = true),
-                onExit: (_) => setState(() => _hover = false),
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => widget.onHover(true),
+                onExit: (_) => widget.onHover(false),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTapUp: (d) => _seekTo(_at(d.localPosition)),
@@ -553,18 +604,20 @@ class _ScrubLineState extends State<_ScrubLine> {
 class _LinePainter extends CustomPainter {
   const _LinePainter({
     required this.value,
-    required this.thick,
+    required this.grow,
     required this.color,
     required this.trackColor,
   });
 
   final double value;
-  final bool thick;
+
+  /// 0 = reposo (2 px, sin tirador), 1 = activa (4 px, tirador de 5 px).
+  final double grow;
   final Color color, trackColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final h = thick ? 4.0 : 2.0;
+    final h = 2.0 + 2.0 * grow;
     final y = size.height - 5;
     final track = RRect.fromLTRBR(
       0,
@@ -582,13 +635,15 @@ class _LinePainter extends CustomPainter {
         Paint()..color = color,
       );
     }
-    if (thick) canvas.drawCircle(Offset(x, y), 5, Paint()..color = color);
+    if (grow > 0) {
+      canvas.drawCircle(Offset(x, y), r * grow, Paint()..color = color);
+    }
   }
 
   @override
   bool shouldRepaint(_LinePainter old) =>
       old.value != value ||
-      old.thick != thick ||
+      old.grow != grow ||
       old.color != color ||
       old.trackColor != trackColor;
 }

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
@@ -56,8 +57,12 @@ const double _kNextMinInner = 330;
 
 const double _kBar = 5, _kKnob = 10;
 
-/// Franja arrastrable del progreso (la barra de 10 px va centrada).
-const double _kSeekHit = 24;
+/// Franja arrastrable del progreso (la barra va centrada). Más alta que la
+/// barra para que sea fácil acertar con el ratón.
+const double _kSeekHit = 32;
+
+/// Tamaño del mando y grosor de la barra con el puntero encima.
+const double _kKnobHover = 14, _kBarHover = 7;
 
 // Ancho fijo de la fila ancha (portada 52 + 14 + 6 + anterior 44 + play 52 +
 // siguiente 44 + corazón 44) y mínimo de título antes de plegar los controles.
@@ -411,6 +416,7 @@ class _SeekBar extends StatefulWidget {
 
 class _SeekBarState extends State<_SeekBar> {
   double? _drag;
+  bool _hover = false;
 
   double _at(Offset local) {
     final w = context.size?.width ?? 0;
@@ -427,15 +433,24 @@ class _SeekBarState extends State<_SeekBar> {
     final look = widget.look;
     final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
     final percent = '${(value * 100).round()} %';
+    // Con el puntero encima (o arrastrando) la barra y el mando crecen.
+    final active = widget.canSeek && (_hover || _drag != null);
     final bar = ExcludeSemantics(
-      child: CustomPaint(
-        size: const Size.fromHeight(_kKnob),
-        painter: _SegmentBarPainter(
-          progress: value,
-          filled: look.barFilled,
-          empty: look.barEmpty,
-          knobFill: look.knobFill,
-          knobStroke: look.knobStroke,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: active ? 1.0 : 0.0),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 120),
+        builder: (context, grow, _) => CustomPaint(
+          size: Size.fromHeight(widget.canSeek ? _kKnobHover : _kKnob),
+          painter: _SegmentBarPainter(
+            progress: value,
+            grow: grow,
+            filled: look.barFilled,
+            empty: look.barEmpty,
+            knobFill: look.knobFill,
+            knobStroke: look.knobStroke,
+          ),
         ),
       ),
     );
@@ -452,19 +467,24 @@ class _SeekBarState extends State<_SeekBar> {
           ? () => widget.onSeek((widget.progress - .05).clamp(0.0, 1.0))
           : null,
       child: widget.canSeek
-          ? GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              excludeFromSemantics: true,
-              onTapUp: (d) => _commit(_at(d.localPosition)),
-              onHorizontalDragStart: (d) =>
-                  setState(() => _drag = _at(d.localPosition)),
-              onHorizontalDragUpdate: (d) =>
-                  setState(() => _drag = _at(d.localPosition)),
-              onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
-              onHorizontalDragCancel: () => setState(() => _drag = null),
-              child: SizedBox(
-                height: _kSeekHit,
-                child: Center(child: bar),
+          ? MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setState(() => _hover = true),
+              onExit: (_) => setState(() => _hover = false),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                excludeFromSemantics: true,
+                onTapUp: (d) => _commit(_at(d.localPosition)),
+                onHorizontalDragStart: (d) =>
+                    setState(() => _drag = _at(d.localPosition)),
+                onHorizontalDragUpdate: (d) =>
+                    setState(() => _drag = _at(d.localPosition)),
+                onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
+                onHorizontalDragCancel: () => setState(() => _drag = null),
+                child: SizedBox(
+                  height: _kSeekHit,
+                  child: Center(child: bar),
+                ),
               ),
             )
           : bar,
@@ -759,10 +779,14 @@ class _SegmentBarPainter extends CustomPainter {
     required this.empty,
     required this.knobFill,
     required this.knobStroke,
+    this.grow = 0,
   });
 
   final double progress;
   final Color filled, empty, knobFill, knobStroke;
+
+  /// 0 en reposo, 1 con el puntero encima: engorda la barra y el mando.
+  final double grow;
 
   static const _segment = 10.0, _gap = 3.0;
 
@@ -771,16 +795,18 @@ class _SegmentBarPainter extends CustomPainter {
     final w = size.width, h = size.height;
     final n = math.max(1, ((w + _gap) / (_segment + _gap)).floor());
     final sw = (w - _gap * (n - 1)) / n;
-    final top = (h - _kBar) / 2;
+    final barH = lerpDouble(_kBar, _kBarHover, grow)!;
+    final knobSize = lerpDouble(_kKnob, _kKnobHover, grow)!;
+    final top = (h - barH) / 2;
     final p = progress.clamp(0.0, 1.0);
-    final knobX = p * (w - _kKnob);
-    final split = p >= 1 ? w : knobX + _kKnob / 2;
+    final knobX = p * (w - knobSize);
+    final split = p >= 1 ? w : knobX + knobSize / 2;
     const radius = Radius.circular(1.5);
     RRect seg(int i) => RRect.fromLTRBR(
       i * (sw + _gap),
       top,
       i * (sw + _gap) + sw,
-      top + _kBar,
+      top + barH,
       radius,
     );
 
@@ -798,7 +824,7 @@ class _SegmentBarPainter extends CustomPainter {
     canvas.restore();
 
     final knob = RRect.fromRectAndRadius(
-      Rect.fromLTWH(knobX, (h - _kKnob) / 2, _kKnob, _kKnob),
+      Rect.fromLTWH(knobX, (h - knobSize) / 2, knobSize, knobSize),
       const Radius.circular(2),
     );
     canvas.drawRRect(knob, paint..color = knobFill);
@@ -814,6 +840,7 @@ class _SegmentBarPainter extends CustomPainter {
   @override
   bool shouldRepaint(_SegmentBarPainter old) =>
       old.progress != progress ||
+      old.grow != grow ||
       old.filled != filled ||
       old.empty != empty ||
       old.knobFill != knobFill ||

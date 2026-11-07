@@ -5,6 +5,7 @@ import 'package:aurora_music/theme/slush_theme.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/ui/mini_player/slush_mini_player_v2.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -668,6 +669,41 @@ void main() {
       );
       expect(calls.log.where((e) => e.startsWith('seek:')), isEmpty);
       expect(bar(), findsOneWidget);
+    });
+
+    testWidgets('el ratón encima engorda la barra y la zona llega a 32 px', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(1440, 900),
+        state: _state(canSeek: true),
+      );
+      final strip = find.descendant(
+        of: pill(),
+        matching: find.byType(CustomPaint),
+      );
+      double grow() =>
+          (tester.widget<CustomPaint>(strip.last).painter! as dynamic).grow
+              as double;
+      final rect = tester.getRect(strip.last);
+      expect(grow(), 0);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(rect.center);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(grow(), 1);
+      await mouse.moveTo(Offset.zero);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(grow(), 0);
+      // Zona de 32 px: 14 px fuera de la línea aún busca; 20 px no.
+      await tester.tapAt(Offset(rect.center.dx, rect.center.dy + 14));
+      expect(calls.log.where((e) => e.startsWith('seek:')), hasLength(1));
+      await tester.tapAt(Offset(rect.center.dx, rect.center.dy + 20));
+      expect(calls.log.where((e) => e.startsWith('seek:')), hasLength(1));
     });
   });
 

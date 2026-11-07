@@ -23,11 +23,20 @@ Widget _build(
   required bool wide,
 }) => AtelierMiniPlayer(state: state, actions: actions, wide: wide);
 
-/// Alto de la zona de la regla/nudo (también el aire sobre y bajo el contenido).
+/// Alto de la zona de la regla/nudo en reposo (también el aire sobre y bajo el
+/// contenido).
 const double _kStrip = 5;
 
-/// Alto de la franja que recibe el arrastre de la regla.
-const double _kScrub = 12;
+/// Alto de la regla pintada con el puntero encima: cabe el nudo ampliado.
+const double _kStripHover = 12;
+
+/// Alto de la franja que recibe tocar o arrastrar la regla (≥ 24 para que
+/// acertar con el ratón o el dedo no cueste).
+const double _kScrub = 24;
+
+/// Margen lateral fijo de la regla: el radio del nudo ampliado. Lo comparten el
+/// pintado y la conversión de toque a fracción.
+const double _kScrubInset = 5;
 
 /// Ancho fijo (a escala 1) de lo que no son texto ni controles en el carril:
 /// margen, funda con vinilo, hueco, corazón, anterior, play y siguiente.
@@ -226,19 +235,6 @@ class _Dock extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: _kScrub,
-                  child: _Scrub(
-                    progress: state.progress,
-                    canSeek: state.canSeek,
-                    onSeek: actions.seek,
-                    rule: ink.track,
-                    fill: ink.accent,
-                  ),
-                ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(edge, _kStrip, 4, _kStrip),
                   child: Row(
@@ -322,6 +318,13 @@ class _Dock extends StatelessWidget {
                         ),
                     ],
                   ),
+                ),
+                _Scrub(
+                  progress: state.progress,
+                  canSeek: state.canSeek,
+                  onSeek: actions.seek,
+                  rule: ink.track,
+                  fill: ink.accent,
                 ),
               ],
             ),
@@ -476,9 +479,11 @@ class _VinylPainter extends CustomPainter {
       old.rim != rim || old.label != label || old.ink != ink;
 }
 
-/// Franja táctil de 12 px con la regla de 5 px arriba. Con [canSeek] se puede
-/// tocar o arrastrar (la posición se confirma al soltar) y gana al deslizar de
-/// pista de la barra dentro de la franja.
+/// Franja de la regla, al borde de arriba y por encima del contenido. Con
+/// [canSeek] se puede tocar o arrastrar (la posición se confirma al soltar) y
+/// gana al deslizar de pista de la barra dentro de la franja. Con el puntero
+/// encima o arrastrando, la franja crece a 24 px, la regla engorda y el nudo
+/// crece (sin animación si están desactivadas).
 class _Scrub extends StatefulWidget {
   const _Scrub({
     required this.progress,
@@ -499,10 +504,15 @@ class _Scrub extends StatefulWidget {
 
 class _ScrubState extends State<_Scrub> {
   double? _drag;
+  bool _hover = false;
 
   double _at(Offset local) {
-    final w = context.size?.width ?? 0;
-    return w <= 0 ? 0 : (local.dx / w).clamp(0.0, 1.0);
+    final w = (context.size?.width ?? 0) - 2 * _kScrubInset;
+    return w <= 0 ? 0 : ((local.dx - _kScrubInset) / w).clamp(0.0, 1.0);
+  }
+
+  void _setHover(bool v) {
+    if (v != _hover) setState(() => _hover = v);
   }
 
   void _commit(double fraction) {
@@ -511,21 +521,39 @@ class _ScrubState extends State<_Scrub> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Positioned(
+    left: 0,
+    right: 0,
+    top: 0,
+    // En reposo solo la franja de la regla (no tapa nada); con el puntero
+    // encima o arrastrando crece a 24 px por encima del contenido.
+    height: widget.canSeek && (_hover || _drag != null) ? _kScrub : _kStrip,
+    child: _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     final value = (_drag ?? widget.progress).clamp(0.0, 1.0);
     final percent = '${(value * 100).round()} %';
+    final active = widget.canSeek && (_hover || _drag != null);
     final line = ExcludeSemantics(
       child: Align(
         alignment: Alignment.topCenter,
         child: SizedBox(
-          height: _kStrip,
+          height: _kStripHover,
           child: RepaintBoundary(
-            child: CustomPaint(
-              size: const Size.fromHeight(_kStrip),
-              painter: _TimelinePainter(
-                progress: value,
-                rule: widget.rule,
-                fill: widget.fill,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: active ? 1.0 : 0.0),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 120),
+              builder: (_, t, _) => CustomPaint(
+                size: const Size.fromHeight(_kStripHover),
+                painter: _TimelinePainter(
+                  progress: value,
+                  rule: widget.rule,
+                  fill: widget.fill,
+                  emphasis: t,
+                ),
               ),
             ),
           ),
@@ -549,52 +577,69 @@ class _ScrubState extends State<_Scrub> {
       decreasedValue: percent,
       onIncrease: () => widget.onSeek((widget.progress + .05).clamp(0.0, 1.0)),
       onDecrease: () => widget.onSeek((widget.progress - .05).clamp(0.0, 1.0)),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onTapUp: (d) => _commit(_at(d.localPosition)),
-        onHorizontalDragStart: (d) =>
-            setState(() => _drag = _at(d.localPosition)),
-        onHorizontalDragUpdate: (d) =>
-            setState(() => _drag = _at(d.localPosition)),
-        onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
-        onHorizontalDragCancel: () => setState(() => _drag = null),
-        child: line,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => _setHover(true),
+        onExit: (_) => _setHover(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTapUp: (d) => _commit(_at(d.localPosition)),
+          onHorizontalDragStart: (d) =>
+              setState(() => _drag = _at(d.localPosition)),
+          onHorizontalDragUpdate: (d) =>
+              setState(() => _drag = _at(d.localPosition)),
+          onHorizontalDragEnd: (_) => _commit(_drag ?? widget.progress),
+          onHorizontalDragCancel: () => setState(() => _drag = null),
+          child: line,
+        ),
       ),
     );
   }
 }
 
-/// Regla de un píxel con el tramo recorrido y un nudo de 5 px.
+/// Regla con el tramo recorrido y un nudo. [emphasis] (0 reposo, 1 puntero
+/// encima) engorda la regla y agranda el nudo; el centro baja para que el nudo
+/// ampliado no se corte por arriba.
 class _TimelinePainter extends CustomPainter {
   const _TimelinePainter({
     required this.progress,
     required this.rule,
     required this.fill,
+    this.emphasis = 0,
   });
 
   final double progress;
   final Color rule, fill;
+  final double emphasis;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const r = _kStrip / 2;
-    final y = size.height / 2;
+    final r = _lerp(_kStrip / 2, _kScrubInset);
+    final y = _lerp(_kStrip / 2, _kStripHover / 2);
+    final ruleH = _lerp(1, 3), fillH = _lerp(1.5, 4);
     canvas.drawRect(
-      Rect.fromLTWH(0, y - .5, size.width, 1),
+      Rect.fromLTWH(0, y - ruleH / 2, size.width, ruleH),
       Paint()..color = rule,
     );
-    final x = r + progress.clamp(0.0, 1.0) * math.max(0, size.width - 2 * r);
+    final x =
+        _kScrubInset +
+        progress.clamp(0.0, 1.0) * math.max(0, size.width - 2 * _kScrubInset);
     canvas.drawRect(
-      Rect.fromLTRB(0, y - .75, x, y + .75),
+      Rect.fromLTRB(0, y - fillH / 2, x, y + fillH / 2),
       Paint()..color = fill,
     );
     canvas.drawCircle(Offset(x, y), r, Paint()..color = fill);
   }
 
+  double _lerp(double a, double b) => a + (b - a) * emphasis;
+
   @override
   bool shouldRepaint(_TimelinePainter old) =>
-      old.progress != progress || old.rule != rule || old.fill != fill;
+      old.progress != progress ||
+      old.rule != rule ||
+      old.fill != fill ||
+      old.emphasis != emphasis;
 }
 
 /// Botón sin relleno, 44 × 44, con un hundimiento breve al pulsar.

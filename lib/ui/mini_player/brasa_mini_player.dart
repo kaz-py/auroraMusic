@@ -29,6 +29,9 @@ const _hairline = 2.0;
 const _kNextMinInner = 330.0;
 const _hairlineZone = 12.0;
 
+/// Alto de la franja mientras el cursor está encima.
+const _hairlineZoneHover = 24.0;
+
 /// Mitad del lado de la marca: la cabeza recorre la línea entre `inset` y
 /// `ancho - inset`, así el cuadrado nunca se sale del borde.
 const _scrubInset = 4.0;
@@ -92,8 +95,11 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
             top: 0,
             left: 12,
             right: 12,
-            height: _hairlineZone,
+            // Con el cursor encima la franja se agranda (24 px) para acertar sin
+            // pisar los botones el resto del tiempo; sin permiso no hay efecto.
+            height: s.canSeek && _hover ? _hairlineZoneHover : _hairlineZone,
             child: MouseRegion(
+              cursor: s.canSeek ? SystemMouseCursors.click : MouseCursor.defer,
               onEnter: (_) => setState(() => _hover = true),
               onExit: (_) => setState(() => _hover = false),
               child: _Scrub(
@@ -660,17 +666,19 @@ class _HairlinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     const cy = 5.0;
-    final top = cy - _hairline / 2;
+    // La línea engorda de 2 a 4 px junto con la marca.
+    final thick = _hairline + 2 * knob;
+    final top = cy - thick / 2;
     canvas.drawRect(
-      Rect.fromLTWH(0, top, w, _hairline),
+      Rect.fromLTWH(0, top, w, thick),
       Paint()..color = ember.withValues(alpha: .24),
     );
     final x = _scrubInset + (w - 2 * _scrubInset) * progress.clamp(0.0, 1.0);
     if (x > 0) {
-      final lit = Rect.fromLTRB(0, top, x, top + _hairline);
+      final lit = Rect.fromLTRB(0, top, x, top + thick);
       canvas
         ..drawRect(
-          Rect.fromLTRB(math.max(0, x - 36), top, x, top + _hairline),
+          Rect.fromLTRB(math.max(0, x - 36), top, x, top + thick),
           Paint()
             ..color = ember.withValues(alpha: .6)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
