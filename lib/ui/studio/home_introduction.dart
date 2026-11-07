@@ -234,35 +234,8 @@ class StudioHomeIntroduction extends StatelessWidget {
 
   Widget _modern(BuildContext context, Track? track) {
     final width = MediaQuery.sizeOf(context).width;
-    // Android/estrecho: sin saludo ni titular, solo el botón y los ánimos.
+    // Android/estrecho: sin saludo ni titular, solo el botón.
     final compactModern = !isSlush(context) && width < 600;
-    final moods = <(IconData, String, VoidCallback)>[
-      (
-        StudioSymbols.waterDrop,
-        'Tarde Lluviosa',
-        () => showStudioPending(context, 'Ánimos de escucha'),
-      ),
-      (
-        StudioSymbols.graphicEq,
-        'Cinta Magnética',
-        () => showStudioPending(context, 'Simulación de cinta'),
-      ),
-      (
-        StudioSymbols.nightlife,
-        'Improvisación Jazz',
-        () => _searchMood('jazz'),
-      ),
-      (
-        StudioSymbols.psychology,
-        'Enfoque Profundo',
-        () => showStudioPending(context, 'Perfil de enfoque'),
-      ),
-      (
-        StudioSymbols.acUnit,
-        'Acústica Nórdica',
-        () => _searchMood('acústica nórdica'),
-      ),
-    ];
     final left = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -300,26 +273,6 @@ class StudioHomeIntroduction extends StatelessWidget {
           onPressed: onSearch,
           icon: const Icon(StudioSymbols.search),
           label: const Text('Encontrar música'),
-        ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final m in moods)
-              ActionChip(
-                avatar: Icon(m.$1, size: 16),
-                label: Text(m.$2),
-                onPressed: m.$3,
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerLow,
-              ),
-          ],
         ),
       ],
     );

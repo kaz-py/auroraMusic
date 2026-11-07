@@ -888,20 +888,46 @@ extension on _VinylPlayerState {
             service: widget.follow!,
             name: _primaryArtist(track.artist),
           ),
+        if (!brasa && track != null)
+          IconButton(
+            tooltip: c.favoriteIds.contains(track.id)
+                ? 'Quitar de favoritos'
+                : 'Añadir a favoritos',
+            color: c.favoriteIds.contains(track.id)
+                ? Tracky.coral
+                : Colors.white70,
+            onPressed: () => c.toggleFavorite(track),
+            icon: Icon(
+              c.favoriteIds.contains(track.id)
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+            ),
+          ),
       ],
     );
+    // Modern suma aleatorio y repetir a los lados (en Brasa solo los tres
+    // botones de siempre).
+    final extras = !brasa && track != null;
     final controls = ListenableBuilder(
       listenable: c.audio,
       builder: (context, _) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          if (extras)
+            IconButton(
+              tooltip: 'Aleatorio',
+              isSelected: c.shuffle,
+              color: c.shuffle ? Tracky.mint : Colors.white54,
+              onPressed: () => c.setShuffle(!c.shuffle),
+              icon: const Icon(Icons.shuffle_rounded, size: 24),
+            ),
           IconButton(
             tooltip: 'Anterior',
             color: fg,
             onPressed: track == null ? null : c.previous,
             icon: const Icon(Icons.skip_previous_rounded, size: 32),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: extras ? 4 : 12),
           FilledButton(
             onPressed: track == null ? null : c.togglePlayback,
             style: FilledButton.styleFrom(
@@ -921,13 +947,26 @@ extension on _VinylPlayerState {
               size: brasa ? 30 : 32,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: extras ? 4 : 12),
           IconButton(
             tooltip: 'Siguiente',
             color: fg,
             onPressed: track == null ? null : c.next,
             icon: const Icon(Icons.skip_next_rounded, size: 32),
           ),
+          if (extras)
+            IconButton(
+              tooltip: 'Repetir',
+              isSelected: c.repeat != RepeatMode.off,
+              color: c.repeat == RepeatMode.off ? Colors.white54 : Tracky.mint,
+              onPressed: c.cycleRepeat,
+              icon: Icon(
+                c.repeat == RepeatMode.one
+                    ? Icons.repeat_one_rounded
+                    : Icons.repeat_rounded,
+                size: 24,
+              ),
+            ),
         ],
       ),
     );
@@ -998,13 +1037,26 @@ extension on _VinylPlayerState {
         controls,
       ],
     );
-    final record = _record(
-      context,
-      c,
-      track,
-      math.max(0.0, recordSide),
-      brasa ? _VinylStyle.brasa : _VinylStyle.modern,
-    );
+    // Modern abre con la portada sola; el disco queda para los demás temas.
+    final photo = !brasa && !_cassette && track != null;
+    final record = photo
+        ? _seekable(
+            c,
+            math.max(0.0, recordSide),
+            Artwork(
+              track: track,
+              size: math.max(0.0, recordSide),
+              radius: 12,
+              artworkContext: ArtworkContext.playerDetail,
+            ),
+          )
+        : _record(
+            context,
+            c,
+            track,
+            math.max(0.0, recordSide),
+            brasa ? _VinylStyle.brasa : _VinylStyle.modern,
+          );
     final inner = compact
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
