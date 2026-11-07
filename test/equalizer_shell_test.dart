@@ -87,14 +87,11 @@ void main() {
     ),
   );
 
-  testWidgets('the mini EQ button is on home, queue, lyrics and Jam', (
-    tester,
-  ) async {
+  testWidgets('the mini EQ button is on home, queue and Jam', (tester) async {
     await mount(tester, const Size(1400, 900));
     for (final (key, shift) in [
       (LogicalKeyboardKey.digit1, false), // inicio
       (LogicalKeyboardKey.keyQ, true), // cola
-      (LogicalKeyboardKey.keyL, false), // letras (página)
       (LogicalKeyboardKey.keyJ, false), // Jam
     ]) {
       await chord(tester, key, shift: shift);

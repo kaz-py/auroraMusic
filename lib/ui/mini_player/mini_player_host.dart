@@ -64,7 +64,6 @@ class MiniPlayerHost extends StatelessWidget {
     this.jam,
     this.onOpenQueue,
     this.onOpenLyrics,
-    this.onOpenArtist,
     this.onOpenMini,
     this.mute,
     this.themes = miniPlayerThemes,
@@ -90,9 +89,6 @@ class MiniPlayerHost extends StatelessWidget {
   /// pasa. Sin ellos las acciones no hacen nada.
   final VoidCallback? onOpenQueue, onOpenLyrics;
 
-  /// Apartado «Modo artista» (sección 15 del shell).
-  final VoidCallback? onOpenArtist;
-
   /// Modo mini (ventana compacta, solo Windows): entrada del menú de la
   /// canción. `null`: no hay ventana que reducir.
   final VoidCallback? onOpenMini;
@@ -116,7 +112,7 @@ class MiniPlayerHost extends StatelessWidget {
     required bool hasTrack,
     required int section,
     required bool officialMusicPage,
-  }) => hasTrack && section != 4 && section != 15 && !officialMusicPage;
+  }) => hasTrack && section != 4 && section != 6 && !officialMusicPage;
 
   /// Slush en móvil lleva el mini dentro de su barra inferior (también con
   /// Jam); el resto, en el cuerpo.
@@ -209,7 +205,6 @@ class MiniPlayerHost extends StatelessWidget {
     mute: mute,
     openQueue: onOpenQueue,
     openLyrics: onOpenLyrics,
-    openArtist: onOpenArtist,
     openMini: onOpenMini,
     openMenu: openMenu,
     openEqualizer: equalizerOpener(context, c),

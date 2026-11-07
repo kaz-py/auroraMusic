@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/lyrics/lyrics_service.dart';
-import 'package:aurora_music/ui/lyrics_panel.dart';
+import 'package:aurora_music/ui/artist_mode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -51,7 +51,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: LyricsPanel(controller: app, service: service),
+          body: ArtistModePage(
+            controller: app,
+            service: service,
+            artistPhoto: (_) async => null,
+            onClose: () {},
+            onTogglePlay: () {},
+          ),
         ),
       ),
     );

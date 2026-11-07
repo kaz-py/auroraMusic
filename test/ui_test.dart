@@ -12,6 +12,7 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/ui/studio/home_introduction.dart';
 import 'package:aurora_music/main.dart';
+import 'package:aurora_music/ui/artist_mode.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/jam/jam_page.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
@@ -435,10 +436,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Letras').first);
     await tester.pumpAndSettle();
-    expect(find.text('Volver'), findsOneWidget);
-    await tester.tap(find.text('Volver'));
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    await tester.tap(find.byTooltip('Salir del modo artista'));
     await tester.pumpAndSettle();
-    expect(find.text('Madrugada acústica'), findsOneWidget);
+    expect(find.byType(ArtistModePage), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -526,10 +527,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Letras'));
     await tester.pumpAndSettle();
-    expect(find.text('Volver'), findsOneWidget);
-    await tester.tap(find.text('Volver'));
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    await tester.tap(find.byTooltip('Salir del modo artista'));
     await tester.pumpAndSettle();
-    expect(find.text('Madrugada acústica'), findsOneWidget);
+    expect(find.byType(ArtistModePage), findsNothing);
     await tester.tap(find.byTooltip('Ajustes'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Cuenta y servicios').first);
@@ -932,13 +933,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(audio.analysisEnabled, isTrue);
     expect(tester.takeException(), isNull);
-    // Letras: página de la sección 6 y vuelta con «Volver».
+    // Letras: modo artista (sección 6) y salida con «Salir del modo artista».
     await openFromMoreViews(tester, 'Letras');
     expect(audio.analysisEnabled, isFalse);
-    expect(find.text('Letras').last, findsOneWidget);
-    expect(find.text('Volver'), findsOneWidget);
-    final closeLyrics = find.text('Volver');
-    await tester.ensureVisible(closeLyrics);
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    final closeLyrics = find.byTooltip('Salir del modo artista');
+    expect(closeLyrics, findsOneWidget);
     await tester.tap(closeLyrics);
     await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);

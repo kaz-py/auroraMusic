@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/lyrics/lyrics_service.dart';
 import 'package:aurora_music/theme/slush_theme.dart';
-import 'package:aurora_music/ui/lyrics_panel.dart';
 import 'package:aurora_music/ui/slush/slush_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,49 +60,39 @@ void main() {
           ]) {
             await tester.binding.setSurfaceSize(Size(width, 800));
             final reason = '$brightness ${width}px x$scale';
-            for (final card in const [false, true]) {
-              await tester.pumpWidget(
-                MaterialApp(
-                  theme: slushTheme(brightness, const Color(0xff3b8bf2)),
-                  builder: (context, child) => MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(textScaler: TextScaler.linear(scale)),
-                    child: child!,
-                  ),
-                  home: Scaffold(
-                    body: card
-                        ? Center(
-                            child: SizedBox(
-                              width: 330,
-                              height: 420,
-                              child: SlushLyricsCard(
-                                controller: controller,
-                                service: _Lyrics(),
-                              ),
-                            ),
-                          )
-                        : LyricsPanel(
-                            controller: controller,
-                            service: _Lyrics(),
-                          ),
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: slushTheme(brightness, const Color(0xff3b8bf2)),
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!,
+                ),
+                home: Scaffold(
+                  body: Center(
+                    child: SizedBox(
+                      width: 330,
+                      height: 420,
+                      child: SlushLyricsCard(
+                        key: ValueKey(reason),
+                        controller: controller,
+                        service: _Lyrics(),
+                      ),
+                    ),
                   ),
                 ),
-              );
-              controller.notifyListeners();
-              await tester.pump();
-              await tester.pump(const Duration(milliseconds: 400));
-              expect(
-                tester.takeException(),
-                isNull,
-                reason: '${card ? 'tarjeta' : 'panel'} $reason',
-              );
-              expect(
-                find.textContaining('linea número 12 '),
-                findsOneWidget,
-                reason: 'activa visible ${card ? 'tarjeta' : 'panel'} $reason',
-              );
-            }
+              ),
+            );
+            controller.notifyListeners();
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 400));
+            expect(tester.takeException(), isNull, reason: 'tarjeta $reason');
+            expect(
+              find.textContaining('linea número 12 '),
+              findsOneWidget,
+              reason: 'activa visible tarjeta $reason',
+            );
           }
         }
       }

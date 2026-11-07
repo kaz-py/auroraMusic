@@ -84,10 +84,10 @@ const _allScreens = <String, int>{
   'Artistas': 12,
   'Amigos': 14,
   'Chat': 14,
-  'Letras': 6,
   'Ecualizador': 13,
-  // Última: cubre todo el shell, así que no se puede navegar desde ella.
-  'Artista': 15,
+  // Última: el modo artista cubre todo el shell, así que no se puede navegar
+  // desde ella.
+  'Letras': 6,
 };
 const _quickScreens = <String>[
   'Inicio',
@@ -98,7 +98,7 @@ const _quickScreens = <String>[
   'Vinilo',
   'Amigos',
   'Chat',
-  'Artista',
+  'Letras',
 ];
 
 /// Tras navegar, pantallas que piden abrir algo más (pestaña, hilo) antes de

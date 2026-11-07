@@ -354,53 +354,85 @@ void main() {
     );
   }
 
+  Future<void> pumpShell(WidgetTester tester, String theme, Size size) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final c = (await tester.runAsync(
+      () => createTestController(
+        tracks: _songs,
+        preferences: {'themeKind': theme, 'themeMode': 'dark'},
+      ),
+    ))!;
+    c.queue = [..._songs];
+    await tester.runAsync(() => c.playQueueAt(0));
+    await c.audio.pause();
+    final container = ProviderContainer(
+      overrides: [controllerProvider.overrideWith((ref) => c)],
+    );
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      container.dispose();
+      await tester.runAsync(() => closeTestController(c));
+    });
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const AuroraApp()),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+  }
+
   for (final theme in const ['atelier', 'modern', 'brasa', 'slush']) {
-    testWidgets('$theme: el botón de la barra abre el modo artista y oculta '
+    testWidgets('$theme: «Letras» del mini abre el modo artista y oculta '
         'la barra', (tester) async {
-      tester.view.physicalSize = const Size(1440, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      final c = (await tester.runAsync(
-        () => createTestController(
-          tracks: _songs,
-          preferences: {'themeKind': theme, 'themeMode': 'dark'},
-        ),
-      ))!;
-      c.queue = [..._songs];
-      await tester.runAsync(() => c.playQueueAt(0));
-      await c.audio.pause();
-      final container = ProviderContainer(
-        overrides: [controllerProvider.overrideWith((ref) => c)],
-      );
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        container.dispose();
-        await tester.runAsync(() => closeTestController(c));
-      });
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const AuroraApp(),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+      await pumpShell(tester, theme, const Size(1440, 900));
       expect(find.byType(ArtistModePage), findsNothing);
       expect(find.byType(MiniPlayerHost), findsWidgets);
 
-      await tester.tap(find.byTooltip('Modo artista'));
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(MiniPlayerHost),
+              matching: find.byTooltip('Letras'),
+            )
+            .first,
+      );
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(ArtistModePage), findsOneWidget);
       // Se oculta toda la UI (menús, barra de abajo): solo queda esta página.
       expect(find.byType(MiniPlayerHost), findsNothing);
-      expect(find.byTooltip('Modo artista'), findsNothing);
       expect(find.byTooltip('Minimizar'), findsOneWidget);
       expect(find.byTooltip('Salir del modo artista'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Salir del modo artista'));
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(ArtistModePage), findsNothing);
-      expect(find.byTooltip('Modo artista'), findsOneWidget);
+      expect(find.byType(MiniPlayerHost), findsWidgets);
+    });
+
+    testWidgets('$theme: Ctrl+L abre el modo artista', (tester) async {
+      await pumpShell(tester, theme, const Size(1440, 900));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(ArtistModePage), findsOneWidget);
     });
   }
+
+  testWidgets('Android (360×640): «Más vistas» → «Letras» abre el modo '
+      'artista y «Salir» vuelve', (tester) async {
+    await pumpShell(tester, 'atelier', const Size(360, 640));
+    await tester.tap(find.byTooltip('Más vistas'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Letras'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(ArtistModePage), findsOneWidget);
+    expect(find.byType(MiniPlayerHost), findsNothing);
+
+    await tester.tap(find.text('Salir'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(ArtistModePage), findsNothing);
+    expect(find.byType(MiniPlayerHost), findsWidgets);
+  });
 }

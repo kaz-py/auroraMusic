@@ -30,7 +30,6 @@ class _Calls {
     openQueue: () => log.add('queue'),
     openEqualizer: () => log.add('eq'),
     openLyrics: () => log.add('lyrics'),
-    openArtist: () => log.add('artist'),
   );
 }
 
@@ -94,7 +93,6 @@ void main() {
       'Abrir cola (3)',
       'Ecualizador',
       'Letras',
-      'Modo artista',
     ]) {
       final box = find.byTooltip(tip);
       expect(box, findsOneWidget, reason: tip);
@@ -113,7 +111,7 @@ void main() {
       );
       await tester.tap(box);
     }
-    expect(calls.log, ['mute', 'queue', 'eq', 'lyrics', 'artist']);
+    expect(calls.log, ['mute', 'queue', 'eq', 'lyrics']);
     await tester.drag(find.byType(Slider), const Offset(20, 0));
     expect(calls.volume, isNotNull);
     expect(tester.takeException(), isNull);
@@ -136,7 +134,7 @@ void main() {
       final calls = _Calls();
       await tester.pumpWidget(_host(_controls(calls, _state()), width: 500));
       expect(find.byTooltip('Mini reproductor'), findsNothing);
-      expect(miniDesktopFull(calls.actions), 5 * 44 + kMiniVolumeSlider);
+      expect(miniDesktopFull(calls.actions), 4 * 44 + kMiniVolumeSlider);
 
       var opened = 0;
       final actions = MiniPlayerActions(
@@ -147,7 +145,7 @@ void main() {
         toggleLike: () {},
         openMini: () => opened++,
       );
-      expect(miniDesktopFull(actions), 6 * 44 + kMiniVolumeSlider);
+      expect(miniDesktopFull(actions), 5 * 44 + kMiniVolumeSlider);
       await tester.pumpWidget(
         _host(
           MiniPlayerDesktopControls(
@@ -270,7 +268,7 @@ void main() {
       },
     );
 
-    test('openQueue, openLyrics y openArtist llegan tal cual', () async {
+    test('openQueue y openLyrics llegan tal cual', () async {
       final c = await createTestController();
       addTearDown(() => closeTestController(c));
       final log = <String>[];
@@ -279,13 +277,11 @@ void main() {
         openPlayer: () {},
         openQueue: () => log.add('q'),
         openLyrics: () => log.add('l'),
-        openArtist: () => log.add('b'),
       );
       actions.openQueue();
       actions.openLyrics();
-      actions.openArtist();
       actions.openEqualizer(); // sin callback: no hace nada
-      expect(log, ['q', 'l', 'b']);
+      expect(log, ['q', 'l']);
     });
   });
 }

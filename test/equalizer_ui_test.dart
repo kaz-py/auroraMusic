@@ -1,12 +1,8 @@
-import 'dart:io';
-
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/jam/jam_controller.dart';
 import 'package:aurora_music/jam/jam_models.dart';
-import 'package:aurora_music/lyrics/lyrics_service.dart';
 import 'package:aurora_music/shortcuts/shortcut_service.dart';
-import 'package:aurora_music/ui/lyrics_panel.dart';
 import 'package:aurora_music/ui/studio/equalizer_panel.dart';
 import 'package:aurora_music/ui/studio/studio_transport.dart';
 import 'package:flutter/material.dart';
@@ -21,17 +17,6 @@ const _song = Track(
   artist: 'Artista',
   duration: Duration(minutes: 3),
 );
-
-class _NoLyrics extends LyricsService {
-  @override
-  Future<LyricsResult> load(
-    Track track,
-    Directory supportDirectory, {
-    bool force = false,
-    void Function(LyricsResult cached)? onInterim,
-    Duration slowAfter = const Duration(seconds: 3),
-  }) async => const LyricsResult(LyricsKind.notFound);
-}
 
 void main() {
   setUpAll(() async {
@@ -248,27 +233,5 @@ void main() {
     expect(find.byType(EqualizerPanel), findsOneWidget);
     expect(find.textContaining('no se comparte en una Jam'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('lyrics panel transport also offers the EQ button', (
-    tester,
-  ) async {
-    for (final (width, scale) in [(320.0, 2.0), (500.0, 1.0), (1400.0, 1.0)]) {
-      size(tester, Size(width, 800), scale);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: LyricsPanel(controller: app, service: _NoLyrics()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byType(TransportEqualizerButton), findsOneWidget);
-      await tester.tap(eqIconButton());
-      await tester.pumpAndSettle();
-      expect(find.byType(EqualizerPanel), findsOneWidget);
-      expect(tester.takeException(), isNull, reason: 'lyrics $width');
-      await tester.pumpWidget(const SizedBox());
-    }
   });
 }

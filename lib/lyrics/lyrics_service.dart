@@ -665,23 +665,6 @@ class LyricsService {
     }
   }
 
-  Future<void> saveOffset(Track track, Directory root, int ms) async {
-    try {
-      var map = <String, Object?>{};
-      try {
-        final j = jsonDecode(await _offsetsFile(root).readAsString());
-        if (j is Map<String, dynamic>) map = j;
-      } catch (_) {}
-      map.remove(_hash(track.id));
-      if (ms != 0) map[_hash(track.id)] = ms;
-      while (map.length > 500) {
-        map.remove(map.keys.first);
-      }
-      Directory(p.join(root.path, 'lyrics')).createSync(recursive: true);
-      await _offsetsFile(root).writeAsString(jsonEncode(map), flush: true);
-    } catch (_) {}
-  }
-
   // ---- importación manual -------------------------------------------------
 
   Future<LyricsResult?> importFile(Track track, Directory root) async {

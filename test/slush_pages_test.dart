@@ -8,7 +8,6 @@ import 'package:aurora_music/ui/follow_widgets.dart';
 import 'package:aurora_music/ui/slush/slush_eq_queue.dart';
 import 'package:aurora_music/ui/slush/slush_jam.dart';
 import 'package:aurora_music/ui/slush/slush_pages.dart';
-import 'package:aurora_music/ui/slush/slush_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,11 +121,10 @@ void main() {
         await tester.tap(find.byIcon(Icons.more_horiz));
         await tester.pumpAndSettle();
         await go(find.text('Artistas'), 'ARTISTAS');
-        // Subpantallas del reproductor en el teléfono: EQ+Cola y Letras.
+        // Subpantallas del reproductor en el teléfono: EQ+Cola.
         for (final (label, type) in const [
           ('Ecualizador', SlushEqQueue),
           ('Cola de reproducción', SlushEqQueue),
-          ('Letras', SlushLyricsCard),
         ]) {
           await tester.tap(find.byIcon(Icons.more_horiz));
           await tester.pumpAndSettle();

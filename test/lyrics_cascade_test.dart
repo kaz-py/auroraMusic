@@ -393,13 +393,5 @@ void main() {
         expect(l[1].text, 'b c');
       },
     );
-    test('el desfase se recuerda por pista', () async {
-      final svc = _svc((u) => (404, ''));
-      expect(await svc.readOffset(_track, dir), 0);
-      await svc.saveOffset(_track, dir, -1500);
-      expect(await svc.readOffset(_track, dir), -1500);
-      await svc.saveOffset(_track, dir, 0);
-      expect(await svc.readOffset(_track, dir), 0);
-    });
   });
 }

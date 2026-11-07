@@ -9,9 +9,9 @@ const double kMiniControlTarget = 44;
 /// Ancho del slider de volumen.
 const double kMiniVolumeSlider = 96;
 
-/// Botones de los controles de escritorio: silencio, cola, ecualizador, letras
-/// y modo difuminado (más «Mini reproductor» si hay ventana que reducir).
-const int kMiniDesktopButtons = 5;
+/// Botones de los controles de escritorio: silencio, cola, ecualizador y letras
+/// (más «Mini reproductor» si hay ventana que reducir).
+const int kMiniDesktopButtons = 4;
 
 /// Ancho completo (botones + slider) y sin slider de los controles de
 /// escritorio: los temas reservan este ancho en su fila ancha.
@@ -194,7 +194,6 @@ class MiniPlayerDesktopControls extends StatelessWidget {
           actions.openLyrics,
           state.lyricsAvailable,
         ),
-        _item('Modo artista', Icons.portrait_rounded, actions.openArtist, true),
         if (actions.openMini case final openMini?)
           _item(
             'Mini reproductor',
@@ -253,7 +252,6 @@ class MiniPlayerDesktopControls extends StatelessWidget {
               StudioSymbols.lyrics,
               state.lyricsAvailable ? actions.openLyrics : null,
             ),
-            _button('Modo artista', Icons.portrait_rounded, actions.openArtist),
             if (actions.openMini case final openMini?)
               _button(
                 'Mini reproductor',

@@ -4,8 +4,6 @@ import 'dart:ui' as ui;
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/library/local_file_metadata.dart';
 import 'package:aurora_music/main.dart';
-import 'package:aurora_music/lyrics/lyrics_service.dart';
-import 'package:aurora_music/ui/lyrics_panel.dart';
 import 'package:aurora_music/ui/studio/downloads_studio_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -22,23 +20,6 @@ const track = Track(
   duration: Duration(minutes: 3),
   pageUrl: 'https://example.test/track',
 );
-
-class FixtureLyrics extends LyricsService {
-  @override
-  Future<LyricsResult> load(
-    Track track,
-    Directory supportDirectory, {
-    bool force = false,
-    void Function(LyricsResult)? onInterim,
-    Duration slowAfter = const Duration(seconds: 3),
-  }) async => const LyricsResult(
-    LyricsKind.synced,
-    lines: [
-      LyricLine(Duration(seconds: 8), 'Primer verso'),
-      LyricLine(Duration(seconds: 16), 'Segundo verso'),
-    ],
-  );
-}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -74,44 +55,6 @@ void main() {
       await dir.delete(recursive: true);
     }
   });
-
-  testWidgets(
-    'manual offset seeks adjusted timestamps and exposes genuine modes',
-    (tester) async {
-      final audio = FakeAudio();
-      final c = (await tester.runAsync(
-        () => createTestController(tracks: [track], audio: audio),
-      ))!;
-      addTearDown(() => closeTestController(c));
-      c.queue = [track];
-      c.queueIndex = 0;
-      await tester.runAsync(() => c.playQueueAt(0));
-      await c.audio.seek(const Duration(seconds: 8));
-      await tester.binding.setSurfaceSize(const Size(1600, 1100));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: LyricsPanel(controller: c, service: FixtureLyrics()),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('+0.5s'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Segundo verso'));
-      await tester.pumpAndSettle();
-      expect(audio.position, const Duration(milliseconds: 15500));
-      await tester.tap(find.text('Tradicional'));
-      await tester.pumpAndSettle();
-      expect(find.text('Primer verso\nSegundo verso'), findsOneWidget);
-      await tester.tap(find.text('Traducción'));
-      await tester.pumpAndSettle();
-      expect(find.text('Traducción pendiente; no disponible.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
 
   testWidgets('downloads uses real statuses and fits narrow enlarged text', (
     tester,
@@ -199,14 +142,8 @@ void main() {
         ).writeAsBytes(List.filled(8192, 0)),
       );
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      for (final page in ['downloads', 'lyrics']) {
-        for (final size in [
-          Size(
-            page == 'downloads' ? 1286 : 1600,
-            page == 'downloads' ? 1913 : 1400,
-          ),
-          const Size(320, 800),
-        ]) {
+      for (final page in ['downloads']) {
+        for (final size in [const Size(1286, 1913), const Size(320, 800)]) {
           await tester.binding.setSurfaceSize(size);
           await tester.pumpWidget(
             MaterialApp(
@@ -222,9 +159,7 @@ void main() {
                   key: const ValueKey('studio-review'),
                   child: ColoredBox(
                     color: const Color(0xff151312),
-                    child: page == 'downloads'
-                        ? DownloadsStudioPage(controller: c)
-                        : LyricsPanel(controller: c, service: FixtureLyrics()),
+                    child: DownloadsStudioPage(controller: c),
                   ),
                 ),
               ),
@@ -240,9 +175,6 @@ void main() {
           });
           await tester.pumpAndSettle();
           await tester.pump(const Duration(milliseconds: 200));
-          if (page == 'lyrics') {
-            expect(find.text('Primer verso'), findsOneWidget);
-          }
           await tester.runAsync(() async {
             final boundary = tester.renderObject<RenderRepaintBoundary>(
               find.byKey(const ValueKey('studio-review')),

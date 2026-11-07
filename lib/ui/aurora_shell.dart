@@ -42,7 +42,6 @@ import 'studio/session_aside.dart';
 import 'studio/downloads_studio_page.dart';
 import '../shortcuts/shortcut_host.dart';
 import '../shortcuts/shortcut_service.dart';
-import 'lyrics_panel.dart';
 import 'artist_mode.dart';
 import 'mini_window.dart';
 import 'shortcuts_settings_panel.dart';
@@ -105,7 +104,6 @@ const _sections = [
   'Artistas',
   'Ecualizador',
   'Amigos',
-  'Modo artista',
 ];
 const _icons = [
   Icons.home_outlined,
@@ -123,7 +121,6 @@ const _icons = [
   Icons.mic_none_rounded,
   Icons.equalizer,
   Icons.people_outline,
-  Icons.portrait_rounded,
 ];
 const _primarySections = [0, 1, 8, 2, 3];
 const _slushPrimarySections = [0, 1, 2, 8, 9];
@@ -721,7 +718,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 children: [
                                   if (!(brasa && rail) &&
                                       !(slushBar && _section == 0) &&
-                                      (!wide || ![0, 3, 6].contains(_section)))
+                                      (!wide || ![0, 3].contains(_section)))
                                     _header(c, rail),
                                   if (!c.ready || c.busy)
                                     const LinearProgressIndicator(minHeight: 2),
@@ -741,7 +738,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                                     const [
                                                       4,
                                                       5,
-                                                      6,
                                                       9,
                                                       10,
                                                       11,
@@ -885,7 +881,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             onTogglePlay: () => _togglePlay(c),
             onExit: () => unawaited(_setMiniWindow(false)),
           )
-        : _section == 15
+        : _section == 6
         ? Scaffold(
             body: ArtistModePage(
               controller: c,
@@ -1569,37 +1565,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         )
       : child;
 
-  /// Página de letras (Slush estrecho lleva su propia tarjeta).
-  Widget _lyricsPage(AppController c, int section) {
-    if (isSlush(context) && MediaQuery.sizeOf(context).width < 900) {
-      return Column(
-        children: [
-          SlushPlayerHeader(
-            controller: c,
-            current: section,
-            onSection: _navigate,
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: SlushLyricsCard(controller: c),
-            ),
-          ),
-        ],
-      );
-    }
-    return _slushTabs(
-      c,
-      section,
-      LyricsPanel(
-        controller: c,
-        jam: _jam,
-        shortcuts: ref.read(shortcutServiceProvider),
-        onClose: () => _navigate(0),
-      ),
-    );
-  }
-
   Widget _page(AppController c) {
     switch (_section) {
       case 1:
@@ -1625,8 +1590,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           );
         }
         return _slushTabs(c, 5, QueuePanel(controller: c));
-      case 6:
-        return _lyricsPage(c, 6);
       case 7:
         return _slushPage(c, _settings(c));
       case 8:
@@ -3217,24 +3180,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     onOpenPlayer: () => _navigate(4),
     onTogglePlay: () => _togglePlay(c),
     onOpenQueue: () => _navigate(5),
-    onOpenLyrics: () => _showLyrics(c),
-    onOpenArtist: () => _navigate(15),
+    onOpenLyrics: () => _navigate(6),
     onOpenMini: WindowControls.supported
         ? () => unawaited(_setMiniWindow(true))
         : null,
     mute: _mute,
-  );
-
-  Future<void> _showLyrics(AppController c) => showDialog<void>(
-    context: context,
-    useRootNavigator: true,
-    builder: (_) => Dialog.fullscreen(
-      child: LyricsPanel(
-        controller: c,
-        jam: _jam,
-        shortcuts: ref.read(shortcutServiceProvider),
-      ),
-    ),
   );
 
   Future<void> _sleepTimer(AppController c) async {

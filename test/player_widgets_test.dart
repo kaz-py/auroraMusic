@@ -1,26 +1,11 @@
-import 'dart:io';
-
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
-import 'package:aurora_music/lyrics/lyrics_service.dart';
-import 'package:aurora_music/ui/lyrics_panel.dart';
 import 'package:aurora_music/ui/queue_panel.dart';
 import 'package:aurora_music/ui/vinyl_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fakes.dart';
-
-class _QuietLyrics extends LyricsService {
-  @override
-  Future<LyricsResult> load(
-    Track track,
-    Directory supportDirectory, {
-    bool force = false,
-    void Function(LyricsResult)? onInterim,
-    Duration slowAfter = const Duration(seconds: 3),
-  }) async => const LyricsResult(LyricsKind.notFound);
-}
 
 class _TrackingAudio extends FakeAudio {
   final seeks = <Duration>[];
@@ -61,7 +46,6 @@ void main() {
   group('player widgets', () {
     late AppController controller;
     late _TrackingAudio audio;
-    late _QuietLyrics lyrics;
 
     setUp(() async {
       audio = _TrackingAudio();
@@ -72,12 +56,10 @@ void main() {
       await audio.pause();
       expect(controller.error, isNull);
       expect(audio.loaded, isNotNull);
-      lyrics = _QuietLyrics();
     });
 
     tearDown(() async {
       await closeTestController(controller);
-      lyrics.dispose();
     });
 
     Future<void> mount(
@@ -232,18 +214,6 @@ void main() {
       );
       expect(find.text('Current record'), findsOneWidget);
       expect(find.byType(ReorderableListView), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('lyrics layout fits narrow enlarged text', (tester) async {
-      await mount(
-        tester,
-        LyricsPanel(controller: controller, service: lyrics),
-        scale: 2,
-      );
-      await tester.pump();
-      expect(find.text('Current record\nArtist'), findsOneWidget);
-      expect(find.text('Sin letra disponible'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
