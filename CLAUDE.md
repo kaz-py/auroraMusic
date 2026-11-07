@@ -95,7 +95,8 @@ del `PATH` o de la carpeta de Ajustes; Discord y Duvet usan socket Unix.
   no borrarlos ni incluirlos en commits salvo que lo pida.
 - No hacer reset/clean/stash destructivo; hay trabajo sin confirmar.
 - Mensajes de commit cortos en imperativo; `[skip ci]` si no debe correr CI.
-  **Sin líneas `Co-Authored-By` ni atribución a Claude** en commits o PRs.
+  **Dar crédito a Claude como coautor**: cada commit (y cada PR) termina con la
+  línea `Co-Authored-By: Claude <noreply@anthropic.com>` tras una línea en blanco.
 - No afirmar reproducción real basándose solo en tests simulados.
 
 ## Consultas sobre el código (graphify)
