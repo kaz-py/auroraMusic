@@ -426,7 +426,8 @@ void main() {
     ) async {
       final calls = _Calls();
       await _mount(tester, calls);
-      await tester.tapAt(top(tester, 103));
+      // La franja empieza 12 px dentro y la línea tiene 4 px de margen a cada lado.
+      await tester.tapAt(top(tester, 111));
       expect(calls.seeks.single, closeTo(.25, .001));
       expect(calls.open, 0);
     });

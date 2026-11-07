@@ -494,8 +494,8 @@ class _ScrubLineState extends State<_ScrubLine> {
   double? _drag;
 
   double _at(Offset local) {
-    final w = (context.size?.width ?? 0);
-    return w <= 0 ? 0 : (local.dx / w).clamp(0.0, 1.0);
+    final w = (context.size?.width ?? 0) - 10;
+    return w <= 0 ? 0 : ((local.dx - 5) / w).clamp(0.0, 1.0);
   }
 
   void _seekTo(double f) {
@@ -574,7 +574,8 @@ class _LinePainter extends CustomPainter {
       Radius.circular(h / 2),
     );
     canvas.drawRRect(track, Paint()..color = trackColor);
-    final x = size.width * value;
+    const r = 5.0;
+    final x = r + (size.width - 2 * r) * value;
     if (x > 0) {
       canvas.drawRRect(
         RRect.fromLTRBR(0, y - h / 2, x, y + h / 2, Radius.circular(h / 2)),

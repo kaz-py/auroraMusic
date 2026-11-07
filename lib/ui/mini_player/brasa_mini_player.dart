@@ -28,6 +28,10 @@ const _hairline = 2.0;
 /// con deslizar.
 const _kNextMinInner = 330.0;
 const _hairlineZone = 12.0;
+
+/// Mitad del lado de la marca: la cabeza recorre la línea entre `inset` y
+/// `ancho - inset`, así el cuadrado nunca se sale del borde.
+const _scrubInset = 4.0;
 const _corner = 6.0;
 const _error = Color(0xffff8a7a);
 const _mono = TextStyle(
@@ -86,28 +90,27 @@ class _BrasaMiniPlayerState extends State<BrasaMiniPlayer> {
           ),
           Positioned(
             top: 0,
-            left: 0,
-            right: 0,
+            left: 12,
+            right: 12,
             height: _hairlineZone,
-            child: _Scrub(
-              progress: s.progress,
-              canSeek: s.canSeek,
-              hover: _hover,
-              ember: ember,
-
-              reduce: reduce,
-              onSeek: widget.actions.seek,
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hover = true),
+              onExit: (_) => setState(() => _hover = false),
+              child: _Scrub(
+                progress: s.progress,
+                canSeek: s.canSeek,
+                hover: _hover,
+                ember: ember,
+                reduce: reduce,
+                onSeek: widget.actions.seek,
+              ),
             ),
           ),
         ],
       );
     }
 
-    final body = MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Builder(builder: content),
-    );
+    final body = Builder(builder: content);
     if (!widget.wide) {
       return Material(
         color: Brasa.obsidian,
@@ -578,8 +581,8 @@ class _ScrubState extends State<_Scrub> {
   double? _drag;
 
   double _at(Offset local) {
-    final w = context.size?.width ?? 0;
-    return w <= 0 ? 0 : (local.dx / w).clamp(0.0, 1.0);
+    final w = (context.size?.width ?? 0) - 2 * _scrubInset;
+    return w <= 0 ? 0 : ((local.dx - _scrubInset) / w).clamp(0.0, 1.0);
   }
 
   void _commit(double fraction) {
@@ -656,14 +659,18 @@ class _HairlinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
-    final track = Rect.fromLTWH(0, 0, w, _hairline);
-    canvas.drawRect(track, Paint()..color = ember.withValues(alpha: .24));
-    final x = (w * progress.clamp(0.0, 1.0)).toDouble();
+    const cy = 5.0;
+    final top = cy - _hairline / 2;
+    canvas.drawRect(
+      Rect.fromLTWH(0, top, w, _hairline),
+      Paint()..color = ember.withValues(alpha: .24),
+    );
+    final x = _scrubInset + (w - 2 * _scrubInset) * progress.clamp(0.0, 1.0);
     if (x > 0) {
-      final lit = Rect.fromLTWH(0, 0, x, _hairline);
+      final lit = Rect.fromLTRB(0, top, x, top + _hairline);
       canvas
         ..drawRect(
-          Rect.fromLTRB(math.max(0, x - 36), 0, x, _hairline),
+          Rect.fromLTRB(math.max(0, x - 36), top, x, top + _hairline),
           Paint()
             ..color = ember.withValues(alpha: .6)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
@@ -675,12 +682,18 @@ class _HairlinePainter extends CustomPainter {
               colors: [ember.withValues(alpha: .4), ember],
             ).createShader(lit),
         )
-        ..drawRect(Rect.fromLTWH(x - 1, 0, 2, 5), Paint()..color = Brasa.cream);
+        ..drawRect(
+          Rect.fromCenter(center: Offset(x, cy), width: 2, height: 6),
+          Paint()..color = Brasa.cream,
+        );
     }
     if (knob > 0) {
-      final side = 10 * knob;
-      final cx = x.clamp(side / 2, math.max(side / 2, w - side / 2)).toDouble();
-      final box = Rect.fromLTWH(cx - side / 2, 0, side, side).deflate(1);
+      final side = 2 * _scrubInset * knob;
+      final box = Rect.fromCenter(
+        center: Offset(x, cy),
+        width: side,
+        height: side,
+      );
       canvas
         ..drawRect(box, Paint()..color = Brasa.cream)
         ..drawRect(
