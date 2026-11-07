@@ -304,6 +304,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Más acciones'));
       await tester.pumpAndSettle();
+      expect(find.text('Reproducir a continuación'), findsNothing);
+      if (theme != 'slush') {
+        expect(find.text('Cola de reproducción'), findsOneWidget);
+      }
       for (final label in const ['Añadir a la cola', 'Enviar a un amigo']) {
         final tile = find.text(label);
         expect(tile, findsOneWidget, reason: label);
@@ -311,6 +315,25 @@ void main() {
       }
     });
   }
+
+  testWidgets('Modern: el reproductor abre con la portada sola y más botones', (
+    tester,
+  ) async {
+    await pumpPhone(tester, theme: 'modern', play: true);
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(MiniPlayerHost),
+            matching: find.text(_long),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
+    for (final tip in const ['Aleatorio', 'Repetir', 'Anterior', 'Siguiente']) {
+      expect(find.byTooltip(tip), findsOneWidget, reason: tip);
+    }
+  });
 
   testWidgets('Modern en móvil no muestra titular ni saludo en Inicio', (
     tester,

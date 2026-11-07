@@ -57,7 +57,6 @@ void main() {
         await tester.tap(find.textContaining('Una canción con').last);
         await tester.pump(const Duration(seconds: 1));
         for (final label in [
-          'Reproducir a continuación',
           'Añadir a la cola',
           'Añadir a favoritos',
           'Compartir',
@@ -65,6 +64,9 @@ void main() {
         ]) {
           expect(find.text(label), findsOneWidget, reason: label);
         }
+        // «Cola de reproducción» también es una entrada de la barra lateral.
+        expect(find.text('Cola de reproducción'), findsWidgets);
+        expect(find.text('Reproducir a continuación'), findsNothing);
         expect(tester.takeException(), isNull);
 
         // Una acción cierra la tarjeta y actúa.
@@ -118,13 +120,14 @@ void main() {
         await tester.longPress(find.byType(AtelierMiniPlayer));
         await tester.pump(const Duration(seconds: 1));
         for (final label in [
-          'Reproducir a continuación',
+          'Cola de reproducción',
           'Añadir a la cola',
           'Compartir',
           'Abrir Modo Vinilo',
         ]) {
           expect(find.text(label), findsOneWidget, reason: label);
         }
+        expect(find.text('Reproducir a continuación'), findsNothing);
         expect(
           tester.getRect(find.text('Compartir')).bottom,
           lessThanOrEqualTo(640),
@@ -144,7 +147,7 @@ void main() {
         const Offset(300, 40),
       );
       await tester.pump(const Duration(seconds: 1));
-      for (final label in ['Reproducir a continuación', 'Compartir']) {
+      for (final label in ['Añadir a la cola', 'Compartir']) {
         final r = tester.getRect(find.text(label));
         expect(r.top, greaterThan(40), reason: label);
         expect(r.bottom, lessThanOrEqualTo(640), reason: label);

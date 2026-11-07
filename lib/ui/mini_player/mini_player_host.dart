@@ -166,8 +166,15 @@ class MiniPlayerHost extends StatelessWidget {
           c,
           openVinyl,
           openMenu: rail
-              ? (at) =>
-                    _openSongMenu(context, c, track, at, openVinyl, onOpenMini)
+              ? (at) => _openSongMenu(
+                  context,
+                  c,
+                  track,
+                  at,
+                  openVinyl,
+                  onOpenMini,
+                  onOpenQueue,
+                )
               : null,
         );
 
@@ -178,8 +185,15 @@ class MiniPlayerHost extends StatelessWidget {
           tapOpens: !rail,
           onLongPress: rail
               ? null
-              : (at) =>
-                    _openSongMenu(context, c, track, at, openVinyl, onOpenMini),
+              : (at) => _openSongMenu(
+                  context,
+                  c,
+                  track,
+                  at,
+                  openVinyl,
+                  onOpenMini,
+                  onOpenQueue,
+                ),
           semanticsLabel: 'Mini reproductor: ${track.title}, ${track.artist}',
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -218,6 +232,7 @@ void _openSongMenu(
   Offset at,
   VoidCallback openVinyl,
   VoidCallback? openMini,
+  VoidCallback? openQueue,
 ) => unawaited(
   showSongCard(
     context,
@@ -233,5 +248,6 @@ void _openSongMenu(
           run: openMini,
         ),
     ],
+    openQueue: openQueue,
   ),
 );

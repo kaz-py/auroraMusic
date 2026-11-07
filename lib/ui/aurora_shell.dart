@@ -1311,6 +1311,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   c,
                   c.nowTrack!,
                   box.localToGlobal(box.size.bottomLeft(Offset.zero)),
+                  openQueue: () => _navigate(5),
                 );
               },
             ),

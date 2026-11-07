@@ -20,28 +20,40 @@ const double _kCardWidth = 360;
 
 /// Tarjeta de la canción que suena: se abre al pulsar la portada o el título
 /// del mini (escritorio), con pulsación larga sobre el mini o desde el ⋯ del
-/// reproductor (Android). Portada y título arriba y todas las acciones de la
-/// canción (a continuación, cola, Jam, favorito, compartir, enviar a un amigo,
-/// añadir a una lista) más las [extras] en una rejilla de teselas; cada una
-/// cierra la tarjeta y actúa. Se ancla sobre [anchor] (el punto de la pantalla
-/// donde se pulsó): hacia arriba si está en la mitad inferior (la barra va
-/// abajo) y hacia abajo si está en la superior (botón ⋯ del reproductor).
+/// reproductor (Android). Portada y título arriba y las acciones de la canción
+/// (cola de reproducción si hay [openQueue], añadir a la cola, Jam, favorito,
+/// compartir, enviar a un amigo, añadir a una lista) más las [extras] en una
+/// rejilla de teselas; cada una cierra la tarjeta y actúa. «Reproducir a
+/// continuación» no está: su sitio es la cola de reproducción. Se ancla sobre
+/// [anchor] (el punto de la pantalla donde se pulsó): hacia arriba si está en
+/// la mitad inferior (la barra va abajo) y hacia abajo si está en la superior
+/// (botón ⋯ del reproductor).
 Future<void> showSongCard(
   BuildContext context,
   AppController controller,
   Track track,
   Offset anchor, {
   List<SongCardAction> extras = const [],
+  VoidCallback? openQueue,
 }) {
   final actions = TrackActions(context, controller);
-  final items = <SongCardAction>[
+  final menu = [
     for (final i in actions.menuItems(track))
-      (label: i.label, icon: i.icon, run: i.run),
+      if (i.label != 'Reproducir a continuación') i,
+  ];
+  final items = <SongCardAction>[
+    if (openQueue != null)
+      (
+        label: 'Cola de reproducción',
+        icon: Icons.queue_music_rounded,
+        run: openQueue,
+      ),
+    for (final i in menu) (label: i.label, icon: i.icon, run: i.run),
     ...extras,
   ];
   // Motivos de las desactivadas (p. ej. «el anfitrión no permite añadir»).
   final reasons = <String, String?>{
-    for (final i in actions.menuItems(track)) i.label: i.disabledReason,
+    for (final i in menu) i.label: i.disabledReason,
   };
   final below = anchor.dy < MediaQuery.sizeOf(context).height / 2;
   return showGeneralDialog<void>(
