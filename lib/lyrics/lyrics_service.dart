@@ -606,6 +606,51 @@ class LyricsService {
     }
   }
 
+  // ---- sincronía compartida (modo artista y tarjeta de Vinilo) -----------
+
+  /// Reparte las líneas de una letra sin tiempos a lo largo de la pista (sin el
+  /// 6 % inicial ni el 6 % final). Sin duración no hay nada que repartir.
+  static List<LyricLine> spreadLines(String text, Duration total) {
+    final rows = [
+      for (final r in text.split(RegExp(r'\r?\n')))
+        if (r.trim().isNotEmpty) r.trim(),
+    ];
+    if (rows.isEmpty || total <= Duration.zero) return const [];
+    final ms = total.inMilliseconds;
+    return [
+      for (var i = 0; i < rows.length; i++)
+        LyricLine(
+          Duration(
+            milliseconds: (ms * .06 + ms * .88 * i / rows.length).round(),
+          ),
+          rows[i],
+        ),
+    ];
+  }
+
+  /// La letra llegó sin sincronizar: LRCLIB suele tenerla sincronizada pero la
+  /// descarta si la duración difiere más de 3 s (vídeos con intro). Se busca
+  /// entre los candidatos una sincronizada que case con título, artista y una
+  /// duración razonable (±20 s) y se guarda como elegida a mano. `null` si no
+  /// hay ninguna. Los errores se propagan: quien llama decide.
+  Future<LyricsResult?> upgradeToSynced(Track track, Directory root) async {
+    final found = await candidates(track);
+    final total = track.duration.inSeconds;
+    final fits =
+        found
+            .where(
+              (c) =>
+                  c.synced &&
+                  c.score >= .65 &&
+                  (total == 0 || (c.seconds - total).abs() <= 20),
+            )
+            .toList()
+          ..sort((a, b) => b.score.compareTo(a.score));
+    if (fits.isEmpty) return null;
+    final result = await choose(track, root, fits.first);
+    return result.kind == LyricsKind.synced ? result : null;
+  }
+
   // ---- desfase por pista ------------------------------------------------
 
   File _offsetsFile(Directory root) =>

@@ -5,8 +5,10 @@ import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/lyrics/lyrics_service.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/artist_mode.dart';
+import 'package:aurora_music/ui/artwork.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -82,6 +84,18 @@ class _PlainLyrics extends LyricsService {
   );
 }
 
+/// LRCLIB no tiene nada para la pista.
+class _NoLyrics extends LyricsService {
+  @override
+  Future<LyricsResult> load(
+    Track track,
+    Directory root, {
+    bool force = false,
+    void Function(LyricsResult cached)? onInterim,
+    Duration slowAfter = const Duration(seconds: 3),
+  }) async => const LyricsResult(LyricsKind.notFound);
+}
+
 void main() {
   Future<AppController> mountPage(
     WidgetTester tester, {
@@ -89,6 +103,8 @@ void main() {
     double scale = 1,
     VoidCallback? onClose,
     LyricsService? service,
+    Future<String?> Function(String artist)? artistPhoto,
+    int startIndex = 0,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -97,7 +113,7 @@ void main() {
       () => createTestController(tracks: _songs),
     ))!;
     c.queue = [..._songs];
-    await tester.runAsync(() => c.playQueueAt(0));
+    await tester.runAsync(() => c.playQueueAt(startIndex));
     await c.audio.pause();
     addTearDown(() => tester.runAsync(() => closeTestController(c)));
     await tester.pumpWidget(
@@ -114,6 +130,7 @@ void main() {
             service: service ?? _FakeLyrics(),
             onClose: onClose ?? () {},
             onTogglePlay: () {},
+            artistPhoto: artistPhoto,
           ),
         ),
       ),
@@ -197,6 +214,129 @@ void main() {
     await mountPage(tester, onClose: () => closed++);
     await tester.tap(find.byTooltip('Salir del modo artista'));
     expect(closed, 1);
+  });
+
+  group('pantalla completa', () {
+    List<MethodCall> mockWindow(WidgetTester tester) {
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('aurora/window'),
+        (call) async {
+          calls.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('aurora/window'),
+          null,
+        ),
+      );
+      return calls;
+    }
+
+    testWidgets('botón, Esc sale primero de pantalla completa y luego cierra', (
+      tester,
+    ) async {
+      final calls = mockWindow(tester);
+      var closed = 0;
+      await mountPage(tester, onClose: () => closed++);
+      await tester.tap(find.byTooltip('Pantalla completa'));
+      await tester.pump();
+      expect(calls.last.method, 'setFullscreen');
+      expect((calls.last.arguments as Map)['enabled'], isTrue);
+      expect(find.byTooltip('Salir de pantalla completa'), findsOneWidget);
+      expect(find.byTooltip('Maximizar o restaurar'), findsNothing);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(calls.last.method, 'setFullscreen');
+      expect((calls.last.arguments as Map)['enabled'], isFalse);
+      expect(closed, 0);
+      expect(find.byTooltip('Pantalla completa'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(closed, 1);
+    });
+
+    testWidgets('F11 alterna la pantalla completa', (tester) async {
+      final calls = mockWindow(tester);
+      await mountPage(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f11);
+      await tester.pump();
+      expect((calls.last.arguments as Map)['enabled'], isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f11);
+      await tester.pump();
+      expect((calls.last.arguments as Map)['enabled'], isFalse);
+    });
+
+    testWidgets('al desmontar en pantalla completa se restaura la ventana', (
+      tester,
+    ) async {
+      final calls = mockWindow(tester);
+      await mountPage(tester);
+      await tester.tap(find.byTooltip('Pantalla completa'));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      expect(calls.last.method, 'setFullscreen');
+      expect((calls.last.arguments as Map)['enabled'], isFalse);
+    });
+  });
+
+  group('foto del artista sin letra', () {
+    Finder artistPhoto() => find.byWidgetPredicate(
+      (w) => w is Artwork && w.track.id.startsWith('artist:'),
+    );
+
+    testWidgets('con foto: se ve en el centro junto al aviso', (tester) async {
+      await mountPage(
+        tester,
+        service: _NoLyrics(),
+        artistPhoto: (_) async => 'https://example.com/a.jpg',
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(artistPhoto(), findsOneWidget);
+      expect(find.text('Sin letra para esta pista'), findsOneWidget);
+    });
+
+    testWidgets('sin foto: solo el aviso', (tester) async {
+      await mountPage(
+        tester,
+        service: _NoLyrics(),
+        startIndex: 1,
+        artistPhoto: (_) async => null,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(artistPhoto(), findsNothing);
+      expect(find.text('Sin letra para esta pista'), findsOneWidget);
+    });
+  });
+
+  testWidgets('Copiar letra deja las líneas en el portapapeles', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await mountPage(tester);
+    await tester.tap(find.byTooltip('Copiar letra'));
+    await tester.pump();
+    expect(copied, 'Primera línea\nSegunda línea');
+    expect(find.text('Letra copiada'), findsOneWidget);
   });
 
   for (final (size, scale) in const [

@@ -373,7 +373,9 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
       _service
           .load(track, widget.controller.supportDirectory)
           .then((r) {
-            if (mounted && request == _request) setState(() => _result = r);
+            if (!mounted || request != _request) return;
+            setState(() => _result = r);
+            if (r.kind == LyricsKind.plain) unawaited(_upgrade(track, request));
           })
           .catchError((Object _) {})
           .whenComplete(() {
@@ -382,6 +384,21 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
             }
           }),
     );
+  }
+
+  /// Letra sin tiempos: se busca una versión sincronizada que case.
+  Future<void> _upgrade(Track track, int request) async {
+    try {
+      final up = await _service.upgradeToSynced(
+        track,
+        widget.controller.supportDirectory,
+      );
+      if (up != null && mounted && request == _request) {
+        setState(() => _result = up);
+      }
+    } catch (_) {
+      // Se queda la letra aproximada.
+    }
   }
 
   Future<void> _import() async {
@@ -404,7 +421,11 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
     if (_loading) return 'Buscando…';
     if (r == null || r.kind == LyricsKind.notFound) return 'Sin letra';
     if (r.kind == LyricsKind.instrumental) return 'Instrumental';
-    final kind = r.kind == LyricsKind.synced ? 'Sincronizada' : 'Texto plano';
+    final kind = r.kind == LyricsKind.synced
+        ? 'Sincronizada'
+        : widget.controller.audio.duration > Duration.zero
+        ? 'Sincronización aproximada'
+        : 'Texto plano';
     return r.source.isEmpty ? kind : '$kind · ${r.source}';
   }
 
@@ -447,14 +468,35 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
                       ),
                     )
                   : plain.isNotEmpty
-                  ? ListView(
-                      children: [
-                        for (final l in plain)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 5),
-                            child: Text(l, style: _lineStyle(false)),
-                          ),
-                      ],
+                  // Sin tiempos: se reparten por la pista (como el modo artista)
+                  // y, sin duración aún, se ve el texto plano.
+                  ? ListenableBuilder(
+                      listenable: c.audio,
+                      builder: (context, _) {
+                        final lines = LyricsService.spreadLines(
+                          r!.text,
+                          c.audio.duration,
+                        );
+                        if (lines.isNotEmpty) {
+                          return _SyncedScroll(
+                            lines: lines,
+                            active: lines.lastIndexWhere(
+                              (l) => l.at <= c.audio.position,
+                            ),
+                          );
+                        }
+                        return ListView(
+                          children: [
+                            for (final l in plain)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 5,
+                                ),
+                                child: Text(l, style: _lineStyle(false)),
+                              ),
+                          ],
+                        );
+                      },
                     )
                   : Center(
                       child: Text(

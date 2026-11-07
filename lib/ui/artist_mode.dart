@@ -6,12 +6,14 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../core/models.dart';
+import '../core/source_backend.dart';
 import '../core/window_controls.dart';
 import '../jam/jam_controller.dart';
 import '../lyrics/lyrics_service.dart';
 import 'artwork.dart';
 import 'mini_player/blurred_cover_backdrop.dart';
 import 'mini_player/mini_player_model.dart';
+import 'undo_snackbar.dart';
 
 /// Alto mínimo de la página: por debajo, todo se desplaza.
 const _minPageHeight = 480.0;
@@ -33,6 +35,7 @@ class ArtistModePage extends StatefulWidget {
     required this.onTogglePlay,
     this.jam,
     this.service,
+    this.artistPhoto,
   });
 
   final AppController controller;
@@ -44,6 +47,9 @@ class ArtistModePage extends StatefulWidget {
 
   /// Servicio de letras (pruebas); por defecto el de la app.
   final LyricsService? service;
+
+  /// Foto del artista (pruebas); por defecto se busca en la fuente.
+  final Future<String?> Function(String artist)? artistPhoto;
 
   @override
   State<ArtistModePage> createState() => _ArtistModePageState();
@@ -57,6 +63,8 @@ class _ArtistModePageState extends State<ArtistModePage> {
   int _request = 0;
   int _lastActive = -1;
   double? _drag;
+  bool _fullscreen = false;
+  String? _artistPhoto;
   int _offsetMs = 0;
   final Map<int, GlobalKey> _lineKeys = {};
   final _plainScroll = ScrollController();
@@ -71,6 +79,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
   @override
   void dispose() {
     widget.controller.removeListener(_changed);
+    if (_fullscreen) unawaited(WindowControls.setFullscreen(false));
     _plainScroll.dispose();
     super.dispose();
   }
@@ -84,6 +93,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
     _lineKeys.clear();
     _offsetMs = 0;
     _result = null;
+    _artistPhoto = null;
     _loading = false;
     if (track != null) {
       unawaited(_load(track));
@@ -109,70 +119,107 @@ class _ArtistModePageState extends State<ArtistModePage> {
       setState(() => _result = result);
       if (result.kind == LyricsKind.plain) {
         unawaited(_upgrade(track, request));
+      } else if (result.kind == LyricsKind.notFound ||
+          result.kind == LyricsKind.instrumental) {
+        unawaited(_fetchPhoto(track, request));
       }
     } catch (_) {
+      if (mounted && request == _request) {
+        unawaited(_fetchPhoto(track, request));
+      }
       // Sin letra: se muestra el aviso de siempre.
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
   }
 
-  /// La letra llegó sin sincronizar: LRCLIB suele tenerla sincronizada pero la
-  /// descarta si la duración difiere más de 3 s (vídeos con intro). Se busca
-  /// entre los candidatos una sincronizada que case con título, artista y una
-  /// duración razonable (±20 s) y se usa; se guarda como elegida a mano, así
-  /// también la verá la página de Letras.
+  /// La letra llegó sin sincronizar: se busca una versión sincronizada que
+  /// case (ver [LyricsService.upgradeToSynced]) y, si hay, se usa.
   Future<void> _upgrade(Track track, int request) async {
     try {
-      final found = await _service.candidates(track);
-      final total = track.duration.inSeconds;
-      final fits =
-          found
-              .where(
-                (c) =>
-                    c.synced &&
-                    c.score >= .65 &&
-                    (total == 0 || (c.seconds - total).abs() <= 20),
-              )
-              .toList()
-            ..sort((a, b) => b.score.compareTo(a.score));
-      if (fits.isEmpty || !mounted || request != _request) return;
-      final result = await _service.choose(
+      final result = await _service.upgradeToSynced(
         track,
         widget.controller.supportDirectory,
-        fits.first,
       );
-      if (!mounted || request != _request) return;
-      if (result.kind == LyricsKind.synced) {
-        setState(() {
-          _result = result;
-          _lastActive = -1;
-          _lineKeys.clear();
-        });
-      }
+      if (result == null || !mounted || request != _request) return;
+      setState(() {
+        _result = result;
+        _lastActive = -1;
+        _lineKeys.clear();
+      });
     } catch (_) {
       // Se queda la letra aproximada.
     }
   }
 
-  /// Reparte las líneas de una letra sin tiempos a lo largo de la pista (sin el
-  /// 6 % inicial ni el 6 % final). Sin duración no hay nada que repartir.
-  List<LyricLine> _approximate(String text, Duration total) {
-    final rows = [
-      for (final r in text.split(RegExp(r'\r?\n')))
-        if (r.trim().isNotEmpty) r.trim(),
-    ];
-    if (rows.isEmpty || total <= Duration.zero) return const [];
-    final ms = total.inMilliseconds;
-    return [
-      for (var i = 0; i < rows.length; i++)
-        LyricLine(
-          Duration(
-            milliseconds: (ms * .06 + ms * .88 * i / rows.length).round(),
-          ),
-          rows[i],
-        ),
-    ];
+  /// Primer artista de la pista (misma separación que `AppController.openArtist`).
+  static String _firstArtist(Track? track) => (track?.artist ?? '')
+      .split(RegExp(r'\s*(?:,|&| x | feat\.?| ft\.?)\s*'))
+      .first
+      .trim();
+
+  static final Map<String, String?> _photoCache = {};
+
+  /// Foto del artista: la entrada de búsqueda que se llama igual, o la primera
+  /// con imagen.
+  Future<String?> _searchArtistPhoto(String name) async {
+    final page = await widget.controller.source.searchPage(
+      name,
+      SearchKind.artists,
+    );
+    final want = name.trim().toLowerCase();
+    final withArt = page.entries.where((e) => e.artworkUrl != null);
+    final exact = withArt.where((e) => e.title.trim().toLowerCase() == want);
+    return (exact.firstOrNull ?? withArt.firstOrNull)?.artworkUrl;
+  }
+
+  Future<void> _fetchPhoto(Track track, int request) async {
+    final name = _firstArtist(track);
+    if (name.isEmpty) return;
+    final key = name.toLowerCase();
+    String? url;
+    try {
+      if (_photoCache.containsKey(key)) {
+        url = _photoCache[key];
+      } else {
+        url = await (widget.artistPhoto ?? _searchArtistPhoto)(name);
+        _photoCache[key] = url;
+      }
+    } catch (_) {
+      _photoCache[key] = null;
+    }
+    if (url == null || !mounted || request != _request) return;
+    setState(() => _artistPhoto = url);
+  }
+
+  /// Texto de la letra para copiar; `null` si no hay.
+  String? _copyText() {
+    final r = _result;
+    if (r == null) return null;
+    final text = switch (r.kind) {
+      LyricsKind.synced => r.lines.map((l) => l.text).join('\n'),
+      LyricsKind.plain => r.text,
+      _ => '',
+    };
+    return text.trim().isEmpty ? null : text;
+  }
+
+  Future<void> _copy() async {
+    final text = _copyText();
+    if (text == null) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    showUndoSnackBar(
+      ScaffoldMessenger.maybeOf(context),
+      const Text('Letra copiada'),
+    );
+  }
+
+  Future<void> _setFullscreen(bool on) async {
+    if (!WindowControls.fullscreenSupported || on == _fullscreen) return;
+    if (await WindowControls.setFullscreen(on) && mounted) {
+      setState(() => _fullscreen = on);
+    }
   }
 
   @override
@@ -210,7 +257,10 @@ class _ArtistModePageState extends State<ArtistModePage> {
     final track = state.track;
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            _fullscreen ? _setFullscreen(false) : widget.onClose(),
+        const SingleActivator(LogicalKeyboardKey.f11): () =>
+            _setFullscreen(!_fullscreen),
       },
       child: Focus(
         autofocus: true,
@@ -230,27 +280,56 @@ class _ArtistModePageState extends State<ArtistModePage> {
     return Row(
       children: [
         _exit(context, tone, compact),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Copiar letra',
+          icon: const Icon(Icons.copy_rounded),
+          onPressed: _copyText() == null ? null : _copy,
+          style: style(),
+        ),
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onPanStart: (_) => WindowControls.invoke('drag'),
-            onDoubleTap: () => WindowControls.invoke('maximize'),
+            onPanStart: _fullscreen
+                ? null
+                : (_) => WindowControls.invoke('drag'),
+            onDoubleTap: () => _fullscreen
+                ? _setFullscreen(false)
+                : WindowControls.invoke('maximize'),
             child: const SizedBox(height: 44),
           ),
         ),
+        if (WindowControls.fullscreenSupported)
+          IconButton(
+            tooltip: _fullscreen
+                ? 'Salir de pantalla completa'
+                : 'Pantalla completa',
+            onPressed: () => _setFullscreen(!_fullscreen),
+            icon: Icon(
+              _fullscreen
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+            ),
+            style: style(),
+          ),
         if (WindowControls.supported) ...[
-          IconButton(
-            tooltip: 'Minimizar',
-            onPressed: () => WindowControls.invoke('minimize'),
-            icon: const Icon(Icons.remove_rounded),
-            style: style(),
-          ),
-          IconButton(
-            tooltip: 'Maximizar o restaurar',
-            onPressed: () => WindowControls.invoke('maximize'),
-            icon: const Icon(Icons.crop_square_rounded, size: 20),
-            style: style(),
-          ),
+          // En ventana estrecha no caben todos los botones: minimizar y
+          // maximizar ceden sitio a copiar, pantalla completa y cerrar.
+          if (!compact) ...[
+            IconButton(
+              tooltip: 'Minimizar',
+              onPressed: () => WindowControls.invoke('minimize'),
+              icon: const Icon(Icons.remove_rounded),
+              style: style(),
+            ),
+            if (!_fullscreen)
+              IconButton(
+                tooltip: 'Maximizar o restaurar',
+                onPressed: () => WindowControls.invoke('maximize'),
+                icon: const Icon(Icons.crop_square_rounded, size: 20),
+                style: style(),
+              ),
+          ],
           IconButton(
             tooltip: 'Cerrar la ventana',
             onPressed: () => WindowControls.invoke('close'),
@@ -538,6 +617,52 @@ class _ArtistModePageState extends State<ArtistModePage> {
     );
   }
 
+  /// Sin letra: el aviso y, si hay, la foto del artista en el centro.
+  Widget _noLyrics(
+    MiniPlayerState state,
+    CoverTone tone,
+    String label,
+    bool large,
+  ) {
+    final message = TextStyle(color: tone.secondary);
+    final photo = _artistPhoto;
+    final name = _firstArtist(state.track);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final side = math.min(
+          math.min(box.maxWidth, box.maxHeight - 48),
+          large ? 360.0 : 240.0,
+        );
+        if (photo == null || name.isEmpty || side < 96) {
+          return Center(child: Text(label, style: message));
+        }
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                label: 'Foto de $name',
+                child: Artwork(
+                  track: Track(
+                    id: 'artist:$name',
+                    title: name,
+                    artist: name,
+                    artworkUrl: photo,
+                  ),
+                  size: side,
+                  radius: side / 2,
+                  artworkContext: ArtworkContext.playerDetail,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(label, style: message),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _lyrics(
     BuildContext context,
     MiniPlayerState state,
@@ -551,10 +676,10 @@ class _ArtistModePageState extends State<ArtistModePage> {
       return Center(child: Text('Buscando letra…', style: message));
     }
     if (result == null || result.kind == LyricsKind.notFound) {
-      return Center(child: Text('Sin letra para esta pista', style: message));
+      return _noLyrics(state, tone, 'Sin letra para esta pista', large);
     }
     if (result.kind == LyricsKind.instrumental) {
-      return Center(child: Text('Instrumental', style: message));
+      return _noLyrics(state, tone, 'Instrumental', large);
     }
     final size = large ? 30.0 : 22.0;
     if ((result.kind == LyricsKind.plain || result.lines.isEmpty) &&
@@ -579,7 +704,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
     // Sin sincronizar (LRCLIB no tiene versión que case con esta duración): las
     // líneas se reparten a lo largo de la pista para que la letra avance igual.
     final approx = result.kind == LyricsKind.plain || result.lines.isEmpty
-        ? _approximate(result.text, state.duration)
+        ? LyricsService.spreadLines(result.text, state.duration)
         : const <LyricLine>[];
     final isApprox = approx.isNotEmpty;
     final lines = isApprox ? approx : result.lines;

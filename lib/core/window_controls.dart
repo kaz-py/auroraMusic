@@ -60,6 +60,22 @@ abstract final class WindowControls {
     'height': miniWindowSize.height.round(),
   });
 
+  /// Pantalla completa: ventana nativa en Windows, modo inmersivo en Android.
+  static bool get fullscreenSupported =>
+      Platform.isWindows || Platform.isAndroid;
+
+  /// `false` si no hay nada que cambiar (otras plataformas o fallo nativo).
+  static Future<bool> setFullscreen(bool enabled) async {
+    if (Platform.isAndroid) {
+      await SystemChrome.setEnabledSystemUIMode(
+        enabled ? SystemUiMode.immersiveSticky : SystemUiMode.manual,
+        overlays: enabled ? null : SystemUiOverlay.values,
+      );
+      return true;
+    }
+    return invoke('setFullscreen', {'enabled': enabled});
+  }
+
   static Future<bool> invoke(String operation, [Object? arguments]) async {
     if (!Platform.isWindows) return false;
     _install();
