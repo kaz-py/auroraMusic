@@ -377,6 +377,7 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
       for (final u in f.friends)
         _UserRow(
           user: u,
+          onTap: () => widget.openChat.value = u.id,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -476,10 +477,18 @@ class _FriendsPageState extends ConsumerState<FriendsPage> {
 }
 
 class _UserRow extends StatelessWidget {
-  const _UserRow({required this.user, this.subtitle, this.trailing});
+  const _UserRow({
+    required this.user,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
   final FriendUser user;
   final String? subtitle;
   final Widget? trailing;
+
+  /// Pulsar en cualquier parte de la fila (los botones del final actúan solos).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -491,49 +500,52 @@ class _UserRow extends StatelessWidget {
             bottom: BorderSide(color: p.divider, width: SlushStroke.divider),
           ),
         ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 60),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: SlushSpacing.s8),
-            child: Row(
-              children: [
-                FriendAvatar(user: user, size: 44),
-                const SizedBox(width: SlushSpacing.s12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.username,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 16,
-                          height: 1.25,
-                          fontWeight: FontWeight.w800,
-                          color: p.ink,
-                        ),
-                      ),
-                      if (subtitle != null)
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 60),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: SlushSpacing.s8),
+              child: Row(
+                children: [
+                  FriendAvatar(user: user, size: 44),
+                  const SizedBox(width: SlushSpacing.s12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          subtitle!,
-                          maxLines: 2,
+                          user.username,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 12,
-                            height: 1.3,
-                            fontWeight: FontWeight.w600,
-                            color: p.ink2,
+                            fontSize: 16,
+                            height: 1.25,
+                            fontWeight: FontWeight.w800,
+                            color: p.ink,
                           ),
                         ),
-                    ],
+                        if (subtitle != null)
+                          Text(
+                            subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.3,
+                              fontWeight: FontWeight.w600,
+                              color: p.ink2,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                if (trailing != null) ...[
-                  const SizedBox(width: SlushSpacing.s8),
-                  trailing!,
+                  if (trailing != null) ...[
+                    const SizedBox(width: SlushSpacing.s8),
+                    trailing!,
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -545,6 +557,7 @@ class _UserRow extends StatelessWidget {
       title: Text(user.username, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: subtitle == null ? null : Text(subtitle!),
       trailing: trailing,
+      onTap: onTap,
     );
   }
 }

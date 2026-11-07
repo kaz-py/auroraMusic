@@ -5,6 +5,10 @@ import 'package:aurora_music/ui/friends_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aurora_music/main.dart' show auroraTheme;
+import 'package:aurora_music/theme/brasa_theme.dart';
+import 'package:aurora_music/theme/modern_theme.dart';
+import 'package:aurora_music/theme/slush_theme.dart';
 
 import 'support/fakes.dart';
 import 'support/friends_fakes.dart';
@@ -330,6 +334,7 @@ void main() {
     Future<void> Function(String)? onJoinJam,
     ValueNotifier<String?>? openChat,
     Track? playing,
+    ThemeData? theme,
   }) async {
     final controller = await createTestController();
     if (playing != null) {
@@ -350,6 +355,7 @@ void main() {
       ProviderScope(
         overrides: [friendsServiceProvider.overrideWith((ref) => f)],
         child: MaterialApp(
+          theme: theme,
           home: Scaffold(
             body: FriendsPage(
               controller: controller,
@@ -443,6 +449,61 @@ void main() {
       expect(find.byKey(const ValueKey('friends-chat-u1')), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
       expect(tester.takeException(), isNull);
+    });
+  }
+
+  // Toda la fila de la lista de chats abre el chat, también por los bordes.
+  for (final entry in {
+    'atelier': auroraTheme,
+    'modern': modernTheme,
+    'brasa': brasaTheme,
+    'slush': slushTheme,
+  }.entries) {
+    testWidgets('chats: ${entry.key}: pulsar en cualquier parte de la fila', (
+      tester,
+    ) async {
+      data.requests.add(req('a', 'u1', 'me', 'accepted'));
+      data.shares.add({
+        ...share(3),
+        'kind': 'jam',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'track': {'code': 'ABCD2345'},
+      });
+      final openChat = ValueNotifier<String?>(null);
+      await tester.runAsync(
+        () => pump(
+          tester,
+          signedIn: true,
+          size: const Size(1440, 900),
+          openChat: openChat,
+          theme: entry.value(Brightness.dark, const Color(0xff4d7cff)),
+        ),
+      );
+      await tester.runAsync(settle);
+      await tester.pump();
+      // En la pestaña de amigos, pulsar el nombre también abre el chat.
+      await tester.tap(find.text('ana'));
+      await tester.pump();
+      expect(openChat.value, 'u1', reason: '${entry.key}: fila de amigos');
+      openChat.value = null;
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('friends-tab-2')));
+      await tester.pump();
+      final row = find.byKey(const ValueKey('friends-chat-u1'));
+      final r = tester.getRect(row);
+      for (final p in [
+        Offset(r.left + 4, r.center.dy),
+        Offset(r.right - 4, r.center.dy),
+        Offset(r.center.dx, r.top + 20),
+        Offset(r.center.dx, r.bottom - 20),
+        r.center + Offset(r.width / 4, 0),
+      ]) {
+        openChat.value = null;
+        await tester.pump();
+        await tester.tapAt(p);
+        await tester.pump();
+        expect(openChat.value, 'u1', reason: '${entry.key} en $p de $r');
+      }
     });
   }
 
