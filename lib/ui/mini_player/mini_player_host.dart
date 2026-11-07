@@ -180,6 +180,10 @@ class MiniPlayerHost extends StatelessWidget {
           hasNext: state.hasNext,
           hasPrevious: state.hasPrevious,
           tapOpens: !rail,
+          onLongPress: rail
+              ? null
+              : (at) =>
+                    _openSongMenu(context, c, track, at, openVinyl, onOpenMini),
           semanticsLabel: 'Mini reproductor: ${track.title}, ${track.artist}',
           child: ConstrainedBox(
             constraints: BoxConstraints(

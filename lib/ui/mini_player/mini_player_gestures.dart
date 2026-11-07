@@ -39,6 +39,7 @@ class MiniPlayerGestures extends StatefulWidget {
     this.hasPrevious = true,
     this.semanticsLabel = 'Mini reproductor',
     this.tapOpens = true,
+    this.onLongPress,
   });
 
   final Widget child;
@@ -49,6 +50,10 @@ class MiniPlayerGestures extends StatefulWidget {
   /// Con false, tocar la barra no hace nada (en escritorio el clic va solo a
   /// la portada y el título, `MiniPlayerInfoTap`); los arrastres siguen.
   final bool tapOpens;
+
+  /// Pulsación larga sobre la barra (móvil): recibe la esquina superior
+  /// izquierda de la barra en pantalla. Null: sin pulsación larga.
+  final ValueChanged<Offset>? onLongPress;
 
   @override
   State<MiniPlayerGestures> createState() => _MiniPlayerGesturesState();
@@ -154,6 +159,12 @@ class _MiniPlayerGesturesState extends State<MiniPlayerGestures>
     if (_pressed != value && mounted) setState(() => _pressed = value);
   }
 
+  // Ancla: la esquina superior izquierda de la barra (la tarjeta se abre encima).
+  void _longPress() {
+    final box = context.findRenderObject() as RenderBox;
+    widget.onLongPress!(box.localToGlobal(Offset.zero));
+  }
+
   @override
   Widget build(BuildContext context) {
     final a = widget.actions;
@@ -169,6 +180,8 @@ class _MiniPlayerGesturesState extends State<MiniPlayerGestures>
           const CustomSemanticsAction(label: 'Pista siguiente'): a.next,
         if (widget.hasPrevious)
           const CustomSemanticsAction(label: 'Pista anterior'): a.previous,
+        if (widget.onLongPress != null)
+          const CustomSemanticsAction(label: 'Más acciones'): _longPress,
       },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -176,6 +189,9 @@ class _MiniPlayerGesturesState extends State<MiniPlayerGestures>
           behavior: HitTestBehavior.opaque,
           excludeFromSemantics: true,
           onTap: widget.tapOpens ? a.openPlayer : null,
+          onLongPressStart: widget.onLongPress == null
+              ? null
+              : (_) => _longPress(),
           onTapDown: (_) => _setPressed(true),
           onTapUp: (_) => _setPressed(false),
           onTapCancel: () => _setPressed(false),

@@ -19,11 +19,13 @@ typedef SongCardAction = ({String label, IconData icon, VoidCallback run});
 const double _kCardWidth = 360;
 
 /// Tarjeta de la canción que suena: se abre al pulsar la portada o el título
-/// del mini (escritorio). Portada y título arriba y todas las acciones de la
+/// del mini (escritorio), con pulsación larga sobre el mini o desde el ⋯ del
+/// reproductor (Android). Portada y título arriba y todas las acciones de la
 /// canción (a continuación, cola, Jam, favorito, compartir, enviar a un amigo,
 /// añadir a una lista) más las [extras] en una rejilla de teselas; cada una
 /// cierra la tarjeta y actúa. Se ancla sobre [anchor] (el punto de la pantalla
-/// donde se pulsó), abriéndose hacia arriba porque la barra va abajo.
+/// donde se pulsó): hacia arriba si está en la mitad inferior (la barra va
+/// abajo) y hacia abajo si está en la superior (botón ⋯ del reproductor).
 Future<void> showSongCard(
   BuildContext context,
   AppController controller,
@@ -41,6 +43,7 @@ Future<void> showSongCard(
   final reasons = <String, String?>{
     for (final i in actions.menuItems(track)) i.label: i.disabledReason,
   };
+  final below = anchor.dy < MediaQuery.sizeOf(context).height / 2;
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
@@ -60,7 +63,7 @@ Future<void> showSongCard(
         opacity: curved,
         child: SlideTransition(
           position: Tween(
-            begin: const Offset(0, .03),
+            begin: Offset(0, below ? -.03 : .03),
             end: Offset.zero,
           ).animate(curved),
           child: child,
@@ -90,19 +93,22 @@ class _SongCard extends StatelessWidget {
     final left = anchor.dx
         .clamp(12.0, math.max(12.0, size.width - width - 12))
         .toDouble();
-    // La tarjeta crece hacia arriba desde el borde superior de la barra.
-    final bottom = (size.height - anchor.dy + 8)
-        .clamp(12.0, size.height)
-        .toDouble();
+    final below = anchor.dy < size.height / 2;
+    // Abajo: crece hacia abajo desde el ancla; si no, hacia arriba desde el
+    // borde superior de la barra.
+    final edge = below
+        ? (anchor.dy + 8).clamp(12.0, size.height).toDouble()
+        : (size.height - anchor.dy + 8).clamp(12.0, size.height).toDouble();
     final look = _Look.of(context);
     return Stack(
       children: [
         Positioned(
           left: left,
-          bottom: bottom,
+          top: below ? edge : null,
+          bottom: below ? null : edge,
           width: width,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: size.height - bottom - 12),
+            constraints: BoxConstraints(maxHeight: size.height - edge - 12),
             child: DecoratedBox(
               // Relleno y sombra con la forma de la tarjeta (la sombra dura de
               // Slush no puede pintarse como un rectángulo).
