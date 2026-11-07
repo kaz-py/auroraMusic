@@ -3,6 +3,7 @@ import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/friends/friends_providers.dart';
 import 'package:aurora_music/friends/friends_service.dart';
 import 'package:aurora_music/theme/modern_widgets.dart';
+import 'package:aurora_music/ui/cassette_player.dart';
 import 'package:aurora_music/ui/friends_page.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/main.dart';
@@ -333,6 +334,22 @@ void main() {
     for (final tip in const ['Aleatorio', 'Repetir', 'Anterior', 'Siguiente']) {
       expect(find.byTooltip(tip), findsOneWidget, reason: tip);
     }
+    // Se puede cambiar a vinilo o casete y volver a la portada.
+    Finder inPicker(String tip) => find.descendant(
+      of: find.byKey(const ValueKey('modern-view-picker')),
+      matching: find.byTooltip(tip),
+    );
+    await tester.tap(inPicker('Ver vinilo'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsOneWidget);
+    await tester.tap(inPicker('Ver casete'));
+    await tester.pump();
+    expect(find.byType(CassettePlayer), findsOneWidget);
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
+    await tester.tap(inPicker('Ver portada'));
+    await tester.pump();
+    expect(find.byType(CassettePlayer), findsNothing);
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
   });
 
   testWidgets('Modern en móvil no muestra titular ni saludo en Inicio', (

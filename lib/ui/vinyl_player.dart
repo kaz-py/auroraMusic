@@ -63,6 +63,22 @@ class _VinylPlayerState extends State<VinylPlayer>
     widget.controller.preferences.setBool('cassetteMode', value);
   }
 
+  /// Modern: portada sola por defecto; también puede ver vinilo o casete.
+  late bool _modernPhoto =
+      widget.controller.preferences.getBool('modernPhoto') ?? true;
+
+  /// 0 portada, 1 vinilo, 2 casete.
+  void _setModernView(int view) {
+    setState(() {
+      _modernPhoto = view == 0;
+      if (view != 0) _cassette = view == 2;
+    });
+    widget.controller.preferences.setBool('modernPhoto', view == 0);
+    if (view != 0) {
+      widget.controller.preferences.setBool('cassetteMode', view == 2);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1037,8 +1053,9 @@ extension on _VinylPlayerState {
         controls,
       ],
     );
-    // Modern abre con la portada sola; el disco queda para los demás temas.
-    final photo = !brasa && !_cassette && track != null;
+    // Modern elige cómo ver la pista: portada sola (por defecto), vinilo o
+    // casete; Brasa conserva su disco.
+    final photo = !brasa && _modernPhoto && track != null;
     final record = photo
         ? _seekable(
             c,
@@ -1057,22 +1074,60 @@ extension on _VinylPlayerState {
             math.max(0.0, recordSide),
             brasa ? _VinylStyle.brasa : _VinylStyle.modern,
           );
+    final Widget visual = brasa
+        ? record
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              record,
+              const SizedBox(height: 16),
+              SegmentedButton<int>(
+                key: const ValueKey('modern-view-picker'),
+                showSelectedIcon: false,
+                style: SegmentedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  selectedForegroundColor: Tracky.navy,
+                  selectedBackgroundColor: Tracky.mint,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+                segments: const [
+                  ButtonSegment(
+                    value: 0,
+                    icon: Icon(Icons.image_outlined),
+                    tooltip: 'Ver portada',
+                  ),
+                  ButtonSegment(
+                    value: 1,
+                    icon: Icon(Icons.album_outlined),
+                    tooltip: 'Ver vinilo',
+                  ),
+                  ButtonSegment(
+                    value: 2,
+                    icon: Icon(Icons.sd_card_outlined),
+                    tooltip: 'Ver casete',
+                  ),
+                ],
+                selected: {if (_modernPhoto) 0 else if (_cassette) 2 else 1},
+                onSelectionChanged: (s) => _setModernView(s.first),
+              ),
+            ],
+          );
     final inner = compact
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(child: record),
+              Center(child: visual),
               const SizedBox(height: 24),
               info,
             ],
           )
         : Row(
             children: [
-              if (brasa) record,
+              if (brasa) visual,
               if (brasa) const SizedBox(width: 32),
               Expanded(child: info),
               if (!brasa) const SizedBox(width: 32),
-              if (!brasa) record,
+              if (!brasa) visual,
             ],
           );
     final Widget feature = brasa
