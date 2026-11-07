@@ -359,6 +359,15 @@ class _VinylPlayerState extends State<VinylPlayer>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
+                  tooltip: 'Aleatorio',
+                  isSelected: c.shuffle,
+                  color: c.shuffle ? color.primary : color.onSurfaceVariant,
+                  onPressed: track == null
+                      ? null
+                      : () => c.setShuffle(!c.shuffle),
+                  icon: const Icon(Icons.shuffle_rounded, size: 24),
+                ),
+                IconButton(
                   tooltip: 'Anterior',
                   onPressed: track == null ? null : c.previous,
                   icon: const Icon(Icons.skip_previous_rounded, size: 32),
@@ -924,16 +933,19 @@ extension on _VinylPlayerState {
     // Modern suma aleatorio y repetir a los lados (en Brasa solo los tres
     // botones de siempre).
     final extras = !brasa && track != null;
+    final brasaShuffle = brasa && track != null;
     final controls = ListenableBuilder(
       listenable: c.audio,
       builder: (context, _) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (extras)
+          if (extras || brasaShuffle)
             IconButton(
               tooltip: 'Aleatorio',
               isSelected: c.shuffle,
-              color: c.shuffle ? Tracky.mint : Colors.white54,
+              color: c.shuffle
+                  ? (brasa ? Brasa.accent : Tracky.mint)
+                  : (brasa ? Brasa.cloud : Colors.white54),
               onPressed: () => c.setShuffle(!c.shuffle),
               icon: const Icon(Icons.shuffle_rounded, size: 24),
             ),

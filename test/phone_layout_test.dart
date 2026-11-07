@@ -315,6 +315,27 @@ void main() {
         expect(tester.getRect(tile).bottom, lessThanOrEqualTo(640));
       }
     });
+
+    testWidgets('$theme: el reproductor grande tiene aleatorio que se activa', (
+      tester,
+    ) async {
+      final c = await pumpPhone(tester, theme: theme, play: true);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(MiniPlayerHost),
+              matching: find.text(_long),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(c.shuffle, isFalse);
+      await tester.ensureVisible(find.byTooltip('Aleatorio'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Aleatorio'));
+      await tester.pump();
+      expect(c.shuffle, isTrue);
+    });
   }
 
   testWidgets('Modern: el reproductor abre con la portada sola y más botones', (
