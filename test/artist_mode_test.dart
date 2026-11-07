@@ -5,7 +5,6 @@ import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/lyrics/lyrics_service.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/artist_mode.dart';
-import 'package:aurora_music/ui/artwork.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -282,26 +281,27 @@ void main() {
   });
 
   group('sin letra', () {
-    Finder coverInCenter() => find.byWidgetPredicate(
+    Finder cover() => find.byWidgetPredicate(
       (w) =>
           w is Semantics &&
-          (w.properties.label?.startsWith('Portada central') ?? false),
+          (w.properties.label?.startsWith('Portada de ') ?? false),
     );
     Finder labelFade() => find.ancestor(
       of: find.text('Sin letra para esta pista'),
       matching: find.byType(AnimatedOpacity),
     );
 
-    testWidgets('muestra la portada de la pista en el centro', (tester) async {
+    testWidgets('con letra la portada va a la izquierda', (tester) async {
+      await mountPage(tester);
+      expect(cover(), findsOneWidget);
+      expect(tester.getCenter(cover()).dx, lessThan(400));
+    });
+
+    testWidgets('sin letra hay una sola portada, en el centro', (tester) async {
       await mountPage(tester, service: _NoLyrics());
       await tester.pump(const Duration(milliseconds: 100));
-      expect(coverInCenter(), findsOneWidget);
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is Artwork && w.track.id.startsWith('artist:'),
-        ),
-        findsNothing,
-      );
+      expect(cover(), findsOneWidget);
+      expect(tester.getCenter(cover()).dx, closeTo(720, 40));
       expect(tester.widget<AnimatedOpacity>(labelFade()).opacity, 1);
     });
 
@@ -309,7 +309,7 @@ void main() {
       await mountPage(tester, service: _NoLyrics());
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(seconds: 1));
-      expect(coverInCenter(), findsOneWidget);
+      expect(cover(), findsOneWidget);
       expect(tester.widget<AnimatedOpacity>(labelFade()).opacity, 0);
     });
   });

@@ -139,6 +139,18 @@ class _ArtistModePageState extends State<ArtistModePage> {
     }
   }
 
+  /// Aviso cuando la búsqueda terminó sin letra; `null` si hay letra o aún se
+  /// busca. Sin letra la página muestra solo la portada, centrada.
+  String? get _noLyricsLabel {
+    final r = _result;
+    if (r == null) return _loading ? null : 'Sin letra para esta pista';
+    return switch (r.kind) {
+      LyricsKind.notFound => 'Sin letra para esta pista',
+      LyricsKind.instrumental => 'Instrumental',
+      _ => null,
+    };
+  }
+
   /// Texto de la letra para copiar; `null` si no hay.
   String? _copyText() {
     final r = _result;
@@ -398,6 +410,10 @@ class _ArtistModePageState extends State<ArtistModePage> {
     CoverTone tone,
   ) => LayoutBuilder(
     builder: (context, box) {
+      final label = _noLyricsLabel;
+      if (label != null) {
+        return _noLyricsBody(context, state, actions, track, tone, label, box);
+      }
       final left = math.min(box.maxWidth * .38, 440.0);
       // La portada deja sitio al progreso y al título bajo ella.
       final cover = math.max(96.0, math.min(left, box.maxHeight - 150));
@@ -427,26 +443,35 @@ class _ArtistModePageState extends State<ArtistModePage> {
     MiniPlayerActions actions,
     Track track,
     CoverTone tone,
-  ) => Column(
-    children: [
-      Row(
-        children: [
-          Artwork(
-            track: track,
-            size: 72,
-            artworkContext: ArtworkContext.thumbnailDetail,
-            radius: 8,
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: _titles(context, state, track, tone)),
-        ],
-      ),
-      const SizedBox(height: 4),
-      _progress(context, state, actions, tone),
-      const SizedBox(height: 8),
-      Expanded(child: _lyrics(context, state, actions, tone, large: false)),
-    ],
-  );
+  ) {
+    final label = _noLyricsLabel;
+    if (label != null) {
+      return LayoutBuilder(
+        builder: (context, box) =>
+            _noLyricsBody(context, state, actions, track, tone, label, box),
+      );
+    }
+    return Column(
+      children: [
+        Row(
+          children: [
+            Artwork(
+              track: track,
+              size: 72,
+              artworkContext: ArtworkContext.thumbnailDetail,
+              radius: 8,
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: _titles(context, state, track, tone)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        _progress(context, state, actions, tone),
+        const SizedBox(height: 8),
+        Expanded(child: _lyrics(context, state, actions, tone, large: false)),
+      ],
+    );
+  }
 
   /// Portada, progreso, título y artista (columna izquierda).
   Widget _identity(
@@ -564,19 +589,41 @@ class _ArtistModePageState extends State<ArtistModePage> {
     );
   }
 
-  /// Sin letra: la portada de la pista en el centro; el aviso se oculta solo.
-  Widget _noLyrics(
+  /// Sin letra: una sola portada, centrada en la página, con el progreso y el
+  /// título debajo. El aviso se oculta solo a los pocos segundos.
+  Widget _noLyricsBody(
+    BuildContext context,
     MiniPlayerState state,
+    MiniPlayerActions actions,
+    Track track,
     CoverTone tone,
     String label,
-    bool large,
-  ) => _NoLyricsView(
-    key: ValueKey(state.track?.id),
-    track: state.track,
-    label: label,
-    style: TextStyle(color: tone.secondary),
-    maxSide: large ? 360.0 : 240.0,
-  );
+    BoxConstraints box,
+  ) {
+    // La portada deja sitio al progreso, al título y al aviso bajo ella.
+    final cover = math.max(
+      96.0,
+      math.min(math.min(box.maxWidth, 440.0), box.maxHeight - 170),
+    );
+    return Center(
+      child: SizedBox(
+        width: cover,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _identity(context, state, actions, track, tone, cover),
+            const SizedBox(height: 8),
+            _FadingNotice(
+              key: ValueKey(track.id),
+              label: label,
+              style: TextStyle(color: tone.secondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _lyrics(
     BuildContext context,
@@ -587,14 +634,11 @@ class _ArtistModePageState extends State<ArtistModePage> {
   }) {
     final result = _result;
     final message = TextStyle(color: tone.secondary);
-    if (_loading && result == null) {
+    if (result == null ||
+        result.kind == LyricsKind.notFound ||
+        result.kind == LyricsKind.instrumental) {
+      // Sin letra no se llega aquí (ver [_noLyricsLabel]): solo «buscando».
       return Center(child: Text('Buscando letra…', style: message));
-    }
-    if (result == null || result.kind == LyricsKind.notFound) {
-      return _noLyrics(state, tone, 'Sin letra para esta pista', large);
-    }
-    if (result.kind == LyricsKind.instrumental) {
-      return _noLyrics(state, tone, 'Instrumental', large);
     }
     final size = large ? 30.0 : 22.0;
     if ((result.kind == LyricsKind.plain || result.lines.isEmpty) &&
@@ -809,35 +853,26 @@ class _ArtistModePageState extends State<ArtistModePage> {
   }
 }
 
-/// Sin letra: portada de la pista centrada. El aviso se muestra unos segundos
-/// y se desvanece solo (la pista no cambia el estado, solo avisa).
-class _NoLyricsView extends StatefulWidget {
-  const _NoLyricsView({
-    super.key,
-    required this.track,
-    required this.label,
-    required this.style,
-    required this.maxSide,
-  });
+/// Aviso de «sin letra»: se muestra unos segundos y se desvanece solo.
+class _FadingNotice extends StatefulWidget {
+  const _FadingNotice({super.key, required this.label, required this.style});
 
-  final Track? track;
   final String label;
   final TextStyle style;
-  final double maxSide;
 
   @override
-  State<_NoLyricsView> createState() => _NoLyricsViewState();
+  State<_FadingNotice> createState() => _FadingNoticeState();
 }
 
-class _NoLyricsViewState extends State<_NoLyricsView> {
-  bool _showLabel = true;
+class _FadingNoticeState extends State<_FadingNotice> {
+  bool _visible = true;
   Timer? _hide;
 
   @override
   void initState() {
     super.initState();
     _hide = Timer(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _showLabel = false);
+      if (mounted) setState(() => _visible = false);
     });
   }
 
@@ -848,42 +883,11 @@ class _NoLyricsViewState extends State<_NoLyricsView> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final track = widget.track;
-    final duration = MediaQuery.disableAnimationsOf(context)
+  Widget build(BuildContext context) => AnimatedOpacity(
+    opacity: _visible ? 1 : 0,
+    duration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 400);
-    final label = AnimatedOpacity(
-      opacity: _showLabel ? 1 : 0,
-      duration: duration,
-      child: Text(widget.label, style: widget.style),
-    );
-    return LayoutBuilder(
-      builder: (context, box) {
-        final side = math.min(
-          math.min(box.maxWidth, box.maxHeight - 48),
-          widget.maxSide,
-        );
-        if (track == null || side < 96) return Center(child: label);
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Semantics(
-                label: 'Portada central de ${track.title}',
-                child: Artwork(
-                  track: track,
-                  size: side,
-                  radius: 12,
-                  artworkContext: ArtworkContext.playerDetail,
-                ),
-              ),
-              const SizedBox(height: 12),
-              label,
-            ],
-          ),
-        );
-      },
-    );
-  }
+        : const Duration(milliseconds: 400),
+    child: Text(widget.label, textAlign: TextAlign.center, style: widget.style),
+  );
 }
