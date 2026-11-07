@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../core/models.dart';
-import '../core/source_backend.dart';
 import '../core/window_controls.dart';
 import '../jam/jam_controller.dart';
 import '../lyrics/lyrics_service.dart';
@@ -35,7 +34,6 @@ class ArtistModePage extends StatefulWidget {
     required this.onTogglePlay,
     this.jam,
     this.service,
-    this.artistPhoto,
   });
 
   final AppController controller;
@@ -47,9 +45,6 @@ class ArtistModePage extends StatefulWidget {
 
   /// Servicio de letras (pruebas); por defecto el de la app.
   final LyricsService? service;
-
-  /// Foto del artista (pruebas); por defecto se busca en la fuente.
-  final Future<String?> Function(String artist)? artistPhoto;
 
   @override
   State<ArtistModePage> createState() => _ArtistModePageState();
@@ -64,7 +59,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
   int _lastActive = -1;
   double? _drag;
   bool _fullscreen = false;
-  String? _artistPhoto;
   int _offsetMs = 0;
   final Map<int, GlobalKey> _lineKeys = {};
   final _plainScroll = ScrollController();
@@ -93,7 +87,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
     _lineKeys.clear();
     _offsetMs = 0;
     _result = null;
-    _artistPhoto = null;
     _loading = false;
     if (track != null) {
       unawaited(_load(track));
@@ -119,14 +112,8 @@ class _ArtistModePageState extends State<ArtistModePage> {
       setState(() => _result = result);
       if (result.kind == LyricsKind.plain) {
         unawaited(_upgrade(track, request));
-      } else if (result.kind == LyricsKind.notFound ||
-          result.kind == LyricsKind.instrumental) {
-        unawaited(_fetchPhoto(track, request));
       }
     } catch (_) {
-      if (mounted && request == _request) {
-        unawaited(_fetchPhoto(track, request));
-      }
       // Sin letra: se muestra el aviso de siempre.
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
@@ -150,46 +137,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
     } catch (_) {
       // Se queda la letra aproximada.
     }
-  }
-
-  /// Primer artista de la pista (misma separación que `AppController.openArtist`).
-  static String _firstArtist(Track? track) => (track?.artist ?? '')
-      .split(RegExp(r'\s*(?:,|&| x | feat\.?| ft\.?)\s*'))
-      .first
-      .trim();
-
-  static final Map<String, String?> _photoCache = {};
-
-  /// Foto del artista: la entrada de búsqueda que se llama igual, o la primera
-  /// con imagen.
-  Future<String?> _searchArtistPhoto(String name) async {
-    final page = await widget.controller.source.searchPage(
-      name,
-      SearchKind.artists,
-    );
-    final want = name.trim().toLowerCase();
-    final withArt = page.entries.where((e) => e.artworkUrl != null);
-    final exact = withArt.where((e) => e.title.trim().toLowerCase() == want);
-    return (exact.firstOrNull ?? withArt.firstOrNull)?.artworkUrl;
-  }
-
-  Future<void> _fetchPhoto(Track track, int request) async {
-    final name = _firstArtist(track);
-    if (name.isEmpty) return;
-    final key = name.toLowerCase();
-    String? url;
-    try {
-      if (_photoCache.containsKey(key)) {
-        url = _photoCache[key];
-      } else {
-        url = await (widget.artistPhoto ?? _searchArtistPhoto)(name);
-        _photoCache[key] = url;
-      }
-    } catch (_) {
-      _photoCache[key] = null;
-    }
-    if (url == null || !mounted || request != _request) return;
-    setState(() => _artistPhoto = url);
   }
 
   /// Texto de la letra para copiar; `null` si no hay.
@@ -617,51 +564,19 @@ class _ArtistModePageState extends State<ArtistModePage> {
     );
   }
 
-  /// Sin letra: el aviso y, si hay, la foto del artista en el centro.
+  /// Sin letra: la portada de la pista en el centro; el aviso se oculta solo.
   Widget _noLyrics(
     MiniPlayerState state,
     CoverTone tone,
     String label,
     bool large,
-  ) {
-    final message = TextStyle(color: tone.secondary);
-    final photo = _artistPhoto;
-    final name = _firstArtist(state.track);
-    return LayoutBuilder(
-      builder: (context, box) {
-        final side = math.min(
-          math.min(box.maxWidth, box.maxHeight - 48),
-          large ? 360.0 : 240.0,
-        );
-        if (photo == null || name.isEmpty || side < 96) {
-          return Center(child: Text(label, style: message));
-        }
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Semantics(
-                label: 'Foto de $name',
-                child: Artwork(
-                  track: Track(
-                    id: 'artist:$name',
-                    title: name,
-                    artist: name,
-                    artworkUrl: photo,
-                  ),
-                  size: side,
-                  radius: side / 2,
-                  artworkContext: ArtworkContext.playerDetail,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(label, style: message),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  ) => _NoLyricsView(
+    key: ValueKey(state.track?.id),
+    track: state.track,
+    label: label,
+    style: TextStyle(color: tone.secondary),
+    maxSide: large ? 360.0 : 240.0,
+  );
 
   Widget _lyrics(
     BuildContext context,
@@ -890,6 +805,85 @@ class _ArtistModePageState extends State<ArtistModePage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Sin letra: portada de la pista centrada. El aviso se muestra unos segundos
+/// y se desvanece solo (la pista no cambia el estado, solo avisa).
+class _NoLyricsView extends StatefulWidget {
+  const _NoLyricsView({
+    super.key,
+    required this.track,
+    required this.label,
+    required this.style,
+    required this.maxSide,
+  });
+
+  final Track? track;
+  final String label;
+  final TextStyle style;
+  final double maxSide;
+
+  @override
+  State<_NoLyricsView> createState() => _NoLyricsViewState();
+}
+
+class _NoLyricsViewState extends State<_NoLyricsView> {
+  bool _showLabel = true;
+  Timer? _hide;
+
+  @override
+  void initState() {
+    super.initState();
+    _hide = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _showLabel = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _hide?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final track = widget.track;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 400);
+    final label = AnimatedOpacity(
+      opacity: _showLabel ? 1 : 0,
+      duration: duration,
+      child: Text(widget.label, style: widget.style),
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        final side = math.min(
+          math.min(box.maxWidth, box.maxHeight - 48),
+          widget.maxSide,
+        );
+        if (track == null || side < 96) return Center(child: label);
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                label: 'Portada central de ${track.title}',
+                child: Artwork(
+                  track: track,
+                  size: side,
+                  radius: 12,
+                  artworkContext: ArtworkContext.playerDetail,
+                ),
+              ),
+              const SizedBox(height: 12),
+              label,
+            ],
+          ),
+        );
+      },
     );
   }
 }

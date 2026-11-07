@@ -103,8 +103,6 @@ void main() {
     double scale = 1,
     VoidCallback? onClose,
     LyricsService? service,
-    Future<String?> Function(String artist)? artistPhoto,
-    int startIndex = 0,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -113,7 +111,7 @@ void main() {
       () => createTestController(tracks: _songs),
     ))!;
     c.queue = [..._songs];
-    await tester.runAsync(() => c.playQueueAt(startIndex));
+    await tester.runAsync(() => c.playQueueAt(0));
     await c.audio.pause();
     addTearDown(() => tester.runAsync(() => closeTestController(c)));
     await tester.pumpWidget(
@@ -130,7 +128,6 @@ void main() {
             service: service ?? _FakeLyrics(),
             onClose: onClose ?? () {},
             onTogglePlay: () {},
-            artistPhoto: artistPhoto,
           ),
         ),
       ),
@@ -284,32 +281,36 @@ void main() {
     });
   });
 
-  group('foto del artista sin letra', () {
-    Finder artistPhoto() => find.byWidgetPredicate(
-      (w) => w is Artwork && w.track.id.startsWith('artist:'),
+  group('sin letra', () {
+    Finder coverInCenter() => find.byWidgetPredicate(
+      (w) =>
+          w is Semantics &&
+          (w.properties.label?.startsWith('Portada central') ?? false),
+    );
+    Finder labelFade() => find.ancestor(
+      of: find.text('Sin letra para esta pista'),
+      matching: find.byType(AnimatedOpacity),
     );
 
-    testWidgets('con foto: se ve en el centro junto al aviso', (tester) async {
-      await mountPage(
-        tester,
-        service: _NoLyrics(),
-        artistPhoto: (_) async => 'https://example.com/a.jpg',
-      );
+    testWidgets('muestra la portada de la pista en el centro', (tester) async {
+      await mountPage(tester, service: _NoLyrics());
       await tester.pump(const Duration(milliseconds: 100));
-      expect(artistPhoto(), findsOneWidget);
-      expect(find.text('Sin letra para esta pista'), findsOneWidget);
+      expect(coverInCenter(), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Artwork && w.track.id.startsWith('artist:'),
+        ),
+        findsNothing,
+      );
+      expect(tester.widget<AnimatedOpacity>(labelFade()).opacity, 1);
     });
 
-    testWidgets('sin foto: solo el aviso', (tester) async {
-      await mountPage(
-        tester,
-        service: _NoLyrics(),
-        startIndex: 1,
-        artistPhoto: (_) async => null,
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(artistPhoto(), findsNothing);
-      expect(find.text('Sin letra para esta pista'), findsOneWidget);
+    testWidgets('el aviso se oculta solo a los pocos segundos', (tester) async {
+      await mountPage(tester, service: _NoLyrics());
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 1));
+      expect(coverInCenter(), findsOneWidget);
+      expect(tester.widget<AnimatedOpacity>(labelFade()).opacity, 0);
     });
   });
 

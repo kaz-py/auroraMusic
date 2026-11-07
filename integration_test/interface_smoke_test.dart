@@ -238,7 +238,6 @@ void main() {
             body: ArtistModePage(
               controller: c,
               service: _FixtureLyrics(),
-              artistPhoto: (_) async => null,
               onTogglePlay: () {},
               onClose: () => lyricsClosed = true,
             ),

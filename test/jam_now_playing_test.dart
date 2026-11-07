@@ -54,7 +54,6 @@ void main() {
           body: ArtistModePage(
             controller: app,
             service: service,
-            artistPhoto: (_) async => null,
             onClose: () {},
             onTogglePlay: () {},
           ),
