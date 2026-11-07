@@ -529,6 +529,19 @@ ThemeData auroraTheme(Brightness brightness, Color accent) {
       inactiveTrackColor: scheme.outlineVariant,
       overlayColor: scheme.primary.withValues(alpha: .14),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      elevation: 0,
+      backgroundColor: dark ? scheme.surfaceContainerHighest : ink,
+      contentTextStyle: TextStyle(
+        color: dark ? scheme.onSurface : paper,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: dark ? scheme.primary : scheme.inversePrimary,
+      closeIconColor: dark ? scheme.onSurface : paper,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),
     ),

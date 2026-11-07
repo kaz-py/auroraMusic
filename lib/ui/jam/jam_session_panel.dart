@@ -50,9 +50,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
 
   void _say(String text) {
     if (mounted) {
-      ScaffoldMessenger.maybeOf(
-        context,
-      )?.showSnackBar(auroraSnackBar(context, Text(text)));
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
     }
   }
 

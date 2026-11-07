@@ -54,9 +54,8 @@ class _AccountSettingsState extends State<AccountSettings> {
     if (mounted) setState(() => _busy = false);
   }
 
-  void _snack(String text) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(auroraSnackBar(context, Text(text)));
+  void _snack(String text) =>
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
 
   Future<void> _changeAvatar(AccountService accounts) async {
     final c = widget.controller;

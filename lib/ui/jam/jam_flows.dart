@@ -13,9 +13,8 @@ import 'jam_qr_code.dart';
 import 'jam_session_panel.dart';
 import 'jam_widgets.dart';
 
-void _say(BuildContext context, String text) => ScaffoldMessenger.maybeOf(
-  context,
-)?.showSnackBar(auroraSnackBar(context, Text(text)));
+void _say(BuildContext context, String text) =>
+    showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
 
 /// Inicia una Jam con un toque: en línea si hay servidor, si no en la red local.
 /// Al terminar abre «Invitar»; [seed] añade esas canciones a la cola.

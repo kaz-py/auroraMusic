@@ -13,6 +13,7 @@ import '../../theme/slush_widgets.dart';
 import '../slush/slush_decor.dart';
 import '../slush/slush_pages.dart';
 import '../artwork.dart';
+import '../undo_snackbar.dart';
 import 'studio_symbols.dart';
 
 class DownloadsStudioPage extends StatefulWidget {
@@ -86,9 +87,10 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
 
   int _tab = 0;
   String _filter = '';
-  void _pending(String feature) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text('$feature: no implementado todavía.')));
+  void _pending(String feature) => showUndoSnackBar(
+    ScaffoldMessenger.maybeOf(context),
+    Text('$feature: no implementado todavía.'),
+  );
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(

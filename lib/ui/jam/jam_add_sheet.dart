@@ -45,9 +45,8 @@ class _JamAddSheetState extends State<JamAddSheet> {
     super.dispose();
   }
 
-  void _say(String text) => ScaffoldMessenger.maybeOf(
-    context,
-  )?.showSnackBar(auroraSnackBar(context, Text(text)));
+  void _say(String text) =>
+      showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(text));
 
   void _addOne(Track t) {
     final ok = jam.addTracks([t]);

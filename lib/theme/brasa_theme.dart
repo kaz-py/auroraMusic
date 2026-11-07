@@ -229,6 +229,21 @@ ThemeData brasaTheme(Brightness brightness, Color accent) {
       inactiveTrackColor: scheme.outlineVariant,
       overlayColor: scheme.onSurface.withValues(alpha: .12),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      elevation: 0,
+      backgroundColor: Brasa.graphite,
+      contentTextStyle: const TextStyle(
+        color: Brasa.cream,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: Brasa.cream,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Colors.white.withValues(alpha: .08)),
+      ),
+    ),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),
     ),

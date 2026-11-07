@@ -291,6 +291,18 @@ ThemeData modernTheme(Brightness brightness, Color accent) {
       inactiveTrackColor: scheme.outline.withValues(alpha: .5),
       overlayColor: scheme.tertiary.withValues(alpha: .14),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      elevation: 0,
+      backgroundColor: navy,
+      contentTextStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      actionTextColor: mint,
+      shape: shape(8),
+    ),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),
     ),

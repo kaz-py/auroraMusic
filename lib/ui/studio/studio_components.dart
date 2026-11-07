@@ -4,6 +4,7 @@ import '../../theme/brasa_theme.dart';
 import '../../theme/modern_theme.dart';
 import '../../theme/modern_widgets.dart';
 import '../../theme/slush_theme.dart';
+import '../undo_snackbar.dart';
 
 abstract final class StudioPalette {
   static const canvas = Color(0xff151312);
@@ -131,8 +132,9 @@ class StudioStamp extends StatelessWidget {
 }
 
 void showStudioPending(BuildContext context, String feature) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('$feature: función pendiente de implementar.')),
+  showUndoSnackBar(
+    ScaffoldMessenger.maybeOf(context),
+    Text('$feature: función pendiente de implementar.'),
   );
 }
 

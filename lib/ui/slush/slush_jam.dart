@@ -10,6 +10,7 @@ import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import '../jam/jam_add_sheet.dart';
 import '../jam/jam_flows.dart';
+import '../undo_snackbar.dart';
 import '../jam/jam_qr_code.dart';
 import '../jam/jam_session_panel.dart';
 import '../jam/jam_widgets.dart';
@@ -238,9 +239,7 @@ class SlushJamActive extends StatelessWidget {
     Future<void> copy(String text, String done) async {
       await Clipboard.setData(ClipboardData(text: text));
       if (context.mounted) {
-        ScaffoldMessenger.maybeOf(
-          context,
-        )?.showSnackBar(SnackBar(content: Text(done)));
+        showUndoSnackBar(ScaffoldMessenger.maybeOf(context), Text(done));
       }
     }
 
