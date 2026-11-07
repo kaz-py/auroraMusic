@@ -17,7 +17,7 @@ const _plain = Track(
 
 class _Calls {
   int open = 0, play = 0, next = 0, previous = 0, like = 0;
-  int mute = 0, queue = 0, eq = 0, lyrics = 0;
+  int mute = 0, queue = 0, eq = 0, lyrics = 0, shuffles = 0;
   final seeks = <double>[];
   late final actions = MiniPlayerActions(
     openPlayer: () => open++,
@@ -30,6 +30,7 @@ class _Calls {
     openQueue: () => queue++,
     openEqualizer: () => eq++,
     openLyrics: () => lyrics++,
+    toggleShuffle: () => shuffles++,
   );
 }
 
@@ -50,6 +51,8 @@ MiniPlayerState _state({
   String? jamHost,
   bool ad = false,
   bool jam = false,
+  bool shuffle = false,
+  bool canShuffle = false,
 }) => MiniPlayerState(
   track: track,
   isPlaying: playing,
@@ -65,6 +68,8 @@ MiniPlayerState _state({
   queueLength: queue,
   equalizerAvailable: eq,
   lyricsAvailable: lyrics,
+  shuffle: shuffle,
+  canShuffle: canShuffle,
   jamHostName: jamHost,
   adPlaying: ad,
   jamAudio: jam,
@@ -204,7 +209,7 @@ void main() {
       for (final wide in const [false, true]) {
         await mount(tester, wide: wide, width: wide ? 900 : 360);
         final buttons = find.byType(IconButton).evaluate().toList();
-        expect(buttons.length, wide ? 4 : 3);
+        expect(buttons.length, wide ? 5 : 3);
         for (final b in buttons) {
           final size = tester.getSize(find.byWidget(b.widget));
           expect(size.width, greaterThanOrEqualTo(44));
@@ -223,6 +228,25 @@ void main() {
       expect(button('Anterior'), findsNothing);
       await mount(tester, wide: true, width: 900);
       expect(button('Anterior'), findsOneWidget);
+    });
+
+    testWidgets('aleatorio: solo en ancho, activo solo con canShuffle', (
+      tester,
+    ) async {
+      var calls = await mount(
+        tester,
+        wide: true,
+        width: 900,
+        state: _state(canShuffle: true),
+      );
+      expect(button('Aleatorio'), findsOneWidget);
+      await tester.tap(button('Aleatorio'));
+      expect(calls.shuffles, 1);
+      calls = await mount(tester, wide: true, width: 900);
+      await tester.tap(button('Aleatorio'), warnIfMissed: false);
+      expect(calls.shuffles, 0);
+      await mount(tester, state: _state(canShuffle: true));
+      expect(button('Aleatorio'), findsNothing);
     });
 
     testWidgets('la línea de tiempo expone su valor', (tester) async {

@@ -64,9 +64,10 @@ const double _kSeekHit = 32;
 /// Tamaño del mando y grosor de la barra con el puntero encima.
 const double _kKnobHover = 14, _kBarHover = 7;
 
-// Ancho fijo de la fila ancha (portada 52 + 14 + 6 + anterior 44 + play 52 +
-// siguiente 44 + corazón 44) y mínimo de título antes de plegar los controles.
-const double _kWideFixed = 256, _kTitleMin = 140;
+// Ancho fijo de la fila ancha (portada 52 + 14 + 6 + aleatorio 44 + anterior
+// 44 + play 52 + siguiente 44 + corazón 44) y mínimo de título antes de
+// plegar los controles.
+const double _kWideFixed = 300, _kTitleMin = 140;
 
 /// Colores ya resueltos del aspecto de la barra.
 class _Look {
@@ -349,6 +350,17 @@ class _Body extends StatelessWidget {
                         actions: actions,
                         color: look.fg,
                       ),
+                    ),
+                    // Aleatorio: solo en la fila ancha; activo = color de
+                    // acento (playFill) y puntito, para no depender solo del tono.
+                    _IconAction(
+                      tooltip: state.shuffle
+                          ? 'Aleatorio (activado)'
+                          : 'Aleatorio',
+                      icon: Icons.shuffle_rounded,
+                      color: state.shuffle ? look.playFill : look.fg,
+                      dot: state.shuffle,
+                      onTap: state.canShuffle ? actions.toggleShuffle : null,
                     ),
                     _IconAction(
                       tooltip: state.previousLabel(),
@@ -668,12 +680,14 @@ class _IconAction extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onTap,
+    this.dot = false,
   });
 
   final String tooltip;
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
+  final bool dot;
 
   @override
   Widget build(BuildContext context) => Tooltip(
@@ -686,7 +700,24 @@ class _IconAction extends StatelessWidget {
         semanticLabel: tooltip,
         child: SizedBox.square(
           dimension: SlushControl.touch,
-          child: Icon(icon, size: 28, color: color),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(icon, size: 28, color: color),
+              if (dot)
+                Positioned(
+                  bottom: 4,
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     ),

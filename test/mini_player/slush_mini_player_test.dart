@@ -39,6 +39,8 @@ MiniPlayerState _state({
   bool equalizerAvailable = true,
   bool equalizerActive = false,
   bool lyricsAvailable = true,
+  bool shuffle = false,
+  bool canShuffle = false,
 }) => MiniPlayerState(
   track: track,
   isPlaying: isPlaying,
@@ -59,6 +61,8 @@ MiniPlayerState _state({
   equalizerAvailable: equalizerAvailable,
   equalizerActive: equalizerActive,
   lyricsAvailable: lyricsAvailable,
+  shuffle: shuffle,
+  canShuffle: canShuffle,
 );
 
 class _Calls {
@@ -76,6 +80,7 @@ class _Calls {
     openQueue: () => log.add('queue'),
     openEqualizer: () => log.add('eq'),
     openLyrics: () => log.add('lyrics'),
+    toggleShuffle: () => log.add('shuffle'),
   );
 }
 
@@ -496,6 +501,30 @@ void main() {
       await tester.tap(find.byTooltip('Siguiente'));
       await tester.tap(find.byTooltip('Anterior'));
       expect(calls.log, ['toggle', 'like', 'next', 'previous']);
+    });
+
+    testWidgets('aleatorio: solo en fila ancha y solo si canShuffle', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(900, 800),
+        state: _state(canShuffle: true),
+      );
+      expect(find.byTooltip('Aleatorio'), findsOneWidget);
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.count('shuffle'), 1);
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(900, 800),
+        state: _state(),
+      );
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.count('shuffle'), 1); // sigue en 1: deshabilitado
+      await mount(tester, state: _state(canShuffle: true));
+      expect(find.byTooltip('Aleatorio'), findsNothing);
     });
 
     testWidgets('tocar la barra abre; los botones no abren', (tester) async {

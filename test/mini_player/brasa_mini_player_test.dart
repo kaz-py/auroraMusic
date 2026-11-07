@@ -21,7 +21,7 @@ const _plain = Track(
 
 class _Calls {
   int open = 0, play = 0, next = 0, previous = 0, like = 0;
-  int mute = 0, queue = 0, eq = 0, lyrics = 0;
+  int mute = 0, queue = 0, eq = 0, lyrics = 0, shuffles = 0;
   final seeks = <double>[];
   late final actions = MiniPlayerActions(
     openPlayer: () => open++,
@@ -34,6 +34,7 @@ class _Calls {
     openQueue: () => queue++,
     openEqualizer: () => eq++,
     openLyrics: () => lyrics++,
+    toggleShuffle: () => shuffles++,
   );
 }
 
@@ -51,7 +52,11 @@ MiniPlayerState _state({
   bool ad = false,
   bool jam = false,
   bool canSeek = true,
+  bool shuffle = false,
+  bool canShuffle = false,
 }) => MiniPlayerState(
+  shuffle: shuffle,
+  canShuffle: canShuffle,
   track: track,
   isPlaying: isPlaying,
   progress: progress,
@@ -363,6 +368,20 @@ void main() {
       await tester.tap(find.byTooltip('Pista siguiente'));
       await tester.tap(find.byTooltip('Pista anterior'));
       expect((calls.next, calls.previous), (0, 0));
+    });
+
+    testWidgets('aleatorio (ancho): llama a la acción solo si se puede', (
+      tester,
+    ) async {
+      final calls = _Calls();
+      await _mount(tester, calls, width: 900, state: _state(canShuffle: true));
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.shuffles, 1);
+      await _mount(tester, calls, width: 900, state: _state());
+      await tester.tap(find.byTooltip('Aleatorio'), warnIfMissed: false);
+      expect(calls.shuffles, 1);
+      await _mount(tester, calls, width: 360, state: _state(canShuffle: true));
+      expect(find.byTooltip('Aleatorio'), findsNothing);
     });
   });
 

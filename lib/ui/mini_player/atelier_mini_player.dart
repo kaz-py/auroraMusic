@@ -39,8 +39,8 @@ const double _kScrub = 24;
 const double _kScrubInset = 5;
 
 /// Ancho fijo (a escala 1) de lo que no son texto ni controles en el carril:
-/// margen, funda con vinilo, hueco, corazón, anterior, play y siguiente.
-const double _kWideFixed = 20 + 4 + 72 + 12 + 4 * 44;
+/// margen, funda con vinilo, hueco, corazón, aleatorio, anterior, play y siguiente.
+const double _kWideFixed = 20 + 4 + 72 + 12 + 5 * 44;
 
 /// Lado táctil de los botones.
 const double _kTouch = 44;
@@ -282,6 +282,17 @@ class _Dock extends StatelessWidget {
                               : StudioSymbols.favorite,
                           color: state.liked ? ink.accent : ink.sub,
                           onPressed: actions.toggleLike,
+                        ),
+                      if (wide)
+                        _Quiet(
+                          tooltip: state.shuffle
+                              ? 'Aleatorio (activado)'
+                              : 'Aleatorio',
+                          icon: Icons.shuffle_rounded,
+                          color: state.shuffle ? ink.accent : ink.sub,
+                          onPressed: state.canShuffle
+                              ? actions.toggleShuffle
+                              : null,
                         ),
                       if (wide)
                         _Quiet(

@@ -38,6 +38,8 @@ class MiniPlayerState {
     this.equalizerAvailable = false,
     this.equalizerActive = false,
     this.lyricsAvailable = false,
+    this.shuffle = false,
+    this.canShuffle = false,
     this.jamSkipHost,
     this.jamVoteSkip = false,
     this.equalizerUnavailableReason,
@@ -101,6 +103,9 @@ class MiniPlayerState {
 
   /// Hay pista de la que mostrar letra (el transporte siempre ofrece Letras).
   final bool lyricsAvailable;
+
+  /// Aleatorio activo y si se puede cambiar (no con audio de Jam ni sin pista).
+  final bool shuffle, canShuffle;
 
   /// Con audio de Jam y sin permiso para saltar: quién controla («Lo controla
   /// X» si tampoco se puede votar). `null`: se salta con normalidad.
@@ -178,6 +183,8 @@ class MiniPlayerState {
           track != null &&
           duration > Duration.zero &&
           (jamOwns ? jamAudio && jam!.isHost : true),
+      shuffle: c.shuffle,
+      canShuffle: track != null && !jamAudio,
       volume: c.audio.volume.clamp(0.0, 1.0),
       queueLength: c.queue.length,
       equalizerAvailable: c.eq.supported,
@@ -237,6 +244,7 @@ class MiniPlayerActions {
     this.openQueue = _ignoreVoid,
     this.openEqualizer = _ignoreVoid,
     this.openLyrics = _ignoreVoid,
+    this.toggleShuffle = _ignoreVoid,
     this.openMenu,
     this.openMini,
   });
@@ -261,6 +269,9 @@ class MiniPlayerActions {
 
   /// Letras (modo artista a pantalla completa).
   final VoidCallback openLyrics;
+
+  /// Activa o desactiva el aleatorio (sin efecto con audio de Jam).
+  final VoidCallback toggleShuffle;
 
   /// Modo mini (ventana compacta, solo Windows): botón de los controles de
   /// escritorio. `null`: no hay ventana que reducir y el botón no existe.
@@ -314,6 +325,9 @@ class MiniPlayerActions {
       openMenu: openMenu,
       openMini: openMini,
       openEqualizer: openEqualizer ?? _ignoreVoid,
+      toggleShuffle: () {
+        if (!jamAudio) c.setShuffle(!c.shuffle);
+      },
       seek: (fraction) {
         final duration = c.audio.duration > Duration.zero
             ? c.audio.duration

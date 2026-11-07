@@ -26,7 +26,7 @@ const _long = Track(
 );
 
 class _Calls {
-  int open = 0, play = 0, next = 0, previous = 0, like = 0;
+  int open = 0, play = 0, next = 0, previous = 0, like = 0, shuffles = 0;
   int queue = 0, eq = 0, lyrics = 0, mute = 0;
   final volumes = <double>[];
   final seeks = <double>[];
@@ -36,6 +36,7 @@ class _Calls {
     next: () => next++,
     previous: () => previous++,
     toggleLike: () => like++,
+    toggleShuffle: () => shuffles++,
     seek: seeks.add,
     setVolume: volumes.add,
     toggleMute: () => mute++,
@@ -62,6 +63,8 @@ MiniPlayerState _state({
   int queueLength = 3,
   bool eqAvailable = true,
   bool lyricsAvailable = true,
+  bool shuffle = false,
+  bool canShuffle = false,
 }) => MiniPlayerState(
   track: track,
   isPlaying: playing,
@@ -80,6 +83,8 @@ MiniPlayerState _state({
   queueLength: queueLength,
   equalizerAvailable: eqAvailable,
   lyricsAvailable: lyricsAvailable,
+  shuffle: shuffle,
+  canShuffle: canShuffle,
 );
 
 const _accents = [
@@ -321,6 +326,24 @@ void main() {
       await tester.tap(find.byTooltip('Siguiente'));
       await tester.tap(find.byTooltip('Anterior'));
       expect((calls.next, calls.previous), (1, 1));
+    });
+
+    testWidgets('ancho: aleatorio solo con canShuffle; móvil sin botón', (
+      tester,
+    ) async {
+      var calls = await mount(
+        tester,
+        width: 900,
+        state: _state(canShuffle: true),
+      );
+      expect(find.byTooltip('Aleatorio'), findsOneWidget);
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.shuffles, 1);
+      calls = await mount(tester, width: 900, state: _state());
+      await tester.tap(find.byTooltip('Aleatorio'), warnIfMissed: false);
+      expect(calls.shuffles, 0);
+      await mount(tester, state: _state(canShuffle: true));
+      expect(find.byTooltip('Aleatorio'), findsNothing);
     });
 
     testWidgets('ancho: sin siguiente el botón queda desactivado', (

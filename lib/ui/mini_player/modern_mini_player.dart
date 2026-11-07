@@ -304,7 +304,7 @@ class _Body extends StatelessWidget {
         final showTime =
             wide &&
             box.maxWidth -
-                    (20 + 48 + 12 + 4 + 44 * 4 + 8 + controls) -
+                    (20 + 48 + 12 + 4 + 44 * 5 + 8 + controls) -
                     (kMiniTimeWidth + 8) >=
                 150;
         return Stack(
@@ -337,6 +337,27 @@ class _Body extends StatelessWidget {
                     ],
                     const SizedBox(width: 4),
                     heart,
+                    if (wide)
+                      _Press(
+                        enabled: state.canShuffle,
+                        child: IconButton(
+                          tooltip: state.shuffle
+                              ? 'Aleatorio (activado)'
+                              : 'Aleatorio',
+                          onPressed: state.canShuffle
+                              ? actions.toggleShuffle
+                              : null,
+                          style: _iconStyle(),
+                          isSelected: state.shuffle,
+                          color: inkSoft,
+                          icon: const Icon(Icons.shuffle_rounded, size: 22),
+                          selectedIcon: Icon(
+                            Icons.shuffle_rounded,
+                            size: 22,
+                            color: accent,
+                          ),
+                        ),
+                      ),
                     if (wide)
                       skip(
                         Icons.skip_previous_rounded,

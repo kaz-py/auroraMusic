@@ -187,12 +187,15 @@ class _Row extends StatelessWidget {
         final showNext = wide || c.maxWidth >= _kNextMinInner;
         // Ancho que se reserva al bloque de texto antes de sumar la hora.
         final fixed = wide
-            // Relleno, portada, corazón, 3 botones de transporte y huecos.
-            ? 222.0 + controlsWidth
+            // Relleno, portada, corazón, aleatorio, 3 botones de transporte y
+            // huecos.
+            ? 270.0 + controlsWidth
             : showNext
             ? 200.0
             : 156.0;
-        final showTime = c.maxWidth - fixed - timeWidth >= (wide ? 150 : 132);
+        // En ancho la hora h:mm:ss con texto ×2 mide ~350 px (más que
+        // timeWidth): el margen deja ≥ 60 px a portada y texto.
+        final showTime = c.maxWidth - fixed - timeWidth >= (wide ? 260 : 132);
 
         final info = _Info(state: state, cover: wide ? 48 : 40, ember: ember);
         final heart = _Key(
@@ -253,6 +256,18 @@ class _Row extends StatelessWidget {
               if (showTime) ...[const SizedBox(width: 8), time],
               const SizedBox(width: 4),
               heart,
+              const SizedBox(width: 4),
+              _Key(
+                label: state.shuffle ? 'Aleatorio (activado)' : 'Aleatorio',
+                onTap: state.canShuffle ? actions.toggleShuffle : null,
+                // Activo: borde y icono ámbar; inactivo: icono crema.
+                border: state.shuffle ? ember : null,
+                icon: Icon(
+                  Icons.shuffle_rounded,
+                  size: 20,
+                  color: state.shuffle ? ember : Brasa.cream,
+                ),
+              ),
               const SizedBox(width: 4),
               _Key(
                 label: state.previousLabel('Pista anterior'),
