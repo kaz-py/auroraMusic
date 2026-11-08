@@ -41,6 +41,9 @@ jobs:
 
       - run: flutter analyze
 
+      - name: Compilar el motor Rust
+        run: cargo build --release --manifest-path rust/Cargo.toml
+
       - run: flutter test
 
       - name: Preparar plugins y herramientas de Windows
