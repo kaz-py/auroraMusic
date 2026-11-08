@@ -31,6 +31,8 @@ import 'desktop_settings_tiles.dart';
 import 'playlist_views/playlist_view_mode_tile.dart';
 import 'lastfm_settings_panel.dart';
 import '../jam/jam_controller.dart';
+import '../remote/aurora_remote_actions.dart';
+import '../remote/remote_control_service.dart';
 import 'slush/slush_eq_queue.dart';
 import 'studio/equalizer_panel.dart';
 import 'studio/studio_navigation.dart';
@@ -240,6 +242,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   late final AudioBackend _audio;
   late final DesktopShell _desktop;
   late final DuvetPresence _duvet;
+  late final RemoteControlService _remote;
   // Hay un consumidor visible del espectro: Vinilo, EQ o la hoja del EQ.
   bool get _playerOpen =>
       _section == 4 || _section == 13 || equalizerSheetsOpen.value > 0;
@@ -260,6 +263,15 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     WindowControls.setCloseConfirmation(_confirmWindowClose);
     _desktop = DesktopShell(ref.read(controllerProvider))..start();
     _duvet = DuvetPresence(ref.read(controllerProvider))..start();
+    final app = ref.read(controllerProvider);
+    _remote = RemoteControlService(
+      app.preferences,
+      AuroraRemoteActions(
+        app,
+        currentJam: () => _jam,
+        ensureJam: () => mounted ? _ensureJam() : null,
+      ),
+    )..start();
     _guardWebClose();
     _audio.setVisualizationEnabled(false);
     equalizerSheetsOpen.addListener(_eqSheetChanged);
@@ -400,6 +412,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _friendsSub?.cancel();
     _desktop.dispose();
     _duvet.dispose();
+    _remote.dispose();
     WindowControls.onArguments = null;
     WindowControls.setCloseConfirmation(null);
     WindowControls.guardClose(false);
@@ -2594,6 +2607,71 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _ => 4,
   };
 
+  Widget _remoteControlTile() => ListenableBuilder(
+    listenable: _remote,
+    builder: (context, _) {
+      void copy(String text, String what) {
+        Clipboard.setData(ClipboardData(text: text));
+        ScaffoldMessenger.maybeOf(
+          context,
+        )?.showSnackBar(SnackBar(content: Text('$what copiado.')));
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Activar la API local'),
+            subtitle: const Text(
+              'Solo escucha en este equipo (127.0.0.1) y exige un token.',
+            ),
+            value: _remote.enabled,
+            onChanged: _remote.setEnabled,
+          ),
+          if (_remote.problem != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _remote.problem!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          if (_remote.enabled && _remote.running) ...[
+            SelectableText(_remote.baseUrl),
+            const SizedBox(height: 4),
+            Text(
+              'Rutas: status, play, pause, toggle, next, previous, jam/start. '
+              'Envía el token en la cabecera Authorization: Bearer <token> '
+              '(o X-Aurora-Token, o ?token=).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: () => copy(_remote.baseUrl, 'URL'),
+                  icon: const Icon(Icons.link_rounded),
+                  label: const Text('Copiar URL'),
+                ),
+                TextButton.icon(
+                  onPressed: () => copy(_remote.token, 'Token'),
+                  icon: const Icon(Icons.key_rounded),
+                  label: const Text('Copiar token'),
+                ),
+                TextButton.icon(
+                  onPressed: _remote.regenerateToken,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Regenerar token'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      );
+    },
+  );
+
   Widget _settings(AppController c) {
     final allSections = <({String title, String subtitle, List<Widget> children})>[
       (
@@ -2895,6 +2973,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               onChanged: c.setDiscordPresence,
             ),
           ],
+        ),
+      if (_remote.supported)
+        (
+          title: 'Control remoto (Stream Deck)',
+          subtitle: 'API local para pausar, saltar e iniciar la Jam',
+          children: [_remoteControlTile()],
         ),
       (
         title: 'Movimiento',

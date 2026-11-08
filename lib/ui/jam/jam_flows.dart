@@ -24,14 +24,7 @@ Future<void> startJamFlow(
   List<Track> seed = const [],
   String? name,
 }) async {
-  if (!jam.service.connected) {
-    if (jam.remoteAvailable) {
-      await jam.hostOnline(name);
-    } else {
-      await jam.loadAddresses();
-      if (jam.addresses.isNotEmpty) await jam.host(jam.addresses.first, name);
-    }
-  }
+  await jam.startHosting(name: name);
   if (!context.mounted) return;
   if (!jam.service.connected) {
     _say(

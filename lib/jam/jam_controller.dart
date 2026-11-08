@@ -13,6 +13,9 @@ import 'transport/supabase_jam_transport.dart';
 import '../sources/innertube_source.dart';
 import 'jam_playback_bridge.dart';
 
+/// Dónde se abre una Jam nueva.
+enum JamHostMode { auto, online, lan }
+
 class JamController extends ChangeNotifier with WidgetsBindingObserver {
   JamController({
     required this.app,
@@ -206,6 +209,33 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     _startSuggestions();
     unawaited(_beginSession());
   });
+
+  /// Crea la Jam si aún no hay una: [JamHostMode.auto] la abre en línea si hay
+  /// servidor y, si no, en la red local. Devuelve si queda conectada (si no,
+  /// el motivo está en [error]). La usan la interfaz y la API de control remoto.
+  Future<bool> startHosting({
+    String? name,
+    JamHostMode mode = JamHostMode.auto,
+  }) async {
+    if (service.connected) return true;
+    final online = switch (mode) {
+      JamHostMode.online => true,
+      JamHostMode.lan => false,
+      JamHostMode.auto => remoteAvailable,
+    };
+    if (online) {
+      if (!remoteAvailable) {
+        error = remoteProblem ?? 'La Jam en línea no está disponible.';
+        _notify();
+        return false;
+      }
+      await hostOnline(name);
+    } else {
+      await loadAddresses();
+      if (addresses.isNotEmpty) await host(addresses.first, name);
+    }
+    return service.connected;
+  }
 
   /// Al crear la Jam: modo «Escuchando» y la pista actual pasa a ser la
   /// primera de la cola, con su posición, para que todos la oigan igual.
