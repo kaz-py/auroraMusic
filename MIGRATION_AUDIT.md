@@ -1,6 +1,6 @@
 # Auditoría de migración a Flutter + Rust
 
-Estado auditado: rama `feat/cuentas-lastfm` (base de `rust-migration`), `pubspec.yaml` 1.4.0+16 (el trabajo 1.5.0 vive aparte en `integracion-1.5.0`, sin fusionar). Todo lo siguiente sale de leer el código; lo que no existe se marca **NO ENCONTRADO**.
+Base de la migración: **1.5.2+19** (rama `integracion-1.5.0`, commit `bf3af15`); `rust-migration` parte de ahí. Las fases 1 y 2a se hicieron primero sobre 1.4.0 (`rust-migration-1.4.0`, conservada) y se portaron a 1.5.2: el único conflicto fue `lib/dj/ai_dj.dart`, donde 1.5.x añadió la puerta de coherencia del DJ. Las cifras de líneas de código y las medidas de §8 son de 1.4.0, salvo las marcadas «1.5.2». Todo lo siguiente sale de leer el código; lo que no existe se marca **NO ENCONTRADO**.
 
 ## 1. Arquitectura actual
 
@@ -76,7 +76,7 @@ Redundancia: ninguna dependencia directa está sin uso. Candidatas débiles: `ur
 5. **Reglas de YouTube** (CLAUDE.md): ninguna URL de YouTube/googlevideo llega a FFmpeg/Media3 sin el proxy; prohibidos tokens PO, descifrado de firmas y copiar código GPL (LIMusic). El puerto de la fase 3 debe conservarlas y sus pruebas.
 6. **Spotify**: hashes GraphQL y diccionario de secretos no oficiales; código adaptado de Nuclear (AGPL-3.0): el puerto hereda la licencia y los avisos.
 7. **Esquema**: `PRAGMA user_version` lo escribe drift (4); Rust debe respetarlo y reproducir los 4 pasos. Sin WAL hoy; no se cambia.
-8. **1.5.0 en vuelo**: `ArtistGraph`/coherencia en `lib/dj/*` y `AudioQuality` en `stream_orchestrator.dart` (rama `integracion-1.5.0`) chocarán con los puertos de las fases 1 y 3 al fusionar.
+8. **1.5.x ya integrada**: `ArtistGraph`/coherencia en `lib/dj/*` y `AudioQuality` en `stream_orchestrator.dart` forman parte de la base. La puerta de coherencia (`coherence.dart`) sigue en Dart hasta la fase 7: `rankDjCandidates` deduplica, puntúa y filtra en Dart y pasa a Rust solo los candidatos admitidos con su bono de coherencia (`coherence_bonus`).
 9. **Documentación desfasada**: `docs/architecture.md` dice esquema 1, `docs/dj.md` esquema 2 (real: 4); `CONTINUAR.md` apunta a la rama 1.2.3.
 
 ## 7. Plan de migración
@@ -144,6 +144,13 @@ No verificado:
 - **Linux**: no se puede compilar en este equipo.
 - **CI de GitHub Actions**: se añadió el paso `Compilar el motor Rust` a `windows.yml` y a los dos trabajos de `android.yml`; no se ha ejecutado.
 - Hardware de audio, Bluetooth y audio en segundo plano: sin cambios en esta fase y sin probar.
+
+### Base 1.5.2: medidas
+
+- `flutter test`: 1621 pasan, 2 omitidas, 0 fallan. `flutter analyze` sin problemas. `cargo test --workspace`: 46 pasan, 3 ignoradas.
+- `flutter build windows --release`: compila (necesita `nuget.exe` en el PATH para el plugin `flutter_inappwebview_windows`; en CI lo pone `NuGet/setup-nuget`). Carpeta `Release`: 485,7 MiB (incluye `tools/` con yt-dlp/ffmpeg/deno); `rust_lib_aurora_music.dll`: 4,24 MiB y queda junto al ejecutable. **No se pudo lanzar para comprobarlo**: la instancia instalada de Aurora estaba abierta y el ejecutable nuevo cede el control a la instancia existente y sale con código 0.
+- `flutter build apk --release --target-platform android-arm64`, firmado: 73,9 MB, con `lib/arm64-v8a/librust_lib_aurora_music.so` (4,4 MiB). Sin probar en dispositivo.
+- Los APK `--debug` (Dart sin optimizar, Rust sin optimizar) van mucho más lentos que un release; no sirven para valorar rendimiento.
 
 ### Fase 2a (hecha): `aurora_audio`
 
