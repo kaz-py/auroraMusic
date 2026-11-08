@@ -512,3 +512,35 @@ fn a_dropped_connection_is_resumed_with_a_range_request() {
     assert!(state.ended && state.error.is_none(), "{state:?}");
     assert!((audio.len() as f64 / 2.0 / RATE as f64 - 2.0).abs() < 0.1);
 }
+
+#[test]
+fn opening_a_container_over_http_uses_a_single_connection() {
+    // Cada conexión de más es un viaje al CDN a través del proxy: la cabecera
+    // se guarda en memoria para que los saltos del desmultiplexor no la repitan.
+    for name in [
+        "tone-opus.webm",
+        "tone-opus.ogg",
+        "tone.mp3",
+        "tone-44k.flac",
+    ] {
+        let bytes = fixture_bytes(name);
+        let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let counter = hits.clone();
+        thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let body = bytes.clone();
+                thread::spawn(move || handle(stream, &body, None, true));
+            }
+        });
+        let engine = engine();
+        engine.load(&http_spec(port, 0.0)).unwrap();
+        assert_eq!(
+            hits.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "{name}: conexiones al abrir"
+        );
+    }
+}

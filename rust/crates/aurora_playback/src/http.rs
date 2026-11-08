@@ -17,13 +17,20 @@ const SKIP_FORWARD_LIMIT: u64 = 256 * 1024;
 const RECONNECT_DELAYS_MS: [u64; 3] = [400, 1200, 3000];
 /// Tras leer esto sin fallos, el contador de reconexiones vuelve a cero.
 const HEALTHY_BYTES: u64 = 64 * 1024;
+/// Los primeros bytes se guardan: abrir un contenedor (WebM, MP4) salta de un
+/// lado a otro de la cabecera, y sin esto cada salto sería una conexión nueva.
+const HEAD_CACHE: usize = 1024 * 1024;
 
 pub struct HttpSource {
     agent: ureq::Agent,
     url: String,
     headers: Vec<(String, String)>,
     body: Option<Box<dyn Read + Send + Sync>>,
+    /// Posición lógica de lectura.
     pos: u64,
+    /// Posición del cuerpo de la respuesta abierta (válida si `body` existe).
+    net_pos: u64,
+    head: Vec<u8>,
     len: Option<u64>,
     ranges: bool,
     /// Se activa si la conexión se cortó a mitad y no se pudo recuperar.
@@ -71,6 +78,8 @@ impl HttpSource {
             headers,
             body: None,
             pos: 0,
+            net_pos: 0,
+            head: Vec::new(),
             len: None,
             ranges: false,
             broken: broken.clone(),
@@ -127,7 +136,7 @@ impl HttpSource {
             actual += n as u64;
         }
         self.body = Some(body);
-        self.pos = start;
+        self.net_pos = start;
         Ok(())
     }
 
@@ -158,7 +167,20 @@ impl HttpSource {
 
 impl Read for HttpSource {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        if (self.pos as usize) < self.head.len() {
+            let start = self.pos as usize;
+            let n = buf.len().min(self.head.len() - start);
+            buf[..n].copy_from_slice(&self.head[start..start + n]);
+            self.pos += n as u64;
+            return Ok(n);
+        }
         loop {
+            if self.body.is_some() && self.net_pos != self.pos {
+                self.body = None;
+            }
             if self.body.is_none() {
                 match self.connect(self.pos) {
                     Ok(()) => {}
@@ -184,7 +206,12 @@ impl Read for HttpSource {
                     return Ok(0);
                 }
                 Ok(n) => {
+                    if self.head.len() as u64 == self.pos && self.head.len() < HEAD_CACHE {
+                        let keep = n.min(HEAD_CACHE - self.head.len());
+                        self.head.extend_from_slice(&buf[..keep]);
+                    }
                     self.pos += n as u64;
+                    self.net_pos += n as u64;
                     if self.reconnects > 0 && self.pos - self.healthy_since >= HEALTHY_BYTES {
                         self.reconnects = 0;
                     }
@@ -223,20 +250,27 @@ impl Seek for HttpSource {
             ));
         }
         let target = target as u64;
-        if target == self.pos && self.body.is_some() {
+        if target == self.pos {
             return Ok(target);
         }
-        // Salto corto hacia delante: leer y descartar evita una conexión nueva.
-        if self.body.is_some() && target > self.pos && target - self.pos <= SKIP_FORWARD_LIMIT {
-            let mut remaining = target - self.pos;
+        // Dentro de lo ya guardado: sin red.
+        if (target as usize) < self.head.len() {
+            self.pos = target;
+            return Ok(target);
+        }
+        // Salto corto hacia delante sobre la conexión abierta: leer y descartar.
+        if self.body.is_some()
+            && target >= self.net_pos
+            && target - self.net_pos <= SKIP_FORWARD_LIMIT
+        {
+            self.pos = self.net_pos;
             let mut sink = [0u8; 16 * 1024];
-            while remaining > 0 {
-                let want = (remaining as usize).min(sink.len());
+            while self.pos < target {
+                let want = ((target - self.pos) as usize).min(sink.len());
                 let n = self.read(&mut sink[..want])?;
                 if n == 0 {
                     break;
                 }
-                remaining -= n as u64;
             }
             return Ok(self.pos);
         }
@@ -246,7 +280,6 @@ impl Seek for HttpSource {
                 "el servidor no admite Range",
             ));
         }
-        self.body = None;
         self.pos = target;
         Ok(target)
     }
