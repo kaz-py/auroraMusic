@@ -19,7 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_controller.dart';
 import 'account/account_service.dart';
 import 'account/account_wiring.dart';
-import 'audio/music_audio.dart';
+import 'audio/rust_music_audio.dart';
 import 'audio/android_music_audio.dart';
 import 'audio/routed_music_audio.dart';
 import 'audio_web/web_music_audio.dart';
@@ -112,7 +112,9 @@ class _AuroraBootstrapState extends State<AuroraBootstrap> {
       lastfm: lastfm,
       // YouTube plays in the official site (hidden WebView); local files natively.
       audio: RoutedMusicAudio(
-        native: Platform.isAndroid ? AndroidMusicAudio() : MusicAudio(),
+        native: Platform.isAndroid
+            ? AndroidMusicAudio()
+            : RustMusicAudio.create(),
         web: WebMusicAudio(),
       ),
       source: InnerTubeSource(YtDlpSource(preferences)),

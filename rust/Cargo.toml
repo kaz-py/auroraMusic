@@ -17,6 +17,10 @@ aurora_audio = { path = "crates/aurora_audio" }
 aurora_cache = { path = "crates/aurora_cache" }
 aurora_sources = { path = "crates/aurora_sources" }
 
+# El reproductor de escritorio (cpal) no se compila para Android: allí manda Media3.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+aurora_playback = { path = "crates/aurora_playback" }
+
 # El paquete raíz (el puente) también es la raíz del workspace: Cargokit
 # compila `rust/` por nombre de paquete, así que no puede ser un manifiesto virtual.
 [workspace]
@@ -25,6 +29,7 @@ members = [
   "crates/aurora_ai_dj",
   "crates/aurora_audio",
   "crates/aurora_cache",
+  "crates/aurora_playback",
   "crates/aurora_sources",
 ]
 resolver = "2"

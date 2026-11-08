@@ -48,7 +48,7 @@ Redundancia: ninguna dependencia directa está sin uso. Candidatas débiles: `ur
 | Embeddings, perfil de gustos, ranking MMR | `lib/dj/ai_dj.dart` | **1 (hecha)** |
 | Poda LRU de directorios | `artwork_cache.dart`, `lyrics_service.dart` | **1 (hecha)** |
 | `ParametricEqualizer`, `spectrumBars`, `isCompleteAudioStream` | `eq_dsp.dart`, `audio_math.dart` | **2a (hecha)** |
-| Bomba PCM de escritorio (SoLoud + ffmpeg → Symphonia + CPAL) | `music_audio.dart` | 2b (pendiente) |
+| Bomba PCM de escritorio (SoLoud + ffmpeg → Symphonia + CPAL) | `music_audio.dart` | **2b (primer corte hecho, sin verificar de oído)** |
 | Analizadores de respuestas de InnerTube (`parseSearchPage`, `parseRelated`, `parseArtistPage`, `parseBrowseTracks`) | `innertube_source.dart` | **3.1 (hecha)** |
 | `stream_guard`, política de peticiones, `StreamOrchestrator`, `AudioProxy`, cliente InnerTube con red | `lib/sources/**`, `lib/audio/stream_guard.dart` | 3.2+ (pendiente) |
 | Letras (LRCLIB), Spotify (auth TOTP, GraphQL persistido, importación CSV/JSON) | `lib/lyrics/`, `lib/metadata/spotify/`, `lib/import/` | 3 |
@@ -153,6 +153,14 @@ No verificado:
 - `flutter build windows --release`: compila (necesita `nuget.exe` en el PATH para el plugin `flutter_inappwebview_windows`; en CI lo pone `NuGet/setup-nuget`). Carpeta `Release`: 485,7 MiB (incluye `tools/` con yt-dlp/ffmpeg/deno); `rust_lib_aurora_music.dll`: 4,24 MiB y queda junto al ejecutable. **No se pudo lanzar para comprobarlo**: la instancia instalada de Aurora estaba abierta y el ejecutable nuevo cede el control a la instancia existente y sale con código 0.
 - `flutter build apk --release --target-platform android-arm64`, firmado: 73,9 MB, con `lib/arm64-v8a/librust_lib_aurora_music.so` (4,4 MiB). Sin probar en dispositivo.
 - Los APK `--debug` (Dart sin optimizar, Rust sin optimizar) van mucho más lentos que un release; no sirven para valorar rendimiento.
+
+### Fase 2b, primer corte: reproductor de escritorio en Rust (`aurora_playback`)
+
+- **Qué hace.** Archivos locales y el proxy local de YouTube (`http://127.0.0.1:…`) se decodifican en Rust: Symphonia (MP3, FLAC, WAV, Vorbis, AAC-LC, ALAC, contenedores OGG, MP4/M4A, MKV/WebM) y `opus-decoder` (Opus en Rust puro, con `OpusHead`: pre-skip y ganancia). Remuestreo FFT (`rubato`) a la frecuencia del dispositivo, mezcla a estéreo, ecualizador de `aurora_audio` en la devolución de llamada de salida (el cambio se oye al instante, ya no hay ~0,8 s de búfer ya ecualizado), volumen con rampa, pausa sin clic, posición, espectro (FFT de 512 puntos) y salida por `cpal` (WASAPI en Windows). Saltos (`seek`) con `Range` sobre el proxy.
+- **Desaparece en este camino:** el proceso `ffmpeg` por pista, la bomba de PCM en Dart (trozos de 64 KiB copiados, `Float32List` y EQ por muestra en Dart) y el mezclador SoLoud.
+- **Cómo se elige.** `RustMusicAudio.create()` (en `main.dart`) es el motor de escritorio por defecto. Lo que no maneja (https remoto, formatos fuera de Symphonia, HE-AAC, Opus de más de 2 canales, sin dispositivo de salida) pasa por el motor anterior (`MusicAudio`: SoLoud + FFmpeg), que se inicia solo si hace falta. `AURORA_AUDIO_ENGINE=soloud` fuerza el anterior. Android no cambia (Media3) y ni siquiera compila el reproductor (`cfg(not(target_os = "android"))`).
+- **Verificación hecha.** 25 pruebas Rust (siete formatos por frecuencia, nivel y duración; remuestreo a 44,1/96 kHz; mono; saltos con y sin `Range`; corte de red a mitad = error y no final; pausa, volumen y EQ; espectro; rechazo de https y de basura) y 7 pruebas de Dart con el motor real y reloj silencioso (final de pista, pausa/seek, reanudar tras seek, respaldo al motor anterior, archivo inexistente, URL cruda de YouTube, sin dispositivo). Prueba con el dispositivo WASAPI real, en silencio: abre a 48 kHz y avanza a tiempo real (1,000 s de pared = 1,012 s de audio). `flutter test`: 1628 pasan.
+- **No verificado:** que suene bien. No he podido escuchar: calidad, cortes al empezar o saltar, clics, EQ audible, spectro visual (la escala no está calibrada contra SoLoud), YouTube real de principio a fin, cambio de dispositivo de salida, Linux. Ver `MIGRATION_PENDIENTES.md`.
 
 ### Fase 4.1 (hecha): caché de audio en `aurora_cache`
 

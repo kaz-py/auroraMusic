@@ -10,6 +10,7 @@ import 'api/audio.dart';
 import 'api/cache.dart';
 import 'api/database.dart';
 import 'api/dj.dart';
+import 'api/playback.dart';
 import 'api/sources.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -32,6 +33,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   get rust_arc_decrement_strong_count_LibraryDbPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_PlayerEnginePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
@@ -44,6 +49,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   LibraryDb
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
+    dynamic raw,
+  );
+
+  @protected
+  PlayerEngine
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
     dynamic raw,
   );
 
@@ -66,6 +77,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlayerEngine
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    dynamic raw,
+  );
+
+  @protected
   Equalizer
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     dynamic raw,
@@ -74,6 +91,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   LibraryDb
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
+    dynamic raw,
+  );
+
+  @protected
+  PlayerEngine
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
     dynamic raw,
   );
 
@@ -189,6 +212,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NewsRow> dco_decode_list_news_row(dynamic raw);
 
   @protected
+  List<PlayerHeader> dco_decode_list_player_header(dynamic raw);
+
+  @protected
   List<PlaylistRow> dco_decode_list_playlist_row(dynamic raw);
 
   @protected
@@ -261,6 +287,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Float32List? dco_decode_opt_list_prim_f_32_strict(dynamic raw);
 
   @protected
+  PlayerHeader dco_decode_player_header(dynamic raw);
+
+  @protected
+  PlayerLoadResult dco_decode_player_load_result(dynamic raw);
+
+  @protected
+  PlayerStateInfo dco_decode_player_state_info(dynamic raw);
+
+  @protected
   PlaylistRow dco_decode_playlist_row(dynamic raw);
 
   @protected
@@ -324,6 +359,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlayerEngine
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Equalizer
   sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     SseDeserializer deserializer,
@@ -342,6 +383,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlayerEngine
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Equalizer
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     SseDeserializer deserializer,
@@ -350,6 +397,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   LibraryDb
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PlayerEngine
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
     SseDeserializer deserializer,
   );
 
@@ -473,6 +526,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NewsRow> sse_decode_list_news_row(SseDeserializer deserializer);
 
   @protected
+  List<PlayerHeader> sse_decode_list_player_header(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<PlaylistRow> sse_decode_list_playlist_row(SseDeserializer deserializer);
 
   @protected
@@ -553,6 +611,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PlayerHeader sse_decode_player_header(SseDeserializer deserializer);
+
+  @protected
+  PlayerLoadResult sse_decode_player_load_result(SseDeserializer deserializer);
+
+  @protected
+  PlayerStateInfo sse_decode_player_state_info(SseDeserializer deserializer);
+
+  @protected
   PlaylistRow sse_decode_playlist_row(SseDeserializer deserializer);
 
   @protected
@@ -626,6 +693,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    PlayerEngine self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     Equalizer self,
     SseSerializer serializer,
@@ -647,6 +721,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    PlayerEngine self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     Equalizer self,
     SseSerializer serializer,
@@ -656,6 +737,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     LibraryDb self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    PlayerEngine self,
     SseSerializer serializer,
   );
 
@@ -813,6 +901,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_news_row(List<NewsRow> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_player_header(
+    List<PlayerHeader> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_playlist_row(
     List<PlaylistRow> self,
     SseSerializer serializer,
@@ -933,6 +1027,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_player_header(PlayerHeader self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_player_load_result(
+    PlayerLoadResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_player_state_info(
+    PlayerStateInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_playlist_row(PlaylistRow self, SseSerializer serializer);
 
   @protected
@@ -1032,6 +1141,22 @@ class RustLibWire implements BaseWire {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
         ptr,
       );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+        ptr,
+      );
 }
 
 @JS('wasm_bindgen')
@@ -1057,6 +1182,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
     int ptr,
   );
 }

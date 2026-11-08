@@ -8,13 +8,29 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| 2b | Reproducción de escritorio con Symphonia + CPAL en lugar de SoLoud + ffmpeg | Pendiente |
+| 2b | Reproducción de escritorio con Symphonia + CPAL en lugar de SoLoud + ffmpeg | **Primer corte hecho; falta validarlo de oído y retirar SoLoud/FFmpeg** (ver abajo) |
 | 3.2+ | Orquestador de streams, proxy local de audio, cliente InnerTube con red | Pendiente |
 | 4 (resto) | Ejecutor de yt-dlp/ffmpeg/ffprobe, cola de descargas, reanudación y verificación (la caché de audio ya está: 4.1) | Pendiente |
 | 5 | Jam (servidor WS LAN, comandos, codec de invitaciones, deriva) | Pendiente |
 | 6 | Sincronización (LWW, Last.fm) | Pendiente |
 | 7 | Núcleo: cola y reproducción, puerta de coherencia, DJ restante | Pendiente |
 | 8 | Plataforma: Discord/Duvet, actualizador | Pendiente |
+
+## Fase 2b: lo que falta
+
+| Qué | Motivo / estado | Siguiente paso |
+|---|---|---|
+| Escucharlo: calidad, inicio de pista, saltos, pausa, EQ, volumen, fin de pista | No se puede validar sin oído; solo hay pruebas numéricas y una de dispositivo en silencio. | Probar en Windows (`Aurora-1.5.2-windows`); si algo suena mal, `AURORA_AUDIO_ENGINE=soloud` vuelve al motor anterior. |
+| HTTPS remoto (TLS verificado) | El lector HTTP solo acepta el bucle local; lo demás cae al motor anterior. | `ureq` con `rustls` y el almacén de certificados del sistema, con reintentos y tiempos como FFmpeg (`-rw_timeout 15 s`). |
+| HE-AAC (SBR/PS) | Symphonia solo decodifica AAC-LC; se rechaza solo si el `AudioSpecificConfig` lo declara explícito (tipos 5 y 29). Con SBR implícito sonaría a media frecuencia. | Fixture HE-AAC (no hay codificador en el FFmpeg incluido) y detección por la frecuencia decodificada. |
+| Wma, Ape, Opus multicanal, etc. | Fuera de Symphonia / `opus-decoder`; pasan al motor anterior. | Ampliar solo si hace falta. |
+| Escala del espectro | `spectrumBars` espera la escala de SoLoud; la de Rust es amplitud de senoide (1 = escala completa) y no está calibrada. | Comparar visualmente con SoLoud y ajustar. |
+| Cambio del dispositivo de salida por defecto | `cpal` no sigue el cambio una vez abierto. | Detectar el error de flujo y reabrir. |
+| Reloj de salida y remuestreo | La frecuencia se fija al abrir el dispositivo. | Reabrir si cambia. |
+| Sin reproducción sin huecos (gapless) | Igual que antes; la pista siguiente se carga al terminar. | Decisión de producto. |
+| Retirar SoLoud + FFmpeg del camino de escritorio | Siguen como respaldo; el parche `scripts/patch_flutter_soloud.cmake` y `flutter_soloud` se quedan. | Cuando la validación de oído y el HTTPS remoto estén resueltos. |
+| Linux | `cpal` enlaza ALSA (`libasound2-dev` ya está en CI y `libasound2` en el `.deb`); no se ha compilado ni probado. | Compilar y probar en una máquina Linux. |
+| Arranque del `.exe` con el motor nuevo | La instancia instalada de Aurora estaba abierta (instancia única). | Lanzarlo con la otra cerrada. |
 
 ## Partes de fases ya hechas que se dejaron en Dart
 
@@ -29,7 +45,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 | Ranking y perfil propios de sugerencias | `lib/dj/suggestions_api.dart` (`_rank`, constructor de perfil) | No comparten código con `ai_dj.dart`; `djCosine`/`djNormalize` se usan en bucles calientes. | Fase 7. |
 | Modos del DJ, memoria anti-repetición, `djDiscoveryQueries` | `lib/dj/*` | Dependen del estado de la app. | Fase 7. |
 | `djCosine` y `djNormalize` duplicados en Dart | `lib/dj/ai_dj.dart` | Una llamada FFI por par cuesta más que el bucle. | Mover con `aurora_core`. |
-| `equalizerGain`, `equalizerPreamp`, `ffmpegHttpsOptions`, `redactAudioError`, `shouldResumeAfterSeek` | `lib/audio/audio_math.dart` | Triviales o ligadas a SoLoud/ffmpeg. | Fase 2b. |
+| `equalizerGain`, `equalizerPreamp`, `ffmpegHttpsOptions` | `lib/audio/audio_math.dart` | Solo las usa el motor anterior (SoLoud/FFmpeg). | Retirar con SoLoud. |
 | Curva de respuesta del EQ (`eqResponseCurve`, `eqAutoPreamp`) | `lib/audio/eq_model.dart` | La usa la UI para dibujar; el preamp se calcula en Dart y se pasa a Rust. | Decidir si la UI llama a Rust. |
 | Comprobación de seguridad de la carpeta de caché (`_audioCacheDirectory`) | `yt_dlp_source.dart` | Resuelve enlaces y rechaza salidas del directorio de soporte; sigue en Dart. | Fase 4 completa. |
 | Caché de audio: canonicalización de rutas | `aurora_cache::clear_audio_cache` | Usa `canonicalize` de Rust (en Windows devuelve `\\?\`); probado solo en Windows con rutas temporales. | Probar en Android y Linux. |

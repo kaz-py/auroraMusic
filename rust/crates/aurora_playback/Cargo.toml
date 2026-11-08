@@ -1,0 +1,17 @@
+[package]
+name = "aurora_playback"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aurora_audio = { version = "0.1.0", path = "../aurora_audio" }
+cpal = "0.15"
+opus-decoder = "0.1.1"
+rtrb = "0.3"
+rubato = "0.16"
+rustfft = "6.4.1"
+symphonia = { version = "0.5", default-features = false, features = ["mkv", "ogg", "isomp4", "wav", "flac", "mp3", "vorbis", "aac", "alac", "pcm"] }
+ureq = { version = "2", default-features = false }
+
+[dev-dependencies]
+tempfile = "3.27.0"
