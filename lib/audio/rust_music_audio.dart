@@ -46,7 +46,7 @@ class RustMusicAudio extends AudioBackend {
   int _generation = 0, _seekGeneration = 0, _ticks = 0;
   bool _disposed = false, _playing = false, _buffering = false;
   bool _playIntent = false, _loaded = false, _streaming = false;
-  bool _completing = false, _visualization = true;
+  bool _completing = false, _visualization = true, _recoveringDevice = false;
   Duration _position = Duration.zero, _duration = Duration.zero;
   Duration _offset = Duration.zero;
   double _volume = 0.8;
@@ -209,6 +209,7 @@ class RustMusicAudio extends AudioBackend {
         _duration = Duration(milliseconds: result.durationMs!);
       }
       _loaded = true;
+      _buffering = engine.state().buffering;
       notifyListeners();
     });
   }
@@ -236,13 +237,21 @@ class RustMusicAudio extends AudioBackend {
     final engine = _engine;
     if (_disposed || _usingLegacy || engine == null || !_loaded) return;
     final state = engine.state();
+    if (state.deviceLost && !_recoveringDevice) {
+      unawaited(_recoverDevice());
+      return;
+    }
     final error = state.error;
     if (error != null) {
       _fail(redactAudioError(error));
       return;
     }
     _position = _offset + Duration(microseconds: state.consumedUs);
+    final wasBuffering = _buffering;
     _buffering = state.buffering;
+    // Un cambio de «cargando» se avisa al momento: el botón de pausa no espera
+    // al siguiente aviso periódico.
+    if (wasBuffering != _buffering) notifyListeners();
     if (state.ended && _playing && !_completing) {
       _completing = true;
       unawaited(_finish(_generation, state));
@@ -252,6 +261,37 @@ class RustMusicAudio extends AudioBackend {
       _spectrum.value = spectrumBars(engine.spectrum());
     }
     if (++_ticks % 6 == 0) notifyListeners();
+  }
+
+  /// La salida de audio desapareció (auriculares desenchufados, dispositivo
+  /// deshabilitado): se abre un motor nuevo y se sigue por donde iba. Si ya no
+  /// hay ningún dispositivo, cae al motor anterior.
+  Future<void> _recoverDevice() async {
+    _recoveringDevice = true;
+    final source = _resolved;
+    final resume = _playing || _playIntent;
+    final at = _position;
+    _loaded = false;
+    try {
+      _engine?.stop();
+      _engine?.dispose();
+      _engine = null;
+      try {
+        _engine = _engineFactory();
+      } catch (error) {
+        _rustUnavailable = true;
+        rustUnavailableReason = '$error';
+      }
+      _applyToEngine();
+      if (source != null && !_disposed) {
+        await _load(source, ffmpegExecutable: _ffmpeg, start: at);
+        if (resume && !_disposed) await play();
+      }
+    } catch (error) {
+      _fail(redactAudioError(error));
+    } finally {
+      _recoveringDevice = false;
+    }
   }
 
   void _fail(String message) {
@@ -312,6 +352,7 @@ class RustMusicAudio extends AudioBackend {
     if (!_loaded) return;
     _engine?.play();
     _playing = true;
+    _buffering = _engine?.state().buffering ?? false;
     notifyListeners();
   }
 

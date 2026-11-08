@@ -43,6 +43,9 @@ abstract class PlayerEngine implements RustOpaqueInterface {
 
   void setVolume({required double volume});
 
+  /// Solo para pruebas: simula que el dispositivo de salida desapareció.
+  void simulateDeviceLoss();
+
   /// 256 magnitudes de la FFT de lo último que sonó.
   Float64List spectrum();
 
@@ -109,6 +112,9 @@ class PlayerStateInfo {
   final PlatformInt64 consumedUs;
   final PlatformInt64 decodedUs;
   final String? error;
+
+  /// La salida de audio se perdió: crear un motor nuevo y recargar la pista.
+  final bool deviceLost;
   final PlatformInt64 generation;
 
   const PlayerStateInfo({
@@ -118,6 +124,7 @@ class PlayerStateInfo {
     required this.consumedUs,
     required this.decodedUs,
     this.error,
+    required this.deviceLost,
     required this.generation,
   });
 
@@ -129,6 +136,7 @@ class PlayerStateInfo {
       consumedUs.hashCode ^
       decodedUs.hashCode ^
       error.hashCode ^
+      deviceLost.hashCode ^
       generation.hashCode;
 
   @override
@@ -142,5 +150,6 @@ class PlayerStateInfo {
           consumedUs == other.consumedUs &&
           decodedUs == other.decodedUs &&
           error == other.error &&
+          deviceLost == other.deviceLost &&
           generation == other.generation;
 }

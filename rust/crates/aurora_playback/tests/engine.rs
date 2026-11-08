@@ -437,3 +437,50 @@ fn a_server_without_range_still_plays_from_the_start() {
     let audio = drain(&engine, Duration::from_secs(20));
     assert!((audio.len() as f64 / 2.0 / RATE as f64 - 2.0).abs() < 0.1);
 }
+
+/// Tras un salto la bandera de «cargando» debe apagarse en cuanto hay datos
+/// y quedarse apagada mientras suena (en archivo y por el proxy local).
+#[test]
+fn buffering_flag_clears_after_a_seek_and_stays_clear() {
+    let server = serve(fixture_bytes("tone-opus.webm"), None, true);
+    for (label, spec) in [
+        ("archivo", spec("tone-opus.webm", 1.0)),
+        ("http", http_spec(server.port, 1.0)),
+    ] {
+        let engine = engine();
+        // Una carga previa y un salto, como hace la interfaz.
+        engine.load(&http_spec(server.port, 0.0)).ok();
+        engine.stop();
+        engine.load(&spec).unwrap();
+        engine.play();
+        let mut buffer = vec![0f32; 960];
+        let mut flagged_while_flowing = 0;
+        let mut flowing = 0;
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_millis(900) {
+            let before = engine.state().consumed_us;
+            engine.pull(&mut buffer);
+            let state = engine.state();
+            if state.consumed_us > before && state.consumed_us > 200_000 {
+                flowing += 1;
+                if state.buffering {
+                    flagged_while_flowing += 1;
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(flowing > 10, "{label}: casi no sonó");
+        assert_eq!(
+            flagged_while_flowing, 0,
+            "{label}: «cargando» activo mientras suena"
+        );
+    }
+}
+
+#[test]
+fn a_lost_device_is_reported_in_the_state() {
+    let engine = engine();
+    assert!(!engine.state().device_lost);
+    engine.mark_device_lost();
+    assert!(engine.state().device_lost);
+}

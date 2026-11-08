@@ -101,7 +101,11 @@ fn build(mut state: OutputState) -> Result<cpal::Stream, String> {
     let config: cpal::StreamConfig = supported.into();
     let channels = config.channels as usize;
     let mut scratch: Vec<f32> = vec![0.0; 16 * 1024];
-    let fail = |e: cpal::StreamError| eprintln!("Aurora audio: {e}");
+    let lost = state.device_lost_notifier();
+    let fail = move |e: cpal::StreamError| {
+        eprintln!("Aurora audio: {e}");
+        lost();
+    };
     let stream = match format {
         SampleFormat::F32 => device.build_output_stream(
             &config,

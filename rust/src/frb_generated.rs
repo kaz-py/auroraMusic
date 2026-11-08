@@ -42,7 +42,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1155232241;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1143258538;
 
 // Section: executor
 
@@ -2662,6 +2662,54 @@ fn wire__crate__api__playback__PlayerEngine_set_volume_impl(
         },
     )
 }
+fn wire__crate__api__playback__PlayerEngine_simulate_device_loss_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "PlayerEngine_simulate_device_loss",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PlayerEngine>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>({
+                    crate::api::playback::PlayerEngine::simulate_device_loss(&*api_that_guard);
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__playback__PlayerEngine_spectrum_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4125,6 +4173,7 @@ impl SseDecode for crate::api::playback::PlayerStateInfo {
         let mut var_consumedUs = <i64>::sse_decode(deserializer);
         let mut var_decodedUs = <i64>::sse_decode(deserializer);
         let mut var_error = <Option<String>>::sse_decode(deserializer);
+        let mut var_deviceLost = <bool>::sse_decode(deserializer);
         let mut var_generation = <i64>::sse_decode(deserializer);
         return crate::api::playback::PlayerStateInfo {
             playing: var_playing,
@@ -4133,6 +4182,7 @@ impl SseDecode for crate::api::playback::PlayerStateInfo {
             consumed_us: var_consumedUs,
             decoded_us: var_decodedUs,
             error: var_error,
+            device_lost: var_deviceLost,
             generation: var_generation,
         };
     }
@@ -4485,33 +4535,38 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         52 => wire__crate__api__playback__PlayerEngine_set_volume_impl(ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__playback__PlayerEngine_spectrum_impl(ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__playback__PlayerEngine_state_impl(ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__playback__PlayerEngine_stop_impl(ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__cache__audio_cache_info_impl(ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__audio__audio_is_complete_stream_impl(ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__audio__audio_spectrum_bars_impl(ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__cache__clear_audio_cache_impl(ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__dj__dj_artists_impl(ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__dj__dj_build_taste_profile_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__dj__dj_embed_track_impl(ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__dj__dj_hash_features_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__dj__dj_rank_candidates_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__dj__dj_track_features_impl(ptr, rust_vec_len, data_len),
-        66 => {
-            wire__crate__api__sources__innertube_parse_artist_page_impl(ptr, rust_vec_len, data_len)
-        }
-        67 => wire__crate__api__sources__innertube_parse_browse_tracks_impl(
+        53 => wire__crate__api__playback__PlayerEngine_simulate_device_loss_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__sources__innertube_parse_related_impl(ptr, rust_vec_len, data_len),
-        69 => {
+        54 => wire__crate__api__playback__PlayerEngine_spectrum_impl(ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__playback__PlayerEngine_state_impl(ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__playback__PlayerEngine_stop_impl(ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__cache__audio_cache_info_impl(ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__audio__audio_is_complete_stream_impl(ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__audio__audio_spectrum_bars_impl(ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__cache__clear_audio_cache_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__dj__dj_artists_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__dj__dj_build_taste_profile_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__dj__dj_embed_track_impl(ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__dj__dj_hash_features_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__dj__dj_rank_candidates_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__dj__dj_track_features_impl(ptr, rust_vec_len, data_len),
+        67 => {
+            wire__crate__api__sources__innertube_parse_artist_page_impl(ptr, rust_vec_len, data_len)
+        }
+        68 => wire__crate__api__sources__innertube_parse_browse_tracks_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        69 => wire__crate__api__sources__innertube_parse_related_impl(ptr, rust_vec_len, data_len),
+        70 => {
             wire__crate__api__sources__innertube_parse_search_page_impl(ptr, rust_vec_len, data_len)
         }
-        70 => wire__crate__api__cache__prune_audio_cache_impl(ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__cache__prune_directory_impl(ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__cache__prune_audio_cache_impl(ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__cache__prune_directory_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4911,6 +4966,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::playback::PlayerStateInfo {
             self.consumed_us.into_into_dart().into_dart(),
             self.decoded_us.into_into_dart().into_dart(),
             self.error.into_into_dart().into_dart(),
+            self.device_lost.into_into_dart().into_dart(),
             self.generation.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -5782,6 +5838,7 @@ impl SseEncode for crate::api::playback::PlayerStateInfo {
         <i64>::sse_encode(self.consumed_us, serializer);
         <i64>::sse_encode(self.decoded_us, serializer);
         <Option<String>>::sse_encode(self.error, serializer);
+        <bool>::sse_encode(self.device_lost, serializer);
         <i64>::sse_encode(self.generation, serializer);
     }
 }

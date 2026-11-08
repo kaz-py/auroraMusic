@@ -46,6 +46,8 @@ Future<void> _until(bool Function() done, {int seconds = 10}) async {
 }
 
 void main() {
+  _bufferingAfterSeek();
+  _deviceLoss();
   late RustMusicAudio audio;
   late _FakeLegacy legacy;
 
@@ -166,6 +168,132 @@ void main() {
         ResolvedAudio(input: _file('tone.wav'), duration: Duration.zero),
       );
       expect(fallback.calls.any((c) => c.startsWith('load ')), isTrue);
+    },
+  );
+}
+
+void _bufferingAfterSeek() {
+  late RustMusicAudio audio;
+  setUp(() async {
+    audio = RustMusicAudio(
+      legacy: _FakeLegacy(),
+      engineFactory: () => rust.PlayerEngine.createSilent(sampleRate: 48000),
+    );
+    await audio.initialize();
+  });
+  tearDown(() => audio.dispose());
+
+  test('the loading flag clears after seeking over the local proxy', () async {
+    final bytes = File('$_media/tone-opus.webm').readAsBytesSync();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    server.listen((request) async {
+      final range = request.headers.value('range');
+      final start = range == null
+          ? 0
+          : int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)!.group(1)!);
+      final body = bytes.sublist(start);
+      request.response
+        ..statusCode = start > 0 ? 206 : 200
+        ..headers.set('Accept-Ranges', 'bytes')
+        ..headers.contentLength = body.length;
+      if (start > 0) {
+        request.response.headers.set(
+          'Content-Range',
+          'bytes $start-${bytes.length - 1}/${bytes.length}',
+        );
+      }
+      request.response.add(body);
+      await request.response.close();
+    });
+    await audio.load(
+      ResolvedAudio(
+        input: 'http://127.0.0.1:${server.port}/audio',
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    await audio.play();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    for (final target in [900, 400, 1300]) {
+      await audio.seek(Duration(milliseconds: target));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(audio.isPlaying, isTrue);
+      expect(audio.isBuffering, isFalse, reason: 'tras saltar a $target ms');
+    }
+  });
+
+  test('the loading flag clears after seeking while playing', () async {
+    await audio.load(
+      ResolvedAudio(input: _file('tone-opus.webm'), duration: Duration.zero),
+    );
+    await audio.play();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    for (final target in [900, 400, 1300]) {
+      await audio.seek(Duration(milliseconds: target));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(audio.isPlaying, isTrue);
+      expect(audio.isBuffering, isFalse, reason: 'tras saltar a $target ms');
+    }
+  });
+}
+
+void _deviceLoss() {
+  test('a lost output device is reopened and playback continues', () async {
+    final engines = <rust.PlayerEngine>[];
+    final audio = RustMusicAudio(
+      legacy: _FakeLegacy(),
+      engineFactory: () {
+        final engine = rust.PlayerEngine.createSilent(sampleRate: 48000);
+        engines.add(engine);
+        return engine;
+      },
+    );
+    addTearDown(audio.dispose);
+    await audio.initialize();
+    await audio.load(
+      ResolvedAudio(input: _file('tone-opus.webm'), duration: Duration.zero),
+    );
+    await audio.play();
+    await _until(() => audio.position > const Duration(milliseconds: 400));
+    final before = audio.position;
+    engines.first.simulateDeviceLoss();
+    await _until(() => engines.length == 2);
+    expect(engines, hasLength(2));
+    await _until(
+      () =>
+          audio.isPlaying &&
+          audio.position > before + const Duration(milliseconds: 200),
+    );
+    expect(audio.isPlaying, isTrue);
+    expect(audio.position, greaterThan(before));
+    expect(audio.lastError, isNull);
+  });
+
+  test(
+    'losing the device with no replacement falls back to the old engine',
+    () async {
+      var created = 0;
+      final engines = <rust.PlayerEngine>[];
+      final legacy = _FakeLegacy();
+      final audio = RustMusicAudio(
+        legacy: legacy,
+        engineFactory: () {
+          if (created++ > 0) throw StateError('sin dispositivo');
+          final engine = rust.PlayerEngine.createSilent(sampleRate: 48000);
+          engines.add(engine);
+          return engine;
+        },
+      );
+      addTearDown(audio.dispose);
+      await audio.initialize();
+      await audio.load(
+        ResolvedAudio(input: _file('tone-opus.webm'), duration: Duration.zero),
+      );
+      await audio.play();
+      await _until(() => audio.position > const Duration(milliseconds: 300));
+      engines.single.simulateDeviceLoss();
+      await _until(() => legacy.calls.any((c) => c.startsWith('load ')));
+      expect(legacy.calls.any((c) => c.startsWith('load ')), isTrue);
     },
   );
 }

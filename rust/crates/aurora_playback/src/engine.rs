@@ -50,6 +50,8 @@ pub struct PlayerState {
     /// Audio decodificado desde el inicio de la carga.
     pub decoded_us: i64,
     pub error: Option<String>,
+    /// La salida de audio se perdió: hay que crear un motor nuevo y recargar.
+    pub device_lost: bool,
     /// Cambia con cada carga/parada.
     pub generation: u64,
 }
@@ -74,6 +76,8 @@ pub(crate) struct Shared {
     error: Mutex<Option<String>>,
     consumer: Mutex<Option<Consumer<f32>>>,
     eq_pending: Mutex<Option<EqConfig>>,
+    /// El dispositivo de salida falló o desapareció (auriculares desenchufados…).
+    device_lost: AtomicBool,
     visualization: AtomicBool,
     spectrum: Vec<AtomicU32>,
     spectrum_pos: AtomicUsize,
@@ -93,6 +97,12 @@ pub(crate) struct OutputState {
 }
 
 impl OutputState {
+    /// Cierre que avisa de que el dispositivo falló; lo llama el hilo de `cpal`.
+    pub(crate) fn device_lost_notifier(&self) -> impl Fn() + Send + 'static {
+        let shared = self.shared.clone();
+        move || shared.device_lost.store(true, Ordering::SeqCst)
+    }
+
     /// Rellena `out` (estéreo intercalado) con el siguiente audio.
     pub(crate) fn fill(&mut self, out: &mut [f32]) {
         let shared = &self.shared;
@@ -112,10 +122,12 @@ impl OutputState {
             return;
         }
         let mut got = 0;
-        // Mudo no es pausa: con volumen 0 la posición sigue avanzando.
-        if playing || self.gain > 0.0 {
-            if let Ok(mut guard) = shared.consumer.try_lock() {
-                if let Some(consumer) = guard.as_mut() {
+        // Muestras que quedan en el anillo tras este relleno; `None` si no se pudo ver.
+        let mut ring_left: Option<usize> = None;
+        if let Ok(mut guard) = shared.consumer.try_lock() {
+            if let Some(consumer) = guard.as_mut() {
+                // Mudo no es pausa: con volumen 0 la posición sigue avanzando.
+                if playing || self.gain > 0.0 {
                     let available = consumer.slots().min(out.len());
                     for slot in out.iter_mut().take(available) {
                         match consumer.pop() {
@@ -127,11 +139,14 @@ impl OutputState {
                         }
                     }
                 }
+                // Foto exacta, no un contador: no acumula errores entre cargas.
+                let left = consumer.slots();
+                shared.buffered_samples.store(left, Ordering::Relaxed);
+                ring_left = Some(left);
             }
         }
         out[got..].fill(0.0);
         if got > 0 {
-            shared.buffered_samples.fetch_sub(got, Ordering::Relaxed);
             shared
                 .consumed_frames
                 .fetch_add((got / 2) as u64, Ordering::Relaxed);
@@ -159,7 +174,7 @@ impl OutputState {
             && got == 0
             && shared.decoder_done.load(Ordering::Acquire)
             && shared.eof_clean.load(Ordering::Acquire)
-            && shared.buffered_samples.load(Ordering::Relaxed) == 0
+            && ring_left == Some(0)
         {
             shared.ended.store(true, Ordering::Release);
         }
@@ -190,6 +205,7 @@ fn new_shared(sample_rate: u32) -> Arc<Shared> {
         error: Mutex::new(None),
         consumer: Mutex::new(None),
         eq_pending: Mutex::new(None),
+        device_lost: AtomicBool::new(false),
         visualization: AtomicBool::new(true),
         spectrum: (0..SPECTRUM_RING).map(|_| AtomicU32::new(0)).collect(),
         spectrum_pos: AtomicUsize::new(0),
@@ -365,6 +381,11 @@ impl Engine {
         });
     }
 
+    /// Marca la salida como perdida (lo hace el dispositivo al fallar; también sirve en pruebas).
+    pub fn mark_device_lost(&self) {
+        self.shared.device_lost.store(true, Ordering::SeqCst);
+    }
+
     pub fn set_visualization(&self, enabled: bool) {
         self.shared.visualization.store(enabled, Ordering::Relaxed);
     }
@@ -381,6 +402,7 @@ impl Engine {
             consumed_us: s.frames_to_us(s.consumed_frames.load(Ordering::Relaxed)),
             decoded_us: s.frames_to_us(s.decoded_frames.load(Ordering::Relaxed)),
             error: s.error.lock().unwrap().clone(),
+            device_lost: s.device_lost.load(Ordering::SeqCst),
             generation: s.generation.load(Ordering::SeqCst),
         }
     }
@@ -428,6 +450,7 @@ fn run_decoder(
     mut stream: PcmStream,
     mut producer: Producer<f32>,
 ) {
+    let capacity = producer.buffer().capacity();
     let mut chunk: Vec<f32> = Vec::with_capacity(16 * 1024);
     loop {
         if shared.generation.load(Ordering::SeqCst) != generation {
@@ -450,7 +473,9 @@ fn run_decoder(
                         let _ = producer.push(sample);
                     }
                     offset += room;
-                    shared.buffered_samples.fetch_add(room, Ordering::Relaxed);
+                    shared
+                        .buffered_samples
+                        .store(capacity - producer.slots(), Ordering::Relaxed);
                 }
                 shared
                     .decoded_frames

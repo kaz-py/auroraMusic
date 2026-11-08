@@ -25,8 +25,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 | HE-AAC (SBR/PS) | Symphonia solo decodifica AAC-LC; se rechaza solo si el `AudioSpecificConfig` lo declara explícito (tipos 5 y 29). Con SBR implícito sonaría a media frecuencia. | Fixture HE-AAC (no hay codificador en el FFmpeg incluido) y detección por la frecuencia decodificada. |
 | Wma, Ape, Opus multicanal, etc. | Fuera de Symphonia / `opus-decoder`; pasan al motor anterior. | Ampliar solo si hace falta. |
 | Escala del espectro | `spectrumBars` espera la escala de SoLoud; la de Rust es amplitud de senoide (1 = escala completa) y no está calibrada. | Comparar visualmente con SoLoud y ajustar. |
-| Cambio del dispositivo de salida por defecto | `cpal` no sigue el cambio una vez abierto. | Detectar el error de flujo y reabrir. |
-| Reloj de salida y remuestreo | La frecuencia se fija al abrir el dispositivo. | Reabrir si cambia. |
+| Cambio del dispositivo de salida por defecto | Si el dispositivo **desaparece** (auriculares desenchufados) el flujo falla, `RustMusicAudio` abre un motor nuevo y sigue por donde iba (hecho y probado con un fallo simulado). Si solo se cambia el predeterminado sin que el actual falle, `cpal` no lo sigue. | Escuchar el cambio de dispositivo predeterminado del sistema. |
 | Sin reproducción sin huecos (gapless) | Igual que antes; la pista siguiente se carga al terminar. | Decisión de producto. |
 | Retirar SoLoud + FFmpeg del camino de escritorio | Siguen como respaldo; el parche `scripts/patch_flutter_soloud.cmake` y `flutter_soloud` se quedan. | Cuando la validación de oído y el HTTPS remoto estén resueltos. |
 | Linux | `cpal` enlaza ALSA (`libasound2-dev` ya está en CI y `libasound2` en el `.deb`); no se ha compilado ni probado. | Compilar y probar en una máquina Linux. |

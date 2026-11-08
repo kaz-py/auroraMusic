@@ -38,6 +38,8 @@ pub struct PlayerStateInfo {
     pub consumed_us: i64,
     pub decoded_us: i64,
     pub error: Option<String>,
+    /// La salida de audio se perdió: crear un motor nuevo y recargar la pista.
+    pub device_lost: bool,
     pub generation: i64,
 }
 
@@ -187,6 +189,13 @@ impl PlayerEngine {
         let _ = enabled;
     }
 
+    /// Solo para pruebas: simula que el dispositivo de salida desapareció.
+    #[frb(sync)]
+    pub fn simulate_device_loss(&self) {
+        #[cfg(not(target_os = "android"))]
+        self.0.mark_device_lost();
+    }
+
     #[frb(sync)]
     pub fn state(&self) -> PlayerStateInfo {
         #[cfg(not(target_os = "android"))]
@@ -199,6 +208,7 @@ impl PlayerEngine {
                 consumed_us: s.consumed_us,
                 decoded_us: s.decoded_us,
                 error: s.error,
+                device_lost: s.device_lost,
                 generation: s.generation as i64,
             }
         }
@@ -211,6 +221,7 @@ impl PlayerEngine {
                 consumed_us: 0,
                 decoded_us: 0,
                 error: None,
+                device_lost: false,
                 generation: 0,
             }
         }

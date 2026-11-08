@@ -1691,6 +1691,7 @@ class AppController extends ChangeNotifier {
     final sig = Object.hash(
       currentTrack?.id,
       audio.isPlaying,
+      audio.isBuffering,
       audio.lastError,
       busy,
       _usingRemote,
