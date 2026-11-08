@@ -1483,13 +1483,14 @@ class YtDlpSource extends SourceBackend {
     }
   }
 
-  // La descarga es el 90 % del progreso; la conversión a MP3, el resto.
+  // La descarga es el 90 % del progreso; dejar el audio listo, el resto.
   static const _downloadShare = 0.9;
 
   // Deja listo el audio que descargó yt-dlp en `temp`. El Opus de WebM pasa a
-  // Ogg `.opus` sin recodificar (misma calidad que YouTube); M4A/AAC, Ogg,
-  // MP3 y FLAC ya sirven tal cual. Nada se convierte a MP3.
-  static const _keepExtensions = {'.m4a', '.opus', '.ogg', '.mp3', '.flac'};
+  // Ogg `.opus` sin recodificar (misma calidad que YouTube); M4A, Opus y MP3
+  // ya sirven tal cual. Nada se recodifica. Las extensiones coinciden con las
+  // que acepta `AppController._downloadExtensions`.
+  static const _keepExtensions = {'.m4a', '.opus', '.mp3'};
 
   Future<File> _finalizeAudio(
     Directory temp,
