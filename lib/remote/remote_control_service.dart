@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,7 @@ class RemoteControlService extends ChangeNotifier {
     this._actions, {
     bool? supported,
     this.defaultPort = RemoteControlServer.defaultPort,
+    this.discoveryFile,
   }) : supported = supported ?? (Platform.isWindows || Platform.isLinux);
 
   static const enabledKey = 'remoteControlEnabled';
@@ -23,6 +25,10 @@ class RemoteControlService extends ChangeNotifier {
   final SharedPreferences _prefs;
   final RemoteControlActions _actions;
   final int defaultPort;
+
+  /// Archivo `remote_control.json` (URL y token) que lee el plugin de Stream
+  /// Deck para conectarse solo. Existe únicamente mientras la API está activa.
+  final File? discoveryFile;
 
   /// Solo escritorio: el Stream Deck está en el mismo PC.
   final bool supported;
@@ -72,6 +78,7 @@ class RemoteControlService extends ChangeNotifier {
     final fresh = RemoteControlServer.generateToken();
     _cachedToken = fresh;
     await _prefs.setString(tokenKey, fresh);
+    if (_server != null) await _writeDiscovery();
     _notify();
   }
 
@@ -91,6 +98,7 @@ class RemoteControlService extends ChangeNotifier {
         token: _currentToken,
         port: _prefs.getInt(portKey) ?? defaultPort,
       );
+      await _writeDiscovery();
     } on SocketException {
       problem =
           'El puerto ${_prefs.getInt(portKey) ?? defaultPort} está ocupado.';
@@ -98,11 +106,41 @@ class RemoteControlService extends ChangeNotifier {
     _notify();
   }
 
+  /// Escritura atómica: el plugin nunca lee un archivo a medias.
+  Future<void> _writeDiscovery() async {
+    final file = discoveryFile;
+    if (file == null) return;
+    try {
+      await file.parent.create(recursive: true);
+      final temporary = File('${file.path}.tmp');
+      await temporary.writeAsString(
+        jsonEncode({
+          'baseUrl': baseUrl,
+          'port': port,
+          'token': _currentToken(),
+        }),
+        flush: true,
+      );
+      await temporary.rename(file.path);
+    } on FileSystemException {
+      // Sin el archivo el plugin se configura a mano; la API sigue funcionando.
+    }
+  }
+
+  Future<void> _deleteDiscovery() async {
+    try {
+      await discoveryFile?.delete();
+    } on FileSystemException {
+      // Ya no existe.
+    }
+  }
+
   Future<void> _shut() async {
     final server = _server;
     _server = null;
     problem = null;
     await server?.close();
+    await _deleteDiscovery();
   }
 
   void _notify() {

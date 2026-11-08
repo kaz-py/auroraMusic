@@ -13,6 +13,7 @@ import 'slush/slush_mobile.dart';
 import '../theme/modern_theme.dart';
 import '../theme/modern_widgets.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_controller.dart';
@@ -33,6 +34,7 @@ import 'lastfm_settings_panel.dart';
 import '../jam/jam_controller.dart';
 import '../remote/aurora_remote_actions.dart';
 import '../remote/remote_control_service.dart';
+import '../remote/remote_control_settings.dart';
 import 'slush/slush_eq_queue.dart';
 import 'studio/equalizer_panel.dart';
 import 'studio/studio_navigation.dart';
@@ -270,6 +272,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         app,
         currentJam: () => _jam,
         ensureJam: () => mounted ? _ensureJam() : null,
+      ),
+      discoveryFile: File(
+        p.join(app.supportDirectory.path, 'remote_control.json'),
       ),
     )..start();
     _guardWebClose();
@@ -2607,71 +2612,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _ => 4,
   };
 
-  Widget _remoteControlTile() => ListenableBuilder(
-    listenable: _remote,
-    builder: (context, _) {
-      void copy(String text, String what) {
-        Clipboard.setData(ClipboardData(text: text));
-        ScaffoldMessenger.maybeOf(
-          context,
-        )?.showSnackBar(SnackBar(content: Text('$what copiado.')));
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Activar la API local'),
-            subtitle: const Text(
-              'Solo escucha en este equipo (127.0.0.1) y exige un token.',
-            ),
-            value: _remote.enabled,
-            onChanged: _remote.setEnabled,
-          ),
-          if (_remote.problem != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                _remote.problem!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-          if (_remote.enabled && _remote.running) ...[
-            SelectableText(_remote.baseUrl),
-            const SizedBox(height: 4),
-            Text(
-              'Rutas: status, play, pause, toggle, next, previous, jam/start. '
-              'Envía el token en la cabecera Authorization: Bearer <token> '
-              '(o X-Aurora-Token, o ?token=).',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            Wrap(
-              spacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () => copy(_remote.baseUrl, 'URL'),
-                  icon: const Icon(Icons.link_rounded),
-                  label: const Text('Copiar URL'),
-                ),
-                TextButton.icon(
-                  onPressed: () => copy(_remote.token, 'Token'),
-                  icon: const Icon(Icons.key_rounded),
-                  label: const Text('Copiar token'),
-                ),
-                TextButton.icon(
-                  onPressed: _remote.regenerateToken,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Regenerar token'),
-                ),
-              ],
-            ),
-          ],
-        ],
-      );
-    },
-  );
-
   Widget _settings(AppController c) {
     final allSections = <({String title, String subtitle, List<Widget> children})>[
       (
@@ -2978,7 +2918,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         (
           title: 'Control remoto (Stream Deck)',
           subtitle: 'API local para pausar, saltar e iniciar la Jam',
-          children: [_remoteControlTile()],
+          children: [RemoteControlSettings(service: _remote)],
         ),
       (
         title: 'Movimiento',

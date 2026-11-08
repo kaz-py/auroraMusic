@@ -1,0 +1,13 @@
+:root { color-scheme: dark; }
+body { margin: 0; padding: 12px; font: 13px/1.4 "Segoe UI", sans-serif; color: #d8d8d8; background: #2d2d2d; }
+h2 { margin: 12px 0 2px; font-size: 13px; font-weight: 600; color: #fff; }
+label { display: block; margin: 8px 0 3px; }
+input[type="text"], input[type="password"], select { box-sizing: border-box; width: 100%; padding: 5px 7px; color: #fff; background: #1e1e1e; border: 1px solid #555; border-radius: 3px; }
+input[type="radio"] { margin-right: 6px; vertical-align: middle; }
+button { margin-top: 12px; padding: 6px 14px; color: #fff; background: #e86927; border: 0; border-radius: 3px; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: default; }
+.hint { margin: 2px 0 6px 22px; color: #9a9a9a; font-size: 12px; }
+#result { min-height: 1.4em; margin-top: 8px; }
+#result.ok { color: #7dd87d; }
+#result.error { color: #ff8a80; }
+[hidden] { display: none !important; }

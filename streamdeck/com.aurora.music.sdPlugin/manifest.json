@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "SDKVersion": 2,
+  "UUID": "com.aurora.music",
+  "Name": "Aurora",
+  "Version": "1.0.0.0",
+  "Author": "Aurora",
+  "Description": "Controla Aurora desde el Stream Deck: reproducir/pausar, siguiente, anterior e iniciar una Jam.",
+  "Category": "Aurora",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "Icon": "imgs/plugin/icon",
+  "CodePath": "bin/plugin.js",
+  "PropertyInspectorPath": "ui/settings.html",
+  "Nodejs": { "Version": "20", "Debug": "disabled" },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
+  "Software": { "MinimumVersion": "6.6" },
+  "Actions": [
+    {
+      "UUID": "com.aurora.music.toggle",
+      "Name": "Reproducir / pausar",
+      "Tooltip": "Alterna entre reproducir y pausar la música de Aurora.",
+      "Icon": "imgs/actions/toggle/icon",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        { "Image": "imgs/actions/toggle/paused", "Name": "Pausado" },
+        { "Image": "imgs/actions/toggle/playing", "Name": "Sonando" }
+      ]
+    },
+    {
+      "UUID": "com.aurora.music.next",
+      "Name": "Siguiente canción",
+      "Tooltip": "Pasa a la siguiente canción.",
+      "Icon": "imgs/actions/next/icon",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/actions/next/key" }]
+    },
+    {
+      "UUID": "com.aurora.music.previous",
+      "Name": "Canción anterior",
+      "Tooltip": "Vuelve a la canción anterior.",
+      "Icon": "imgs/actions/previous/icon",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/actions/previous/key" }]
+    },
+    {
+      "UUID": "com.aurora.music.jam",
+      "Name": "Iniciar Jam",
+      "Tooltip": "Inicia una Jam (sesión compartida) con lo que suena.",
+      "Icon": "imgs/actions/jam/icon",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/actions/jam/key" }]
+    }
+  ]
+}

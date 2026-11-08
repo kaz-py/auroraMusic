@@ -65,3 +65,7 @@ graphify-out/
 
 # Motor Rust: artefactos de compilación
 /rust/target/
+
+# Plugin de Stream Deck
+/streamdeck/node_modules/
+/streamdeck/dist/

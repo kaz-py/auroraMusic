@@ -2,6 +2,8 @@
 
 Aurora puede abrir una API HTTP **solo en este equipo** para que un Stream Deck (o un script) pause, salte de canción e inicie una Jam. Está apagada por defecto y solo existe en Windows y Linux.
 
+El plugin de Stream Deck, que se configura desde el propio Stream Deck, está en la carpeta [`streamdeck/`](../streamdeck/README.md). Esta página describe la API, que también sirve para otros clientes.
+
 ## Activarla
 
 1. **Ajustes → Control remoto (Stream Deck) → Activar la API local**.
@@ -9,6 +11,8 @@ Aurora puede abrir una API HTTP **solo en este equipo** para que un Stream Deck 
 3. **Regenerar token** invalida el anterior: lo que lo use deja de funcionar.
 
 El puerto se guarda en la preferencia `remoteControlPort` (por defecto 47890). Si está ocupado, Ajustes lo avisa.
+
+Mientras la API está activa, Aurora escribe `remote_control.json` (`baseUrl`, `port`, `token`) en su carpeta de datos (`%APPDATA%\com.aurora\Aurora` en Windows) y lo borra al apagarla; así el plugin de Stream Deck se conecta sin escribir nada. El archivo está en tu carpeta de usuario, igual que las preferencias donde ya se guarda el token.
 
 ## Rutas
 
@@ -33,10 +37,7 @@ Se envía de cualquiera de estas formas:
 
 ## Con un Stream Deck
 
-Usa un plugin que haga peticiones HTTP en segundo plano (por ejemplo *API Ninja*), con una acción por botón:
-
-- Método `POST`, URL `http://127.0.0.1:47890/v1/toggle` (o `next`, `jam/start`…).
-- Cabecera `Authorization: Bearer <token>`.
+Instala el plugin de [`streamdeck/`](../streamdeck/README.md): trae las teclas (reproducir/pausar, siguiente, anterior, iniciar Jam) y se configura desde el propio Stream Deck. Con otros plugins HTTP (por ejemplo *API Ninja*) basta una petición `POST` a `http://127.0.0.1:47890/v1/<ruta>` con la cabecera `Authorization: Bearer <token>`.
 
 Probar desde una terminal:
 
