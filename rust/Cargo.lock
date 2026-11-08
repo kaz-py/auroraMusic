@@ -76,6 +76,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aurora_audio"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "aurora_cache"
 version = "0.1.0"
 dependencies = [
@@ -714,6 +722,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aurora_ai_dj",
+ "aurora_audio",
  "aurora_cache",
  "aurora_database",
  "flutter_rust_bridge",

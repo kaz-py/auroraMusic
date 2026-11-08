@@ -47,7 +47,8 @@ Redundancia: ninguna dependencia directa está sin uso. Candidatas débiles: `ur
 | Base SQLite, migraciones v1→v4, vectores, sync_meta, seguidos | `library_database.dart`, `sync_store.dart`, `follow_repository.dart` | **1 (hecha)** |
 | Embeddings, perfil de gustos, ranking MMR | `lib/dj/ai_dj.dart` | **1 (hecha)** |
 | Poda LRU de directorios | `artwork_cache.dart`, `lyrics_service.dart` | **1 (hecha)** |
-| `ParametricEqualizer`, `spectrumBars`, `isCompleteAudioStream`, bomba PCM de escritorio | `eq_dsp.dart`, `audio_math.dart`, `music_audio.dart` | 2 |
+| `ParametricEqualizer`, `spectrumBars`, `isCompleteAudioStream` | `eq_dsp.dart`, `audio_math.dart` | **2a (hecha)** |
+| Bomba PCM de escritorio (SoLoud + ffmpeg → Symphonia + CPAL) | `music_audio.dart` | 2b (pendiente) |
 | `stream_guard`, política de peticiones, `StreamOrchestrator`, `AudioProxy`, InnerTube búsqueda/navegación | `lib/sources/**`, `lib/audio/stream_guard.dart` | 3 |
 | Letras (LRCLIB), Spotify (auth TOTP, GraphQL persistido, importación CSV/JSON) | `lib/lyrics/`, `lib/metadata/spotify/`, `lib/import/` | 3 |
 | Ejecutor de yt-dlp/ffmpeg/ffprobe (argumentos, límites, actualizador de escritorio) | `yt_dlp_source.dart`, `ytdlp_updater.dart` | 4 |
@@ -83,7 +84,7 @@ Redundancia: ninguna dependencia directa está sin uso. Candidatas débiles: `ur
 Cada fase mantiene la aplicación funcional y sus pruebas en verde; Dart conserva las firmas públicas (envoltorios finos) hasta que el llamador pueda migrar.
 
 - **Fase 1 (hecha, ver §9)**: workspace `rust/`, `flutter_rust_bridge` 2.13.0 (Cargokit), `aurora_database`, `aurora_ai_dj`, `aurora_cache`; retirada de `drift`.
-- **Fase 2 – `aurora_audio`**: EQ/espectro/validación de fin de flujo en Rust; después bomba PCM de escritorio con Symphonia + CPAL en lugar de SoLoud + ffmpeg (elimina el parche `patch_flutter_soloud.cmake`). Prueba: `audio_soak_runner` y `audio_smoke_test`. Android sigue en Media3.
+- **Fase 2 – `aurora_audio`**: **2a (hecha, ver §9)**: EQ paramétrico, barras de espectro y regla de fin de flujo en Rust. **2b (pendiente)**: bomba PCM de escritorio con Symphonia + CPAL en lugar de SoLoud + ffmpeg (elimina el parche `patch_flutter_soloud.cmake`); exige validar audio real (salida, *seek*, búfer, volumen, FFT del mezclador) con `audio_soak_runner` y `audio_smoke_test` en un equipo con dispositivo de audio. Android sigue en Media3.
 - **Fase 3 – `aurora_sources`**: orden: `stream_guard` → política de peticiones → orquestador → proxy → InnerTube. Deben pasar las suites `stream_orchestrator_test`, `audio_proxy_test`, `innertube_source_test`, `youtube_request_policy_test`.
 - **Fase 4 – `aurora_download` + `aurora_cache` ampliado**: ejecutor de herramientas externas, reanudación, verificación ffprobe, caché de audio 512 MiB con la validación de nombre/enlaces simbólicos actual.
 - **Fase 5 – `aurora_jam`**: servidor WS LAN (`tokio-tungstenite`), límites actuales (16 identidades, 200 canciones, 10 comandos/5 s); suites `jam_*_test` como especificación.
@@ -110,11 +111,14 @@ Crates que no se crean en la fase 1 (`aurora_core`, `aurora_audio`, `aurora_sour
 | `rust_lib_aurora_music.dll` (`cargo build --release`, Windows x64) | — | 4,05 MiB |
 | `read_tracks`, 10 000 pistas (release, Rust, ejecución sin Dart) | — | 3,4 ms |
 | `nearest_tracks`, 5000×256 vectores, k=20 (release, Rust) | — | 2,8 ms |
-| Pruebas Rust (`cargo test --workspace`) | — | 33 pasan, 3 ignoradas (2 benchmarks + `open_user_copy`) |
+| Pruebas Rust (`cargo test --workspace`) | — | 45 pasan, 3 ignoradas (2 benchmarks + `open_user_copy`) |
+| EQ de 8 bandas activas, 12,3 s de audio estéreo en trozos de 64 KiB (incluye copias FFI) | Dart: 87 ms ⁴ | Rust: 19 ms ⁴ |
 
 ¹ `lib/bridge/**` (generado por `flutter_rust_bridge_codegen`, 5 935 líneas) no cuenta: se excluye del análisis.
 ² El fallo previo es `test/audio_proxy_test.dart: client leaving during a pending flush raises no uncaught error` (sockets abiertos al final). Falló en las dos ejecuciones previas a la migración y pasó en la posterior; no toca ningún código de esta fase (parece dependiente de sockets/temporización).
 ³ `flutter build windows` aborta en esta máquina con «Building with plugins requires symlink support» (el Modo de desarrollador de Windows está desactivado y la sesión no es administrador). Sin esa compilación no hay carpeta `Release`, no hay `soak_before/after.jsonl` ni se puede arrancar el ejecutable. No se cambió el ajuste del sistema. Para medirlo: activar el Modo de desarrollador y repetir `flutter build windows --release -t integration_test/audio_soak_runner.dart --dart-define=AURORA_SOAK_MINUTES=2 --dart-define=AURORA_SOAK_LOG=<ruta>`.
+
+⁴ Una sola medición en `flutter test`, es decir Dart en JIT (no AOT de release): sirve como orden de magnitud. El EQ procesa hoy una fracción pequeña del tiempo real en cualquiera de los dos; la ganancia útil es CPU y asignaciones por trozo, no un cuello de botella.
 
 Huecos del arnés actual: el soak solo mide RSS y deriva de reloj; no hay CPU, arranque ni latencia. Pruebas nativas: `integration_test/audio_smoke_test.dart`, `scripts/progressive_audio_smoke.dart`, `scripts/run_so_loud_pcm_regression.ps1`. Sin medir en dispositivo: Android en segundo plano, Bluetooth, SMTC, audio Linux.
 
@@ -140,6 +144,13 @@ No verificado:
 - **Linux**: no se puede compilar en este equipo.
 - **CI de GitHub Actions**: se añadió el paso `Compilar el motor Rust` a `windows.yml` y a los dos trabajos de `android.yml`; no se ha ejecutado.
 - Hardware de audio, Bluetooth y audio en segundo plano: sin cambios en esta fase y sin probar.
+
+### Fase 2a (hecha): `aurora_audio`
+
+- Crate `rust/crates/aurora_audio`: `ParametricEqualizer` (8 bandas RBJ, rampas exponenciales, limitador de codo suave), `spectrum_bars` y `is_complete_audio_stream`. Dart conserva `ParametricEqualizer`, `spectrumBars` e `isCompleteAudioStream` como envoltorios; el preamp automático (`eqAutoPreamp`) lo sigue calculando Dart con la curva de `eq_model.dart` y se pasa a Rust.
+- Pruebas de oro (`rust/crates/aurora_audio/tests/golden.rs`) contra la salida de Dart v1.4.0: 9 escenarios de EQ (arranque en frío, rampas, reconfiguración, apagado hasta quedar inactivo, reactivación, muestras NaN/∞, mono, lista de bandas incompleta y longitud impar), 9 vectores de espectro y 1008 combinaciones de fin de flujo. Resultado: **100 % de las muestras idénticas bit a bit**; el test tolera 2e-6 por si otra plataforma usa otra `libm`.
+- `flutter test` completo en verde con el EQ de Rust (`test/eq_dsp_test.dart`, `audio_math_test.dart`, `audio_completion_test.dart` son ahora pruebas de integración del puente). La prueba `softLimit` pasó a Rust.
+- **2b no se ha hecho** (reemplazo de SoLoud + ffmpeg por Symphonia + CPAL): es la parte con riesgo audible y no se puede validar sin dispositivo de audio y sesiones de escucha. La reproducción en escritorio sigue exactamente como en 1.4.0, salvo que el EQ se ejecuta en Rust.
 
 Cambios de comportamiento y divergencias deliberadas:
 

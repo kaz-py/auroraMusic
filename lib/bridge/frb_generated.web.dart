@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/audio.dart';
 import 'api/cache.dart';
 import 'api/database.dart';
 import 'api/dj.dart';
@@ -23,11 +24,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_EqualizerPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_LibraryDbPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb;
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
+
+  @protected
+  Equalizer
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    dynamic raw,
+  );
 
   @protected
   LibraryDb
@@ -36,8 +47,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Equalizer
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    dynamic raw,
+  );
+
+  @protected
+  Equalizer
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    dynamic raw,
+  );
+
+  @protected
   LibraryDb
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
+    dynamic raw,
+  );
+
+  @protected
+  Equalizer
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     dynamic raw,
   );
 
@@ -99,6 +128,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DownloadRow dco_decode_download_row(dynamic raw);
 
   @protected
+  EqBandParams dco_decode_eq_band_params(dynamic raw);
+
+  @protected
   double dco_decode_f_32(dynamic raw);
 
   @protected
@@ -132,6 +164,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<DownloadRow> dco_decode_list_download_row(dynamic raw);
 
   @protected
+  List<EqBandParams> dco_decode_list_eq_band_params(dynamic raw);
+
+  @protected
   List<FollowedRow> dco_decode_list_followed_row(dynamic raw);
 
   @protected
@@ -142,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PlaylistRow> dco_decode_list_playlist_row(dynamic raw);
+
+  @protected
+  List<double> dco_decode_list_prim_f_32_loose(dynamic raw);
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
@@ -231,14 +269,38 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
+  Equalizer
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LibraryDb
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     SseDeserializer deserializer,
   );
 
   @protected
+  Equalizer
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Equalizer
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LibraryDb
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Equalizer
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
     SseDeserializer deserializer,
   );
 
@@ -302,6 +364,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DownloadRow sse_decode_download_row(SseDeserializer deserializer);
 
   @protected
+  EqBandParams sse_decode_eq_band_params(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_32(SseDeserializer deserializer);
 
   @protected
@@ -339,6 +404,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<DownloadRow> sse_decode_list_download_row(SseDeserializer deserializer);
 
   @protected
+  List<EqBandParams> sse_decode_list_eq_band_params(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<FollowedRow> sse_decode_list_followed_row(SseDeserializer deserializer);
 
   @protected
@@ -349,6 +419,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<PlaylistRow> sse_decode_list_playlist_row(SseDeserializer deserializer);
+
+  @protected
+  List<double> sse_decode_list_prim_f_32_loose(SseDeserializer deserializer);
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
@@ -449,6 +522,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    Equalizer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     LibraryDb self,
     SseSerializer serializer,
@@ -456,8 +536,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    Equalizer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    Equalizer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     LibraryDb self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    Equalizer self,
     SseSerializer serializer,
   );
 
@@ -535,6 +636,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_download_row(DownloadRow self, SseSerializer serializer);
 
   @protected
+  void sse_encode_eq_band_params(EqBandParams self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
 
   @protected
@@ -580,6 +684,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_eq_band_params(
+    List<EqBandParams> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_followed_row(
     List<FollowedRow> self,
     SseSerializer serializer,
@@ -597,6 +707,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_playlist_row(
     List<PlaylistRow> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_f_32_loose(
+    List<double> self,
     SseSerializer serializer,
   );
 
@@ -727,6 +843,22 @@ class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+        ptr,
+      );
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     int ptr,
   ) => wasmModule
@@ -749,6 +881,16 @@ external RustLibWasmModule get wasmModule;
 @JS()
 @anonymous
 extension type RustLibWasmModule._(JSObject _) implements JSObject {
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEqualizer(
+    int ptr,
+  );
+
   external void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     int ptr,

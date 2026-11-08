@@ -279,18 +279,5 @@ void main() {
       expect(peak, lessThanOrEqualTo(1));
       expect(peak, greaterThan(0.95));
     });
-
-    test('softLimit is the identity below the knee and bounded above', () {
-      expect(softLimit(0.5), 0.5);
-      expect(softLimit(-0.9), -0.9);
-      var prev = softLimit(0.95);
-      for (var x = 0.96; x < 50; x += 0.37) {
-        final y = softLimit(x);
-        expect(y, greaterThanOrEqualTo(prev));
-        expect(y, lessThanOrEqualTo(1));
-        expect(softLimit(-x), -y);
-        prev = y;
-      }
-    });
   });
 }

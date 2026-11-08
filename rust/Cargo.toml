@@ -11,6 +11,7 @@ flutter_rust_bridge = "=2.13.0"
 anyhow = "1"
 aurora_database = { path = "crates/aurora_database" }
 aurora_ai_dj = { path = "crates/aurora_ai_dj" }
+aurora_audio = { path = "crates/aurora_audio" }
 aurora_cache = { path = "crates/aurora_cache" }
 
 # El paquete raíz (el puente) también es la raíz del workspace: Cargokit
@@ -19,6 +20,7 @@ aurora_cache = { path = "crates/aurora_cache" }
 members = [
   "crates/aurora_database",
   "crates/aurora_ai_dj",
+  "crates/aurora_audio",
   "crates/aurora_cache",
 ]
 resolver = "2"
