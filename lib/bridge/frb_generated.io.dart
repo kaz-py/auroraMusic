@@ -7,6 +7,7 @@ import 'api/audio.dart';
 import 'api/cache.dart';
 import 'api/database.dart';
 import 'api/dj.dart';
+import 'api/sources.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -90,6 +91,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
@@ -136,6 +140,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FollowedRow dco_decode_followed_row(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
@@ -195,6 +202,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<SourceArtistRelease> dco_decode_list_source_artist_release(dynamic raw);
+
+  @protected
+  List<SourceSearchEntry> dco_decode_list_source_search_entry(dynamic raw);
+
+  @protected
+  List<SourceTrack> dco_decode_list_source_track(dynamic raw);
+
+  @protected
   List<SyncMetaRow> dco_decode_list_sync_meta_row(dynamic raw);
 
   @protected
@@ -219,6 +235,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
@@ -238,6 +257,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PruneReport dco_decode_prune_report(dynamic raw);
+
+  @protected
+  SourceArtistPage dco_decode_source_artist_page(dynamic raw);
+
+  @protected
+  SourceArtistRelease dco_decode_source_artist_release(dynamic raw);
+
+  @protected
+  SourceSearchEntry dco_decode_source_search_entry(dynamic raw);
+
+  @protected
+  SourceSearchKind dco_decode_source_search_kind(dynamic raw);
+
+  @protected
+  SourceSearchPage dco_decode_source_search_page(dynamic raw);
+
+  @protected
+  SourceTrack dco_decode_source_track(dynamic raw);
 
   @protected
   SyncMetaRow dco_decode_sync_meta_row(dynamic raw);
@@ -326,6 +363,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
@@ -372,6 +412,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FollowedRow sse_decode_followed_row(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
@@ -437,6 +480,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<SourceArtistRelease> sse_decode_list_source_artist_release(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SourceSearchEntry> sse_decode_list_source_search_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SourceTrack> sse_decode_list_source_track(SseDeserializer deserializer);
+
+  @protected
   List<SyncMetaRow> sse_decode_list_sync_meta_row(SseDeserializer deserializer);
 
   @protected
@@ -459,6 +515,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
@@ -486,6 +545,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PruneReport sse_decode_prune_report(SseDeserializer deserializer);
 
   @protected
+  SourceArtistPage sse_decode_source_artist_page(SseDeserializer deserializer);
+
+  @protected
+  SourceArtistRelease sse_decode_source_artist_release(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SourceSearchEntry sse_decode_source_search_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SourceSearchKind sse_decode_source_search_kind(SseDeserializer deserializer);
+
+  @protected
+  SourceSearchPage sse_decode_source_search_page(SseDeserializer deserializer);
+
+  @protected
+  SourceTrack sse_decode_source_track(SseDeserializer deserializer);
+
+  @protected
   SyncMetaRow sse_decode_sync_meta_row(SseDeserializer deserializer);
 
   @protected
@@ -508,9 +589,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VectorEntry sse_decode_vector_entry(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -586,6 +664,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
     SseSerializer serializer,
@@ -644,6 +725,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_followed_row(FollowedRow self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
@@ -742,6 +826,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_source_artist_release(
+    List<SourceArtistRelease> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_source_search_entry(
+    List<SourceSearchEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_source_track(
+    List<SourceTrack> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_sync_meta_row(
     List<SyncMetaRow> self,
     SseSerializer serializer,
@@ -773,6 +875,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
@@ -808,6 +913,39 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_prune_report(PruneReport self, SseSerializer serializer);
 
   @protected
+  void sse_encode_source_artist_page(
+    SourceArtistPage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_source_artist_release(
+    SourceArtistRelease self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_source_search_entry(
+    SourceSearchEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_source_search_kind(
+    SourceSearchKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_source_search_page(
+    SourceSearchPage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_source_track(SourceTrack self, SseSerializer serializer);
+
+  @protected
   void sse_encode_sync_meta_row(SyncMetaRow self, SseSerializer serializer);
 
   @protected
@@ -830,9 +968,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_vector_entry(VectorEntry self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
 }
 
 // Section: wire_class

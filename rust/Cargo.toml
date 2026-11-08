@@ -9,10 +9,13 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 flutter_rust_bridge = "=2.13.0"
 anyhow = "1"
+# preserve_order: el análisis de InnerTube recorre los mapas en el orden del documento.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 aurora_database = { path = "crates/aurora_database" }
 aurora_ai_dj = { path = "crates/aurora_ai_dj" }
 aurora_audio = { path = "crates/aurora_audio" }
 aurora_cache = { path = "crates/aurora_cache" }
+aurora_sources = { path = "crates/aurora_sources" }
 
 # El paquete raíz (el puente) también es la raíz del workspace: Cargokit
 # compila `rust/` por nombre de paquete, así que no puede ser un manifiesto virtual.
@@ -22,6 +25,7 @@ members = [
   "crates/aurora_ai_dj",
   "crates/aurora_audio",
   "crates/aurora_cache",
+  "crates/aurora_sources",
 ]
 resolver = "2"
 

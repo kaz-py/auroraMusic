@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../core/models.dart';
+import '../bridge/api/sources.dart' as rust;
 import '../core/source_backend.dart';
 import '../dj/coherence.dart';
 import '../follow/follow_models.dart';
@@ -57,7 +58,6 @@ class InnerTubeSource extends SourceBackend {
   bool _disposed = false;
 
   static final _videoId = RegExp(r'^[A-Za-z0-9_-]{11}$');
-  static final _clock = RegExp(r'^(?:(\d+):)?(\d{1,2}):(\d{2})$');
   static const _clientVersion = '1.20250101.01.00';
   // YouTube Music search filters (one category byte differs).
   static const _params = {
@@ -245,55 +245,29 @@ class InnerTubeSource extends SourceBackend {
     Map<String, dynamic> data,
     SearchKind kind,
   ) {
-    String? token;
-    void find(Object? node) {
-      if (token != null) return;
-      if (node is Map) {
-        token =
-            node['nextContinuationData']?['continuation'] as String? ??
-            node['continuationItemRenderer']?['continuationEndpoint']?['continuationCommand']?['token']
-                as String?;
-        node.values.forEach(find);
-      } else if (node is List) {
-        node.forEach(find);
-      }
-    }
-
-    find(data);
-    if (kind == SearchKind.songs || kind == SearchKind.videos) {
-      return SearchPage(tracks: parseSearch(data), continuation: token);
-    }
-    final wanted = kind == SearchKind.albums
-        ? 'MUSIC_PAGE_TYPE_ALBUM'
-        : 'MUSIC_PAGE_TYPE_ARTIST';
-    final seen = <String>{};
-    final entries = <SearchEntry>[];
-    for (final row in _rows(data)) {
-      final browse = row['navigationEndpoint']?['browseEndpoint'] as Map?;
-      final id = browse?['browseId'] as String?;
-      final page =
-          browse?['browseEndpointContextSupportedConfigs']?['browseEndpointContextMusicConfig']?['pageType'];
-      final columns = _columns(row);
-      if (id == null ||
-          page != wanted ||
-          columns.isEmpty ||
-          columns.first.isEmpty ||
-          !seen.add(id)) {
-        continue;
-      }
-      entries.add(
-        SearchEntry(
-          kind: kind,
-          browseId: id,
-          title: (columns.first.first as Map)['text'] as String? ?? '',
-          subtitle: columns.length > 1
-              ? columns[1].map((r) => (r as Map)['text'] ?? '').join()
-              : '',
-          artworkUrl: _artwork(row['thumbnail']),
-        ),
-      );
-    }
-    return SearchPage(entries: entries, continuation: token);
+    final page = rust.innertubeParseSearchPage(
+      dataJson: jsonEncode(data),
+      kind: switch (kind) {
+        SearchKind.songs => rust.SourceSearchKind.songs,
+        SearchKind.videos => rust.SourceSearchKind.videos,
+        SearchKind.albums => rust.SourceSearchKind.albums,
+        SearchKind.artists => rust.SourceSearchKind.artists,
+      },
+    );
+    return SearchPage(
+      tracks: [for (final t in page.tracks) _track(t)],
+      entries: [
+        for (final e in page.entries)
+          SearchEntry(
+            kind: kind,
+            browseId: e.browseId,
+            title: e.title,
+            subtitle: e.subtitle,
+            artworkUrl: e.artworkUrl,
+          ),
+      ],
+      continuation: page.continuation,
+    );
   }
 
   /// Parses `musicResponsiveListItemRenderer` rows of a search response.
@@ -313,54 +287,10 @@ class InnerTubeSource extends SourceBackend {
     ).where((t) => t.id != 'yt:$videoId').take(limit).toList();
   }
 
-  static List<Track> parseRelated(Map<String, dynamic> data) {
-    final seen = <String>{};
-    final tracks = <Track>[];
-    void walk(Object? node) {
-      if (node is Map) {
-        final row = node['playlistPanelVideoRenderer'];
-        if (row is Map) {
-          final id = row['videoId'];
-          final title = (row['title']?['runs'] as List?)?.firstOrNull;
-          final artist = (row['longBylineText']?['runs'] as List?)?.firstOrNull;
-          final length =
-              ((row['lengthText']?['runs'] as List?)?.firstOrNull
-                      as Map?)?['text']
-                  as String?;
-          final thumbs = row['thumbnail']?['thumbnails'] as List?;
-          final art = (thumbs?.lastOrNull as Map?)?['url'] as String?;
-          final titleText = (title as Map?)?['text'];
-          if (id is String &&
-              _videoId.hasMatch(id) &&
-              titleText is String &&
-              titleText.trim().isNotEmpty &&
-              seen.add(id)) {
-            final uri = Uri.tryParse(art ?? '');
-            tracks.add(
-              Track(
-                id: 'yt:$id',
-                title: titleText,
-                artist:
-                    ((artist as Map?)?['text'] as String?) ?? 'YouTube Music',
-                duration: length == null
-                    ? Duration.zero
-                    : _clockOf(length) ?? Duration.zero,
-                artworkUrl: uri != null && uri.scheme == 'https' ? art : null,
-                pageUrl: 'https://music.youtube.com/watch?v=$id',
-              ),
-            );
-          }
-          return;
-        }
-        node.values.forEach(walk);
-      } else if (node is List) {
-        node.forEach(walk);
-      }
-    }
-
-    walk(data);
-    return tracks;
-  }
+  static List<Track> parseRelated(Map<String, dynamic> data) => [
+    for (final t in rust.innertubeParseRelated(dataJson: jsonEncode(data)))
+      _track(t),
+  ];
 
   /// Página de artista (WEB_REMIX `browse`): álbumes, sencillos y EP.
   Future<ArtistPage> artistPage(String browseId) async {
@@ -386,213 +316,55 @@ class InnerTubeSource extends SourceBackend {
   }
 
   static ArtistPage parseArtistPage(Map<String, dynamic> data) {
-    final header = data['header'] as Map? ?? const {};
-    final head =
-        (header['musicImmersiveHeaderRenderer'] ??
-                header['musicVisualHeaderRenderer'] ??
-                header['musicHeaderRenderer'])
-            as Map?;
-    final name =
-        ((head?['title']?['runs'] as List?)?.firstOrNull as Map?)?['text']
-            as String?;
-    final seen = <String>{};
-    final releases = <ArtistRelease>[];
-    final related = <String>[];
-    final relatedKeys = <String>{};
-    void walk(Object? node) {
-      if (node is Map) {
-        final row = node['musicTwoRowItemRenderer'];
-        if (row is Map) {
-          final browse = row['navigationEndpoint']?['browseEndpoint'] as Map?;
-          final id = browse?['browseId'] as String?;
-          final page =
-              browse?['browseEndpointContextSupportedConfigs']?['browseEndpointContextMusicConfig']?['pageType'];
-          final title =
-              ((row['title']?['runs'] as List?)?.firstOrNull as Map?)?['text']
-                  as String?;
-          if (page == 'MUSIC_PAGE_TYPE_ARTIST' &&
-              title != null &&
-              title.trim().isNotEmpty &&
-              relatedKeys.add(title.trim().toLowerCase())) {
-            related.add(title.trim());
-          }
-          if (id != null &&
-              page == 'MUSIC_PAGE_TYPE_ALBUM' &&
-              title != null &&
-              title.trim().isNotEmpty &&
-              seen.add(id)) {
-            final parts = [
-              for (final r in (row['subtitle']?['runs'] as List? ?? const []))
-                ((r as Map)['text'] as String? ?? '').trim(),
-            ].where((t) => t.isNotEmpty && t != '•').toList();
-            final year = parts
-                .map((t) => RegExp(r'^(?:19|20)\d{2}$').hasMatch(t) ? t : null)
-                .whereType<String>()
-                .firstOrNull;
-            releases.add(
-              ArtistRelease(
-                id: id,
-                title: title.trim(),
-                kind: parts.where((t) => t != year).firstOrNull ?? '',
-                year: year == null ? null : int.parse(year),
-                artworkUrl: _artwork(row['thumbnailRenderer']),
-              ),
-            );
-          }
-          return;
-        }
-        node.values.forEach(walk);
-      } else if (node is List) {
-        node.forEach(walk);
-      }
-    }
-
-    walk(data['contents']);
+    final page = rust.innertubeParseArtistPage(dataJson: jsonEncode(data));
     return ArtistPage(
-      name: name,
-      imageUrl: _artwork(head?['thumbnail']),
-      releases: releases,
-      relatedArtists: related,
+      name: page.name,
+      imageUrl: page.imageUrl,
+      releases: [
+        for (final r in page.releases)
+          ArtistRelease(
+            id: r.id,
+            title: r.title,
+            kind: r.kind,
+            year: r.year,
+            artworkUrl: r.artworkUrl,
+          ),
+      ],
+      relatedArtists: page.relatedArtists,
     );
   }
+
+  static Track _track(rust.SourceTrack t) => Track(
+    id: t.id,
+    title: t.title,
+    artist: t.artist,
+    album: t.album,
+    duration: Duration(milliseconds: t.durationMs),
+    artworkUrl: t.artworkUrl,
+    pageUrl: t.pageUrl,
+  );
 
   static List<Track> parseSearch(Map<String, dynamic> data) =>
       parseBrowseTracks(data);
 
   /// Track rows of a search, album page or artist songs shelf. A page header
   /// owns artist/album/artwork, so rows fall back to the given values.
+  /// El análisis vive en `rust/crates/aurora_sources`; una respuesta con un
+  /// tipo inesperado lanza, igual que antes.
   static List<Track> parseBrowseTracks(
     Map<String, dynamic> data, {
     String? artist,
     String? album,
     String? artwork,
-  }) {
-    final seen = <String>{};
-    final tracks = <Track>[];
-    for (final row in _rows(data)) {
-      final track = _row(row, artist, album, artwork);
-      if (track != null && seen.add(track.id)) tracks.add(track);
-    }
-    return tracks;
-  }
-
-  static List<Map> _rows(Object? root) {
-    final rows = <Map>[];
-    void walk(Object? node) {
-      if (node is Map) {
-        final row = node['musicResponsiveListItemRenderer'];
-        if (row is Map) {
-          rows.add(row);
-          return;
-        }
-        node.values.forEach(walk);
-      } else if (node is List) {
-        node.forEach(walk);
-      }
-    }
-
-    walk(root);
-    return rows;
-  }
-
-  static List<List> _columns(Map row) =>
-      (row['flexColumns'] as List? ?? const [])
-          .map(
-            (c) =>
-                ((c as Map?)?['musicResponsiveListItemFlexColumnRenderer']
-                        as Map?)?['text']?['runs']
-                    as List? ??
-                const [],
-          )
-          .toList();
-
-  static Duration? _clockOf(String text) {
-    final clock = _clock.firstMatch(text.trim());
-    return clock == null
-        ? null
-        : Duration(
-            hours: int.parse(clock[1] ?? '0'),
-            minutes: int.parse(clock[2]!),
-            seconds: int.parse(clock[3]!),
-          );
-  }
-
-  static Track? _row(
-    Map row,
-    String? fbArtist,
-    String? fbAlbum,
-    String? fbArt,
-  ) {
-    final columns = _columns(row);
-    if (columns.isEmpty || columns.first.isEmpty) return null;
-    final titleRun = columns.first.first as Map;
-    final id =
-        row['playlistItemData']?['videoId'] as String? ??
-        titleRun['navigationEndpoint']?['watchEndpoint']?['videoId'] as String?;
-    final title = titleRun['text'] as String?;
-    if (id == null || !_videoId.hasMatch(id) || title == null) return null;
-    final artists = <String>[];
-    String? album;
-    Duration? duration;
-    final details = columns.length > 1 ? columns[1] : const [];
-    for (final run in details.whereType<Map>()) {
-      final text = (run['text'] as String? ?? '').trim();
-      final page =
-          run['navigationEndpoint']?['browseEndpoint']?['browseEndpointContextSupportedConfigs']?['browseEndpointContextMusicConfig']?['pageType'];
-      if (page == 'MUSIC_PAGE_TYPE_ALBUM') {
-        album = text;
-      } else if (page == 'MUSIC_PAGE_TYPE_ARTIST' ||
-          page == 'MUSIC_PAGE_TYPE_USER_CHANNEL') {
-        artists.add(text);
-      } else {
-        duration ??= _clockOf(text);
-      }
-    }
-    if (artists.isEmpty && fbArtist != null) artists.add(fbArtist);
-    if (artists.isEmpty && details.isNotEmpty) {
-      final first = ((details.first as Map)['text'] as String? ?? '').trim();
-      if (first.isNotEmpty && _clockOf(first) == null) artists.add(first);
-    }
-    final fixed =
-        (((row['fixedColumns'] as List?)?.firstOrNull
-                    as Map?)?['musicResponsiveListItemFixedColumnRenderer']
-                as Map?)?['text']?['runs']
-            as List?;
-    duration ??= _clockOf(
-      (fixed?.firstOrNull as Map?)?['text'] as String? ?? '',
-    );
-    return Track(
-      id: 'yt:$id',
-      title: title,
-      artist: artists.isEmpty ? 'YouTube Music' : artists.join(', '),
-      album: album ?? fbAlbum,
-      duration: duration ?? Duration.zero,
-      artworkUrl: _artwork(row['thumbnail']) ?? fbArt,
-      pageUrl: 'https://music.youtube.com/watch?v=$id',
-    );
-  }
-
-  static String? _artwork(Object? thumbnail) {
-    final list =
-        ((thumbnail as Map?)?['musicThumbnailRenderer']?['thumbnail']
-                as Map?)?['thumbnails']
-            as List? ??
-        const [];
-    Map? best;
-    for (final image in list.whereType<Map>()) {
-      final uri = Uri.tryParse(image['url'] as String? ?? '');
-      if (uri == null || uri.scheme != 'https' || uri.userInfo.isNotEmpty) {
-        continue;
-      }
-      if (best == null ||
-          (image['width'] as num? ?? 0) > (best['width'] as num? ?? 0)) {
-        best = image;
-      }
-    }
-    final url = best?['url'] as String?;
-    // Music thumbnails are resizable; the listing only offers 60/120 px.
-    return url?.replaceFirst(RegExp(r'=w\d+-h\d+'), '=w544-h544');
-  }
+  }) => [
+    for (final t in rust.innertubeParseBrowseTracks(
+      dataJson: jsonEncode(data),
+      artist: artist,
+      album: album,
+      artwork: artwork,
+    ))
+      _track(t),
+  ];
 
   String? _youTubeId(Track track) {
     final page = Uri.tryParse(track.pageUrl ?? '');

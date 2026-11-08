@@ -49,7 +49,8 @@ Redundancia: ninguna dependencia directa está sin uso. Candidatas débiles: `ur
 | Poda LRU de directorios | `artwork_cache.dart`, `lyrics_service.dart` | **1 (hecha)** |
 | `ParametricEqualizer`, `spectrumBars`, `isCompleteAudioStream` | `eq_dsp.dart`, `audio_math.dart` | **2a (hecha)** |
 | Bomba PCM de escritorio (SoLoud + ffmpeg → Symphonia + CPAL) | `music_audio.dart` | 2b (pendiente) |
-| `stream_guard`, política de peticiones, `StreamOrchestrator`, `AudioProxy`, InnerTube búsqueda/navegación | `lib/sources/**`, `lib/audio/stream_guard.dart` | 3 |
+| Analizadores de respuestas de InnerTube (`parseSearchPage`, `parseRelated`, `parseArtistPage`, `parseBrowseTracks`) | `innertube_source.dart` | **3.1 (hecha)** |
+| `stream_guard`, política de peticiones, `StreamOrchestrator`, `AudioProxy`, cliente InnerTube con red | `lib/sources/**`, `lib/audio/stream_guard.dart` | 3.2+ (pendiente) |
 | Letras (LRCLIB), Spotify (auth TOTP, GraphQL persistido, importación CSV/JSON) | `lib/lyrics/`, `lib/metadata/spotify/`, `lib/import/` | 3 |
 | Ejecutor de yt-dlp/ffmpeg/ffprobe (argumentos, límites, actualizador de escritorio) | `yt_dlp_source.dart`, `ytdlp_updater.dart` | 4 |
 | Cola de descargas (añadir reanudación y verificación) y caché de audio | `app_controller.dart:3315-3625`, `yt_dlp_source.dart:1560` | 4 |
@@ -151,6 +152,13 @@ No verificado:
 - `flutter build windows --release`: compila (necesita `nuget.exe` en el PATH para el plugin `flutter_inappwebview_windows`; en CI lo pone `NuGet/setup-nuget`). Carpeta `Release`: 485,7 MiB (incluye `tools/` con yt-dlp/ffmpeg/deno); `rust_lib_aurora_music.dll`: 4,24 MiB y queda junto al ejecutable. **No se pudo lanzar para comprobarlo**: la instancia instalada de Aurora estaba abierta y el ejecutable nuevo cede el control a la instancia existente y sale con código 0.
 - `flutter build apk --release --target-platform android-arm64`, firmado: 73,9 MB, con `lib/arm64-v8a/librust_lib_aurora_music.so` (4,4 MiB). Sin probar en dispositivo.
 - Los APK `--debug` (Dart sin optimizar, Rust sin optimizar) van mucho más lentos que un release; no sirven para valorar rendimiento.
+
+### Fase 3.1 (hecha): analizadores de InnerTube en `aurora_sources`
+
+- Crate `rust/crates/aurora_sources`: port de los `static parse*` de `innertube_source.dart`, con el mismo recorrido en profundidad por orden de documento (`serde_json` con `preserve_order`), las mismas deduplicaciones y los mismos puntos donde Dart lanzaba por un tipo inesperado (`Err` en Rust; excepción en Dart).
+- Pruebas de oro contra Dart 1.5.2: 654 casos (corpus escrito a mano, 69 URLs de miniatura, 350 documentos mutados al azar): 456 salidas idénticas y 198 errores coincidentes, 0 discrepancias. `Uri.tryParse` de Dart se aproxima (esquema, `userinfo`, puerto, IPv6, `@` repetido) y el corpus de URLs lo fija; Dart acepta espacios, `^`, `\` y no ASCII en el host, y Rust igual.
+- Coste: Dart vuelve a serializar la respuesta con `jsonEncode` antes de pasarla a Rust (la red ya la había decodificado). Sin medir en dispositivo.
+- **No se portó `stream_guard`** (`assertNotRawYouTube`): es el punto único que impide que una URL de YouTube llegue a un decodificador y su decisión depende de `Uri.parse` de Dart (percent-encoding del host, `userinfo`, esquemas sin autoridad). Una diferencia de análisis sería un fallo de seguridad; se queda en Dart hasta tener un corpus adversario más amplio. La cola de solicitudes (`YouTubeRequestPolicy`) depende de futuros y de un reloj inyectado en las pruebas, así que tampoco se mueve todavía; sí es portable su `classify` (puro).
 
 ### Fase 2a (hecha): `aurora_audio`
 
