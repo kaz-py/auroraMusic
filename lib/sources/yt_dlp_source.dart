@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../bridge/api/cache.dart' as rust;
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
@@ -1443,22 +1444,8 @@ class YtDlpSource extends SourceBackend {
   @override
   Future<({int bytes, int files})> playbackCacheInfo() async {
     if (!supportsPlaybackCache) return (bytes: 0, files: 0);
-    final cache = await _audioCacheDirectory();
-    var bytes = 0;
-    var files = 0;
-    await for (final entity in cache.list(followLinks: false)) {
-      if (entity is! File ||
-          !RegExp(
-            r'^[A-Za-z0-9_-]{11}\.audio$',
-          ).hasMatch(p.basename(entity.path)) ||
-          await FileSystemEntity.type(entity.path, followLinks: false) !=
-              FileSystemEntityType.file) {
-        continue;
-      }
-      bytes += await entity.length();
-      files++;
-    }
-    return (bytes: bytes, files: files);
+    final info = rust.audioCacheInfo(dir: (await _audioCacheDirectory()).path);
+    return (bytes: info.bytes, files: info.files);
   }
 
   @override
@@ -1470,52 +1457,12 @@ class YtDlpSource extends SourceBackend {
     _clearingCache = true;
     try {
       final cache = await _audioCacheDirectory();
-      final cachePath = await cache.resolveSymbolicLinks();
       final effectivePath = protectedPath == _progressive?.uri.toString()
           ? _progressive?.file.path
           : protectedPath;
-      final protected = effectivePath == null
-          ? null
-          : await _canonicalFilePath(effectivePath);
-      var bytesRemoved = 0;
-      await for (final entity in cache.list(followLinks: false)) {
-        if (entity is! File ||
-            !RegExp(
-              r'^[A-Za-z0-9_-]{11}\.audio$',
-            ).hasMatch(p.basename(entity.path)) ||
-            await FileSystemEntity.type(entity.path, followLinks: false) !=
-                FileSystemEntityType.file) {
-          continue;
-        }
-        final canonicalEntity = await entity.resolveSymbolicLinks();
-        if (!p.isWithin(cachePath, canonicalEntity) ||
-            (protected != null && p.equals(canonicalEntity, protected))) {
-          continue;
-        }
-        final length = await entity.length();
-        try {
-          await entity.delete();
-          bytesRemoved += length;
-        } on FileSystemException {
-          // The player may still have the file open.
-        }
-      }
-      return bytesRemoved;
+      return rust.clearAudioCache(dir: cache.path, protected: effectivePath);
     } finally {
       _clearingCache = false;
-    }
-  }
-
-  Future<String> _canonicalFilePath(String path) async {
-    final file = File(path);
-    try {
-      return await file.resolveSymbolicLinks();
-    } on FileSystemException {
-      final absolute = p.normalize(file.absolute.path);
-      final parent = await Directory(
-        p.dirname(absolute),
-      ).resolveSymbolicLinks();
-      return p.join(parent, p.basename(absolute));
     }
   }
 
@@ -1562,38 +1509,16 @@ class YtDlpSource extends SourceBackend {
     File? protect,
     int reserveBytes = 0,
   }) async {
-    final files = <File>[];
-    await for (final entity in cache.list(followLinks: false)) {
-      if (entity is File &&
-          RegExp(
-            r'^[A-Za-z0-9_-]{11}\.audio$',
-          ).hasMatch(p.basename(entity.path)) &&
-          await FileSystemEntity.type(entity.path, followLinks: false) ==
-              FileSystemEntityType.file) {
-        files.add(entity);
-      }
-    }
-    files.sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
-    var total = 0;
-    for (final file in files) {
-      total += await file.length();
-    }
-    for (final file in files) {
-      if (total <= _maxCachedAudioBytes - reserveBytes) break;
-      if (protect != null && p.equals(file.path, protect.path)) continue;
-      if (_progressive != null &&
-          p.equals(file.path, _progressive!.file.path)) {
-        continue;
-      }
-      final size = await file.length();
-      try {
-        await file.delete();
-        total -= size;
-      } on FileSystemException {
-        // An active player may still have this cached file open.
-      }
-    }
-    if (reserveBytes > 0 && total > _maxCachedAudioBytes - reserveBytes) {
+    final report = rust.pruneAudioCache(
+      dir: cache.path,
+      maxBytes: _maxCachedAudioBytes,
+      reserveBytes: reserveBytes,
+      protected: [
+        if (protect != null) protect.path,
+        if (_progressive != null) _progressive!.file.path,
+      ],
+    );
+    if (report.noSpace) {
       throw StateError('No hay espacio disponible en la cache de audio.');
     }
   }

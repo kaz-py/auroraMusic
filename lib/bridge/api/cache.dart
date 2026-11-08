@@ -24,6 +24,75 @@ PruneReport pruneDirectory({
   excludeNames: excludeNames,
 );
 
+AudioCacheInfo audioCacheInfo({required String dir}) =>
+    RustLib.instance.api.crateApiCacheAudioCacheInfo(dir: dir);
+
+/// Poda la caché hasta `max_bytes - reserve_bytes`, sin tocar `protected`.
+AudioPruneResult pruneAudioCache({
+  required String dir,
+  required PlatformInt64 maxBytes,
+  required PlatformInt64 reserveBytes,
+  required List<String> protected,
+}) => RustLib.instance.api.crateApiCachePruneAudioCache(
+  dir: dir,
+  maxBytes: maxBytes,
+  reserveBytes: reserveBytes,
+  protected: protected,
+);
+
+/// Vacía la caché de audio salvo `protected`; devuelve los bytes borrados.
+PlatformInt64 clearAudioCache({required String dir, String? protected}) =>
+    RustLib.instance.api.crateApiCacheClearAudioCache(
+      dir: dir,
+      protected: protected,
+    );
+
+/// Totales de la caché de audio de reproducción (`<id>.audio`).
+class AudioCacheInfo {
+  final PlatformInt64 bytes;
+  final int files;
+
+  const AudioCacheInfo({required this.bytes, required this.files});
+
+  @override
+  int get hashCode => bytes.hashCode ^ files.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AudioCacheInfo &&
+          runtimeType == other.runtimeType &&
+          bytes == other.bytes &&
+          files == other.files;
+}
+
+class AudioPruneResult {
+  final int deletedFiles;
+  final PlatformInt64 deletedBytes;
+
+  /// Con reserva pedida, aun tras podar no cabe: el llamador debe fallar.
+  final bool noSpace;
+
+  const AudioPruneResult({
+    required this.deletedFiles,
+    required this.deletedBytes,
+    required this.noSpace,
+  });
+
+  @override
+  int get hashCode =>
+      deletedFiles.hashCode ^ deletedBytes.hashCode ^ noSpace.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AudioPruneResult &&
+          runtimeType == other.runtimeType &&
+          deletedFiles == other.deletedFiles &&
+          deletedBytes == other.deletedBytes &&
+          noSpace == other.noSpace;
+}
+
 /// Resultado de una poda. Los tamaños son `i64` para que Dart reciba `int`
 /// (un `u64` llegaría como `BigInt`).
 class PruneReport {

@@ -53,7 +53,8 @@ Redundancia: ninguna dependencia directa está sin uso. Candidatas débiles: `ur
 | `stream_guard`, política de peticiones, `StreamOrchestrator`, `AudioProxy`, cliente InnerTube con red | `lib/sources/**`, `lib/audio/stream_guard.dart` | 3.2+ (pendiente) |
 | Letras (LRCLIB), Spotify (auth TOTP, GraphQL persistido, importación CSV/JSON) | `lib/lyrics/`, `lib/metadata/spotify/`, `lib/import/` | 3 |
 | Ejecutor de yt-dlp/ffmpeg/ffprobe (argumentos, límites, actualizador de escritorio) | `yt_dlp_source.dart`, `ytdlp_updater.dart` | 4 |
-| Cola de descargas (añadir reanudación y verificación) y caché de audio | `app_controller.dart:3315-3625`, `yt_dlp_source.dart:1560` | 4 |
+| Caché de audio de reproducción (info, vaciado, poda con reserva) | `yt_dlp_source.dart` | **4.1 (hecha)** |
+| Cola de descargas (añadir reanudación y verificación) | `app_controller.dart:3315-3625` | 4 (pendiente) |
 | Jam: máquina de estados de comandos, servidor WS LAN, codec de invitaciones, matemática de deriva | `jam_service.dart`, `jam_models.dart`, `jam_playback_bridge.dart` (solo cálculo) | 5 |
 | Motor de sincronización LWW, Last.fm (firma md5, scrobbler) | `sync_store.dart`, `sync_service.dart`, `lib/lastfm/` | 6 |
 | Máquina de estados de cola/reproducción | `app_controller.dart:1888-2682` | 7 (tras 2 y 3) |
@@ -152,6 +153,12 @@ No verificado:
 - `flutter build windows --release`: compila (necesita `nuget.exe` en el PATH para el plugin `flutter_inappwebview_windows`; en CI lo pone `NuGet/setup-nuget`). Carpeta `Release`: 485,7 MiB (incluye `tools/` con yt-dlp/ffmpeg/deno); `rust_lib_aurora_music.dll`: 4,24 MiB y queda junto al ejecutable. **No se pudo lanzar para comprobarlo**: la instancia instalada de Aurora estaba abierta y el ejecutable nuevo cede el control a la instancia existente y sale con código 0.
 - `flutter build apk --release --target-platform android-arm64`, firmado: 73,9 MB, con `lib/arm64-v8a/librust_lib_aurora_music.so` (4,4 MiB). Sin probar en dispositivo.
 - Los APK `--debug` (Dart sin optimizar, Rust sin optimizar) van mucho más lentos que un release; no sirven para valorar rendimiento.
+
+### Fase 4.1 (hecha): caché de audio en `aurora_cache`
+
+- `playbackCacheInfo`, `clearPlaybackCache` y `_pruneAudioCache` de `YtDlpSource` delegan en `aurora_cache::{audio_cache_info, clear_audio_cache, prune_audio_cache}`. Solo cuentan archivos regulares `^[A-Za-z0-9_-]{11}\.audio$`; enlaces simbólicos y el resto se ignoran; un archivo en uso se salta; la poda respeta la reserva (`max - reserve`, que puede ser negativa) y los archivos protegidos (el pedido y el progresivo activo) e informa `no_space` para que Dart lance el mismo `StateError`.
+- Verificación: 10 pruebas Rust nuevas (nombres, conteos, orden por antigüedad, reserva, protegidos, enlaces, carpeta inexistente) y las pruebas de `source_backend_test.dart`, que ejercitan el código real a través de `YtDlpSource` (1621 pruebas de Flutter en verde).
+- Sigue en Dart: la comprobación de que la carpeta de caché no sale del directorio de soporte (`_audioCacheDirectory`), el ejecutor de `ffprobe` y las duraciones. Ver `MIGRATION_PENDIENTES.md`.
 
 ### Fase 3.1 (hecha): analizadores de InnerTube en `aurora_sources`
 

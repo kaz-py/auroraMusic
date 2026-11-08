@@ -1,5 +1,12 @@
 //! Poda de directorios de caché por antigüedad (LRU por fecha de modificación).
 
+mod audio_cache;
+
+pub use audio_cache::{
+    audio_cache_info, clear_audio_cache, is_audio_cache_name, prune_audio_cache, AudioCacheInfo,
+    AudioPruneReport,
+};
+
 use std::fs;
 use std::io;
 use std::path::Path;
