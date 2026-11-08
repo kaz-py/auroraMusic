@@ -7,8 +7,6 @@ import 'package:aurora_music/library/library_database.dart';
 import 'package:aurora_music/ui/artists_page.dart';
 import 'package:aurora_music/ui/follow_widgets.dart';
 import 'package:aurora_music/ui/vinyl_player.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,13 +15,12 @@ import 'support/fakes.dart';
 const _sizes = [Size(320, 700), Size(500, 800), Size(1400, 900)];
 
 void main() {
-  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   late LibraryDatabase db;
   late FollowService service;
   late List<SearchEntry> hits;
 
   setUp(() {
-    db = LibraryDatabase(NativeDatabase.memory());
+    db = LibraryDatabase.memory();
     hits = const [
       SearchEntry(
         kind: SearchKind.artists,

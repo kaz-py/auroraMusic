@@ -8,7 +8,6 @@ import 'package:aurora_music/follow/follow_repository.dart';
 import 'package:aurora_music/follow/follow_service.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:aurora_music/sources/innertube_source.dart';
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ArtistRelease _rel(String id, {int year = 2024, String kind = 'Sencillo'}) =>
@@ -17,41 +16,23 @@ ArtistRelease _rel(String id, {int year = 2024, String kind = 'Sencillo'}) =>
 void main() {
   group('migración', () {
     test('v2 -> v3 conserva los datos y añade las tablas de seguidos', () async {
-      final db = LibraryDatabase(
-        NativeDatabase.memory(
-          setup: (raw) {
-            // Esquema real de la versión 2.
-            raw.execute(
-              'CREATE TABLE tracks (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
-            );
-            raw.execute('CREATE TABLE favorites (track_id TEXT PRIMARY KEY)');
-            raw.execute(
-              'CREATE TABLE playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, tracks TEXT NOT NULL)',
-            );
-            raw.execute(
-              'CREATE TABLE history (track_id TEXT PRIMARY KEY, played_at INTEGER NOT NULL)',
-            );
-            raw.execute(
-              'CREATE TABLE downloads (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
-            );
-            raw.execute(
-              'CREATE TABLE track_vectors (track_key TEXT PRIMARY KEY, track TEXT NOT NULL, '
+      final db = LibraryDatabase.memory(
+        setupSql: [
+          // Esquema real de la versión 2.
+          'CREATE TABLE tracks (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+          'CREATE TABLE favorites (track_id TEXT PRIMARY KEY)',
+          'CREATE TABLE playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, tracks TEXT NOT NULL)',
+          'CREATE TABLE history (track_id TEXT PRIMARY KEY, played_at INTEGER NOT NULL)',
+          'CREATE TABLE downloads (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+          'CREATE TABLE track_vectors (track_key TEXT PRIMARY KEY, track TEXT NOT NULL, '
               'dims INTEGER NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL)',
-            );
-            raw.execute(
-              'CREATE TABLE taste_profile (id INTEGER PRIMARY KEY CHECK (id = 1), '
+          'CREATE TABLE taste_profile (id INTEGER PRIMARY KEY CHECK (id = 1), '
               'dims INTEGER NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL)',
-            );
-            raw.execute(
-              "INSERT INTO tracks VALUES ('t1', '{\"id\":\"t1\",\"title\":\"Canción\",\"artist\":\"Ana\"}')",
-            );
-            raw.execute("INSERT INTO favorites VALUES ('t1')");
-            raw.execute(
-              "INSERT INTO playlists VALUES ('p1','Lista','[\"t1\"]')",
-            );
-            raw.execute('PRAGMA user_version = 2');
-          },
-        ),
+          "INSERT INTO tracks VALUES ('t1', '{\"id\":\"t1\",\"title\":\"Canción\",\"artist\":\"Ana\"}')",
+          "INSERT INTO favorites VALUES ('t1')",
+          "INSERT INTO playlists VALUES ('p1','Lista','[\"t1\"]')",
+          'PRAGMA user_version = 2',
+        ],
       );
       addTearDown(db.close);
 
@@ -69,7 +50,7 @@ void main() {
     });
 
     test('una base nueva ya trae las tablas', () async {
-      final db = LibraryDatabase(NativeDatabase.memory());
+      final db = LibraryDatabase.memory();
       addTearDown(db.close);
       expect(await FollowRepository(db).list(), isEmpty);
       expect(await FollowRepository(db).news(), isEmpty);
@@ -80,7 +61,7 @@ void main() {
     late LibraryDatabase db;
     late FollowRepository repo;
     setUp(() {
-      db = LibraryDatabase(NativeDatabase.memory());
+      db = LibraryDatabase.memory();
       repo = FollowRepository(db);
     });
     tearDown(() async {
@@ -180,7 +161,7 @@ void main() {
     );
 
     setUp(() {
-      db = LibraryDatabase(NativeDatabase.memory());
+      db = LibraryDatabase.memory();
       clock = DateTime(2026, 10, 1, 9);
       pages = {};
       fetched = [];

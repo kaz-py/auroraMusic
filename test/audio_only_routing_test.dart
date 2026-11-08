@@ -4,7 +4,6 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:aurora_music/sources/web_music_source.dart';
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -43,7 +42,7 @@ class _InitializationAudio extends FakeAudio {
 }
 
 class _FailingLibraryDatabase extends LibraryDatabase {
-  _FailingLibraryDatabase() : super(NativeDatabase.memory());
+  _FailingLibraryDatabase() : super.memory();
   bool failReads = true;
   int saveCalls = 0;
 
@@ -75,7 +74,7 @@ Future<AppController> _controller(
       audioOnly: audioOnly,
       metadataSearch: metadataSearch,
     ),
-    database: database ?? LibraryDatabase(NativeDatabase.memory()),
+    database: database ?? LibraryDatabase.memory(),
     preferences: await SharedPreferences.getInstance(),
     supportDirectory: await Directory.systemTemp.createTemp('audio_routing_'),
   );

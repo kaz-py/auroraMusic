@@ -8,7 +8,6 @@ import 'package:aurora_music/jam/jam_playback_bridge.dart';
 import 'package:aurora_music/jam/jam_service.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:aurora_music/sources/web_music_source.dart';
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,7 +47,7 @@ Future<AppController> _controller({
 }) async {
   SharedPreferences.setMockInitialValues({'autoRefill': false, ...preferences});
   final prefs = await SharedPreferences.getInstance();
-  final database = LibraryDatabase(NativeDatabase.memory());
+  final database = LibraryDatabase.memory();
   for (final track in tracks) {
     await database.saveTrack(track);
   }

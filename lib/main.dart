@@ -13,6 +13,7 @@ import 'core/window_controls.dart';
 import 'jam/jam_protocol.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'bridge/frb_generated.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_controller.dart';
@@ -42,6 +43,7 @@ Future<void> main(List<String> args) async {
 Future<void> _main(List<String> args) async {
   WindowControls.launchArguments = args;
   WidgetsFlutterBinding.ensureInitialized();
+  await RustLib.init();
   FlutterError.onError = (d) =>
       debugPrint('FlutterError: ${d.exceptionAsString()}');
   PlatformDispatcher.instance.onError = (e, s) {

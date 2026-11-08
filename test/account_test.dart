@@ -5,8 +5,6 @@ import 'package:aurora_music/account/sync_service.dart';
 import 'package:aurora_music/account/sync_store.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/library/library_database.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -100,7 +98,7 @@ Future<(LibraryDatabase, SyncService, FakeRemote, List<int>)> device(
   FakeRemote remote,
 ) async {
   SharedPreferences.setMockInitialValues({});
-  final db = LibraryDatabase(NativeDatabase.memory());
+  final db = LibraryDatabase.memory();
   addTearDown(db.close);
   final pulled = <int>[];
   final sync = SyncService(
@@ -114,7 +112,6 @@ Future<(LibraryDatabase, SyncService, FakeRemote, List<int>)> device(
 }
 
 void main() {
-  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   group('validators', () {
     test('email', () {
       expect(validateEmail('a@b.co'), isNull);

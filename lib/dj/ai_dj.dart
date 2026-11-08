@@ -1,14 +1,23 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import '../bridge/api/dj.dart' as rust;
 import '../core/models.dart';
 import 'artist_graph.dart';
 import 'coherence.dart';
 import 'recommendations.dart';
 import 'suggestions_api.dart' show djCoherenceWeight, djDecade;
 
+rust.DjTrack _rustTrack(Track track) => rust.DjTrack(
+  artist: track.artist,
+  title: track.title,
+  album: track.album,
+  genres: track.genres,
+);
+
 /// Local taste model: feature-hashed track vectors, a time-decayed profile
-/// built from observed signals, and an MMR ranker. Pure Dart, no network.
+/// built from observed signals, and an MMR ranker. El cálculo vive en
+/// `rust/crates/aurora_ai_dj`; aquí quedan los envoltorios y las constantes.
 const djVectorDims = 256;
 const djUpcomingTarget = 20;
 const djRefillThreshold = 5;
@@ -54,47 +63,6 @@ double? djAffinity({
   return (score / max).clamp(0.0, 1.0);
 }
 
-const _noiseTokens = {
-  'official',
-  'oficial',
-  'video',
-  'videoclip',
-  'audio',
-  'lyrics',
-  'lyric',
-  'letra',
-  'letras',
-  'hd',
-  'hq',
-  '4k',
-  'remastered',
-  'remaster',
-  'visualizer',
-  'mv',
-  'clip',
-  'full',
-  'version',
-  'feat',
-  'ft',
-  'featuring',
-  'prod',
-  'the',
-  'el',
-  'la',
-  'los',
-  'las',
-  'de',
-  'del',
-  'y',
-  'and',
-  'of',
-  'en',
-  'con',
-  'with',
-  'music',
-  'topic',
-};
-
 /// Number of tracks the DJ should append: refill below [djRefillThreshold]
 /// upcoming tracks (or when [force]d) up to [djUpcomingTarget].
 int djRefillCount(int upcoming, {bool force = false}) =>
@@ -102,82 +70,28 @@ int djRefillCount(int upcoming, {bool force = false}) =>
     ? math.max(0, djUpcomingTarget - upcoming)
     : 0;
 
-List<String> djArtists(String artist) => artist
-    .toLowerCase()
-    .split(
-      RegExp(
-        r'\s*(?:,|&|;|\s\+\s|\s/\s|\s+x\s+|\bfeat\.?|\bft\.?|\bfeaturing\b)\s*',
-      ),
-    )
-    .map((part) => part.trim())
-    .where((part) => part.isNotEmpty)
-    .toSet()
-    .toList();
+List<String> djArtists(String artist) => rust.djArtists(artist: artist);
 
 String djPrimaryArtist(Track track) =>
     djArtists(track.artist).firstOrNull ?? '';
 
-/// Weighted sparse features of a track before hashing.
-Map<String, double> djTrackFeatures(Track track) {
-  final features = <String, double>{};
-  void add(String key, double weight) =>
-      features.update(key, (value) => value + weight, ifAbsent: () => weight);
-  final artists = djArtists(track.artist);
-  for (var i = 0; i < artists.length; i++) {
-    add('a:${artists[i]}', i == 0 ? 1.0 : 0.7);
-  }
-  final title = track.title.toLowerCase();
-  for (final match in RegExp(
-    r'[(\[](?:feat\.?|ft\.?|featuring)\s+([^)\]]+)[)\]]',
-  ).allMatches(title)) {
-    for (final artist in djArtists(match.group(1)!)) {
-      if (!artists.contains(artist)) add('a:$artist', 0.7);
-    }
-  }
-  final album = track.album?.trim().toLowerCase() ?? '';
-  if (album.isNotEmpty && album != title) add('al:$album', 0.5);
-  for (final genre in track.genres) {
-    final value = genre.trim().toLowerCase();
-    if (value.isNotEmpty) add('g:$value', 0.8);
-  }
-  final artistTokens = artists.expand((a) => a.split(RegExp(r'\s+'))).toSet();
-  final tokens = title
-      .replaceAll(RegExp(r'[(\[](?:feat|ft|featuring)[^)\]]*[)\]]'), ' ')
-      .split(RegExp(r'[^\p{L}\p{N}]+', unicode: true))
-      .where(
-        (token) =>
-            token.length >= 2 &&
-            !_noiseTokens.contains(token) &&
-            !artistTokens.contains(token),
-      )
-      .toSet();
-  for (final token in tokens) {
-    add('t:$token', 0.25);
-  }
-  return features;
-}
+/// Weighted sparse features of a track before hashing (insertion order kept).
+Map<String, double> djTrackFeatures(Track track) => {
+  for (final feature in rust.djTrackFeatures(track: _rustTrack(track)))
+    feature.key: feature.weight,
+};
 
-// FNV-1a 32-bit: stable across runs, unlike String.hashCode.
-int _fnv1a(String value) {
-  var hash = 0x811c9dc5;
-  for (final unit in value.codeUnits) {
-    hash ^= unit;
-    hash = (hash * 0x01000193) & 0xffffffff;
-  }
-  return hash;
-}
+Float32List djHashFeatures(Map<String, double> features) => rust.djHashFeatures(
+  features: [
+    for (final entry in features.entries)
+      rust.DjFeature(key: entry.key, weight: entry.value),
+  ],
+);
 
-Float32List djHashFeatures(Map<String, double> features) {
-  final vector = Float32List(djVectorDims);
-  for (final entry in features.entries) {
-    final hash = _fnv1a(entry.key);
-    final sign = hash & 0x80000000 == 0 ? 1.0 : -1.0;
-    vector[hash % djVectorDims] += sign * entry.value;
-  }
-  return djNormalize(vector);
-}
+Float32List embedDjTrack(Track track) =>
+    rust.djEmbedTrack(track: _rustTrack(track));
 
-Float32List embedDjTrack(Track track) => djHashFeatures(djTrackFeatures(track));
+// shortcut: copia Dart; una llamada FFI por par cuesta más que el bucle y suggestions_api la usa en bucles calientes, mover con aurora_core en la fase 7
 
 Float32List djNormalize(Float32List vector) {
   var norm = 0.0;
@@ -263,39 +177,29 @@ TasteProfile buildTasteProfile({
   required DateTime now,
   Duration halfLife = const Duration(days: 14),
 }) {
-  final vector = Float32List(djVectorDims);
-  final features = <String, double>{};
-  void add(Track track, double weight) {
-    final embedding = embedDjTrack(track);
-    for (var i = 0; i < djVectorDims; i++) {
-      vector[i] += weight * embedding[i];
-    }
-    djTrackFeatures(track).forEach(
-      (key, value) => features.update(
-        key,
-        (sum) => sum + weight * value,
-        ifAbsent: () => weight * value,
-      ),
-    );
-  }
-
-  for (final track in favorites) {
-    add(track, 3.0);
-  }
-  for (final track in playlistTracks) {
-    add(track, 1.5);
-  }
-  for (var i = 0; i < history.length; i++) {
-    add(history[i], 0.8 / (1 + i / 4));
-  }
+  final resolved = <rust.DjEventInput>[];
   for (final event in events) {
     final track = known[event.trackId];
     if (track == null) continue;
-    final age = now.difference(event.at).inMinutes.clamp(0, 1 << 30);
-    final decay = math.pow(0.5, age / halfLife.inMinutes).toDouble();
-    add(track, (event.signal == DjSignal.skip ? -1.5 : 1.0) * decay);
+    resolved.add(
+      rust.DjEventInput(
+        track: _rustTrack(track),
+        skip: event.signal == DjSignal.skip,
+        atMs: event.at.millisecondsSinceEpoch,
+      ),
+    );
   }
-  return TasteProfile(djNormalize(vector), features);
+  final profile = rust.djBuildTasteProfile(
+    favorites: [for (final track in favorites) _rustTrack(track)],
+    playlistTracks: [for (final track in playlistTracks) _rustTrack(track)],
+    history: [for (final track in history) _rustTrack(track)],
+    events: resolved,
+    nowMs: now.millisecondsSinceEpoch,
+    halfLifeMinutes: halfLife.inMinutes,
+  );
+  return TasteProfile(profile.vector, {
+    for (final feature in profile.features) feature.key: feature.weight,
+  });
 }
 
 typedef DjQuery = ({String query, String reason});
@@ -416,67 +320,58 @@ List<TrackRecommendation> rankDjCandidates({
   ArtistGraph? graph,
 }) {
   if (limit <= 0) return const [];
-  final cohOf = <DjCandidate, CoherenceResult>{};
-  final currentVector = current == null ? null : embedDjTrack(current);
-  final pool =
-      <({DjCandidate candidate, Float32List vector, double relevance})>[];
-  final seen = <String>{...blockedKeys};
-  final ordered = [...candidates]..sort((a, b) => b.prior.compareTo(a.prior));
-  for (final candidate in ordered) {
-    final track = candidate.track;
-    final keys = recommendationTrackKeys(track);
-    if (keys.any(seen.contains) ||
-        !filters.permits(track) ||
-        track.isPendingSpotifyMatch ||
-        !(track.isLocal || track.pageUrl != null)) {
-      continue;
-    }
-    seen.addAll(keys);
-    final vector = embedDjTrack(track);
-    final coh = coherence == null || coherence.isEmpty
-        ? null
-        : scoreCoherence(
-            track,
-            coherence,
-            decade: djDecade(track),
-            genres: graph?.tagsOf(djPrimaryArtist(track)) ?? const [],
-          );
-    final relevance =
-        djTasteWeight * djCosine(profile, vector) +
-        djPriorWeight * candidate.prior +
-        (currentVector == null
-            ? 0
-            : djContinuityWeight * djCosine(currentVector, vector)) -
-        -(adjust?.call(track) ?? 0) -
-        (keys.any(recentKeys.contains) ? djRecentPenalty : 0) -
-        (skippedArtists.contains(djPrimaryArtist(track))
-            ? djSkippedArtistPenalty
-            : 0) +
-        (coh == null ? 0 : djCoherenceWeight * (coh.score - 0.5));
-    pool.add((candidate: candidate, vector: vector, relevance: relevance));
-    if (coh != null) cohOf[candidate] = coh;
-  }
-  final artistsSoFar = [
-    if (current != null && queueTail.isEmpty) djPrimaryArtist(current),
-    ...queueTail.map(djPrimaryArtist),
+  // Dart conserva los filtros que dependen de la app y la puerta de coherencia
+  // (coherence.dart, fase 7); Rust deduplica por clave, puntúa y elige (MMR).
+  final permitted = <DjCandidate>[
+    for (final candidate in candidates)
+      if (filters.permits(candidate.track) &&
+          !candidate.track.isPendingSpotifyMatch &&
+          (candidate.track.isLocal || candidate.track.pageUrl != null))
+        candidate,
   ];
-  final window = artistsSoFar.length > 9
-      ? artistsSoFar.sublist(artistsSoFar.length - 9)
-      : artistsSoFar;
-  bool allowed(String artist) {
-    if (artist.isEmpty || !artistCooldown) return true;
-    if (artistsSoFar.isNotEmpty && artistsSoFar.last == artist) return false;
-    return window.where((a) => a == artist).length < 2;
-  }
-
-  if (cohOf.isNotEmpty && pool.isNotEmpty) {
+  final keysOf = {
+    for (final candidate in permitted)
+      candidate: recommendationTrackKeys(candidate.track),
+  };
+  var chosen = permitted;
+  final bonus = <DjCandidate, double>{};
+  if (coherence != null && !coherence.isEmpty && permitted.isNotEmpty) {
+    // Misma deduplicación previa que hace Rust: prior descendente y claves ya vistas.
+    final order = List.generate(permitted.length, (i) => i)
+      ..sort((a, b) {
+        final byPrior = permitted[b].prior.compareTo(permitted[a].prior);
+        return byPrior != 0 ? byPrior : a.compareTo(b);
+      });
+    final seen = <String>{...blockedKeys};
+    final pool = <DjCandidate>[];
+    final cohOf = <DjCandidate, CoherenceResult>{};
+    for (final index in order) {
+      final candidate = permitted[index];
+      final keys = keysOf[candidate]!;
+      if (keys.any(seen.contains)) continue;
+      seen.addAll(keys);
+      pool.add(candidate);
+      cohOf[candidate] = scoreCoherence(
+        candidate.track,
+        coherence,
+        decade: djDecade(candidate.track),
+        genres: graph?.tagsOf(djPrimaryArtist(candidate.track)) ?? const [],
+      );
+    }
+    final artistsSoFar = [
+      if (current != null && queueTail.isEmpty) djPrimaryArtist(current),
+      ...queueTail.map(djPrimaryArtist),
+    ];
+    final window = artistsSoFar.length > 9
+        ? artistsSoFar.sublist(artistsSoFar.length - 9)
+        : artistsSoFar;
     // Misma puerta que el motor: relacionado primero, lo demás para completar.
     final gate = coherenceGate(
       pool,
-      result: (p) => cohOf[p.candidate]!,
-      artist: (p) => djPrimaryArtist(p.candidate.track),
+      result: (candidate) => cohOf[candidate]!,
+      artist: (candidate) => djPrimaryArtist(candidate.track),
       limit: limit,
-      lastResort: (p) => p.candidate.bucket == RecBucket.discovery,
+      lastResort: (candidate) => candidate.bucket == RecBucket.discovery,
       // El enfriamiento admite dos por cada diez pistas.
       artistCap: artistCooldown ? math.max(1, (limit * 0.2).ceil()) : limit,
       // Mismas apariciones que bloquea allowed(): ventana de las últimas 9.
@@ -487,66 +382,43 @@ List<TrackRecommendation> rankDjCandidates({
             }
           : const {},
     );
-    pool
-      ..clear()
-      ..addAll(gate.kept);
-  }
-
-  bool heardOf(DjCandidate c) =>
-      recommendationTrackKeys(c.track).any(heardKeys.contains);
-  var heardPicked = 0;
-  final picked =
-      <({DjCandidate candidate, Float32List vector, double relevance})>[];
-  while (picked.length < limit && pool.isNotEmpty) {
-    // One relaxed pick per batch when every artist is cooling down, so
-    // single-artist libraries still continue (slowly) instead of stopping.
-    final relaxed =
-        picked.isEmpty &&
-        !pool.any((c) => allowed(djPrimaryArtist(c.candidate.track)));
-    // Con cuota se busca primero en la clase que toca; si no hay, en cualquiera.
-    final wantHeard = heardShare == null
-        ? null
-        : djWantHeard(heardPicked, picked.length, heardShare);
-    var bestIndex = -1;
-    for (final only in [?wantHeard, null]) {
-      var bestScore = double.negativeInfinity;
-      for (var i = 0; i < pool.length; i++) {
-        if (!relaxed && !allowed(djPrimaryArtist(pool[i].candidate.track))) {
-          continue;
-        }
-        if (only != null && heardOf(pool[i].candidate) != only) continue;
-        var redundancy = 0.0;
-        for (final chosen in picked) {
-          redundancy = math.max(
-            redundancy,
-            djCosine(pool[i].vector, chosen.vector),
-          );
-        }
-        final score = lambda * pool[i].relevance - (1 - lambda) * redundancy;
-        if (score > bestScore) {
-          bestScore = score;
-          bestIndex = i;
-        }
-      }
-      if (bestIndex >= 0) break;
+    chosen = gate.kept;
+    for (final candidate in chosen) {
+      bonus[candidate] = djCoherenceWeight * (cohOf[candidate]!.score - 0.5);
     }
-    if (bestIndex < 0) break;
-    final best = pool.removeAt(bestIndex);
-    if (heardOf(best.candidate)) heardPicked++;
-    picked.add((
-      candidate: best.candidate,
-      vector: best.vector,
-      relevance: best.relevance,
-    ));
-    artistsSoFar.add(djPrimaryArtist(best.candidate.track));
   }
+  final picks = rust.djRankCandidates(
+    request: rust.DjRankRequest(
+      candidates: [
+        for (final candidate in chosen)
+          rust.DjRankCandidate(
+            track: _rustTrack(candidate.track),
+            prior: candidate.prior,
+            keys: keysOf[candidate]!.toList(),
+            adjust: adjust?.call(candidate.track) ?? 0.0,
+            coherenceBonus: bonus[candidate] ?? 0.0,
+          ),
+      ],
+      profile: profile is Float64List ? profile : Float64List.fromList(profile),
+      limit: limit,
+      current: current == null ? null : _rustTrack(current),
+      blockedKeys: blockedKeys.toList(),
+      recentKeys: recentKeys.toList(),
+      skippedArtists: skippedArtists.toList(),
+      queueTailArtists: [for (final track in queueTail) track.artist],
+      lambda: lambda,
+      artistCooldown: artistCooldown,
+      heardKeys: heardKeys.toList(),
+      heardShare: heardShare,
+    ),
+  );
   return [
-    for (final pick in picked)
+    for (final pick in picks)
       TrackRecommendation(
-        track: pick.candidate.track,
-        reason: pick.candidate.reason,
+        track: chosen[pick.index].track,
+        reason: chosen[pick.index].reason,
         // Relevancia (suma ponderada, máximo teórico 1) recortada a 0-1.
-        affinity: pick.relevance.clamp(0.0, 1.0),
+        affinity: pick.affinity,
       ),
   ];
 }

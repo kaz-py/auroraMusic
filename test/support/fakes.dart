@@ -8,7 +8,6 @@ import 'package:aurora_music/core/audio_backend.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/core/source_backend.dart';
 import 'package:aurora_music/library/library_database.dart';
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -218,7 +217,7 @@ Future<AppController> createTestController({
   });
   final prefs = await SharedPreferences.getInstance();
   final directory = await Directory.systemTemp.createTemp('aurora_test_');
-  final database = LibraryDatabase(NativeDatabase.memory());
+  final database = LibraryDatabase.memory();
   for (final track in tracks) {
     await database.saveTrack(track);
   }

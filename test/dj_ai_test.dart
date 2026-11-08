@@ -7,7 +7,6 @@ import 'package:aurora_music/dj/ai_dj.dart';
 import 'package:aurora_music/dj/coherence.dart';
 import 'package:aurora_music/dj/recommendations.dart';
 import 'package:aurora_music/library/library_database.dart';
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/fakes.dart';
@@ -294,7 +293,7 @@ void main() {
     test(
       'nearest neighbours are ordered by cosine and honour exclusions',
       () async {
-        final db = LibraryDatabase(NativeDatabase.memory());
+        final db = LibraryDatabase.memory();
         addTearDown(db.close);
         Float32List v(List<double> values) => Float32List.fromList(values);
         await db.upsertTrackVectors([
@@ -328,30 +327,18 @@ void main() {
 
     test('migration from schema 1 keeps data and adds vector tables', () async {
       final track = song('kept');
-      final db = LibraryDatabase(
-        NativeDatabase.memory(
-          setup: (raw) {
-            raw.execute(
-              'CREATE TABLE tracks (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
-            );
-            raw.execute('CREATE TABLE favorites (track_id TEXT PRIMARY KEY)');
-            raw.execute(
-              'CREATE TABLE playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, tracks TEXT NOT NULL)',
-            );
-            raw.execute(
-              'CREATE TABLE history (track_id TEXT PRIMARY KEY, played_at INTEGER NOT NULL)',
-            );
-            raw.execute(
-              'CREATE TABLE downloads (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
-            );
-            raw.execute('INSERT INTO tracks VALUES (?, ?)', [
-              track.id,
-              jsonEncode(track.toJson()),
-            ]);
-            raw.execute("INSERT INTO favorites VALUES ('kept')");
-            raw.userVersion = 1;
-          },
-        ),
+      final json = jsonEncode(track.toJson()).replaceAll("'", "''");
+      final db = LibraryDatabase.memory(
+        setupSql: [
+          'CREATE TABLE tracks (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+          'CREATE TABLE favorites (track_id TEXT PRIMARY KEY)',
+          'CREATE TABLE playlists (id TEXT PRIMARY KEY, name TEXT NOT NULL, tracks TEXT NOT NULL)',
+          'CREATE TABLE history (track_id TEXT PRIMARY KEY, played_at INTEGER NOT NULL)',
+          'CREATE TABLE downloads (id TEXT PRIMARY KEY, data TEXT NOT NULL)',
+          "INSERT INTO tracks VALUES ('${track.id}', '$json')",
+          "INSERT INTO favorites VALUES ('kept')",
+          'PRAGMA user_version = 1',
+        ],
       );
       addTearDown(db.close);
       expect((await db.readTracks()).single.id, 'kept');

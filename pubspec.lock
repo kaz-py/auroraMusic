@@ -121,6 +121,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
+  build_cli_annotations:
+    dependency: transitive
+    description:
+      name: build_cli_annotations
+      sha256: e563c2e01de8974566a1998410d3f6f03521788160a02503b0b1f1a46c7b3d95
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.1"
   characters:
     dependency: transitive
     description:
@@ -233,14 +241,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.8.0"
-  drift:
-    dependency: "direct main"
-    description:
-      name: drift
-      sha256: ef9598e1785c18db37209e8554fc79aff94632209d384ec98984b9e3184af0f7
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.35.2"
   fake_async:
     dependency: transitive
     description:
@@ -427,6 +427,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.2"
+  flutter_rust_bridge:
+    dependency: "direct main"
+    description:
+      name: flutter_rust_bridge
+      sha256: ec69331e2335ab4d456c0a9fc700892c2c85b72b9c0cb39df3ecfe8833d5d5c8
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.13.0"
   flutter_secure_storage:
     dependency: "direct main"
     description:
@@ -703,14 +711,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.4.2"
-  native_toolchain_c:
-    dependency: transitive
-    description:
-      name: native_toolchain_c
-      sha256: f9c168717100ae6d9fee9ffb0be379bf1f8b26b0f6bcbd4fdddcd931993a6a72
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.19.2"
   node_preamble:
     dependency: transitive
     description:
@@ -903,6 +903,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.2"
+  rust_lib_aurora_music:
+    dependency: "direct main"
+    description:
+      path: rust_builder
+      relative: true
+    source: path
+    version: "0.0.1"
   rxdart:
     dependency: transitive
     description:
@@ -1068,14 +1075,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.0"
-  sqlite3:
-    dependency: transitive
-    description:
-      name: sqlite3
-      sha256: "4c7fe79840389aaeaf05fd093f795b631b5a98e2bd28d54e555c100f4a9c7a1c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.5.2"
   stack_trace:
     dependency: transitive
     description:

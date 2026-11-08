@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
+import '../bridge/api/cache.dart' as rust;
 import '../core/models.dart';
 import 'lyrics_match.dart';
 
@@ -635,21 +636,12 @@ class LyricsService {
       final bytes = utf8.encode(jsonEncode(data));
       if (bytes.length > maxBytes * 2) return;
       await _file(track, root).writeAsBytes(bytes, flush: true);
-      final files = dir
-          .listSync()
-          .whereType<File>()
-          .where(
-            (f) => f.path.endsWith('.json') && !f.path.endsWith('offsets.json'),
-          )
-          .toList();
-      if (files.length > maxCacheFiles) {
-        files.sort(
-          (a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()),
-        );
-        for (final f in files.take(files.length - maxCacheFiles)) {
-          f.deleteSync();
-        }
-      }
+      rust.pruneDirectory(
+        dir: dir.path,
+        maxFiles: maxCacheFiles,
+        nameSuffix: '.json',
+        excludeNames: const ['offsets.json'],
+      );
     } catch (_) {
       // la caché es opcional
     }

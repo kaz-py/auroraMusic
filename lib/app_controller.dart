@@ -3260,14 +3260,7 @@ class AppController extends ChangeNotifier {
           ),
         );
       }
-      await database.transaction(() async {
-        for (final track in newTracks) {
-          await database.saveTrack(track);
-        }
-        for (final playlist in newPlaylists) {
-          await database.savePlaylist(playlist);
-        }
-      });
+      await database.saveTracksAndPlaylists(newTracks, newPlaylists);
       tracks.insertAll(0, newTracks);
       playlists.addAll(newPlaylists);
       error = null;

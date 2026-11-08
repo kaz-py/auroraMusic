@@ -209,6 +209,8 @@ sesiones LAN y audio temporal; `lib/ui/studio/` presenta el Atelier Sonoro; `lib
 persiste la biblioteca; `lib/ui/` presenta las pantallas. `AppController`
 coordina estado y reproducción. Consulta el [árbol de módulos](docs/architecture.md).
 
+`rust/` contiene el motor en Rust (base de datos, DJ local y poda de cachés) expuesto con `flutter_rust_bridge`; compilar la aplicación requiere [rustup](https://rustup.rs) (la versión se fija en `rust/rust-toolchain.toml`). `flutter test` carga la biblioteca compilada, así que antes hay que ejecutar `cargo build --release --manifest-path rust/Cargo.toml`. Las pruebas del motor se lanzan con `cargo test --manifest-path rust/Cargo.toml --workspace`. Estado y hoja de ruta de la migración: [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md).
+
 Los procesos reciben argumentos separados, con plugins/configuración externa desactivados; entradas YouTube restringidas a HTTPS y hosts permitidos. TLS permanece verificado, salidas/colas/buffers tienen límites y las descargas se publican por renombrado desde archivos temporales. Los mensajes ocultan consultas firmadas, cookies y autorización. No se guardan URLs de reproducción temporales.
 
 Los archivos importados y descargados se guardan en el directorio de soporte de Aurora del usuario. Limpiar caché conserva la biblioteca; eliminar una descarga requiere confirmación. La app usa la salida de audio elegida por el sistema, incluidos auriculares cableados, USB o Bluetooth; las combinaciones físicas requieren pruebas de dispositivo.

@@ -9,7 +9,6 @@ import 'package:aurora_music/follow/follow_service.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:aurora_music/ui/home_music_page.dart';
 import 'package:aurora_music/ui/horizontal_music_row.dart';
-import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -398,7 +397,7 @@ void main() {
           ),
         ]);
       controller.playlists.clear();
-      final db = LibraryDatabase(NativeDatabase.memory());
+      final db = LibraryDatabase.memory();
       final follow = FollowService(
         repository: FollowRepository(db),
         fetchArtist: (_) async => const ArtistPage(),

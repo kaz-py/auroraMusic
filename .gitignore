@@ -62,3 +62,6 @@ dart_defines.local.json
 # graphify
 graphify-out/
 .env
+
+# Motor Rust: artefactos de compilación
+/rust/target/
