@@ -238,15 +238,15 @@ fn unknown_and_missing_inputs_report_why() {
         start_secs: 0.0,
     });
     assert!(matches!(missing, Err(OpenError::Failed(_))));
-    // Un https (o un host remoto) se rechaza para que lo atienda el motor anterior.
-    for url in ["https://example.com/a.mp3", "http://example.com/a.mp3"] {
+    // Una URL remota inalcanzable es un fallo de red, no un formato no admitido.
+    for url in ["http://127.0.0.1:1/a.mp3", "https://127.0.0.1:1/a.mp3"] {
         let remote = engine.load(&LoadSpec {
             input: url.into(),
             headers: vec![],
             start_secs: 0.0,
         });
         assert!(
-            matches!(remote, Err(OpenError::Unsupported(_))),
+            matches!(remote, Err(OpenError::Failed(_))),
             "{url}: {remote:?}"
         );
     }
@@ -310,6 +310,19 @@ fn spectrum_peaks_at_the_tone() {
 
 struct Server {
     port: u16,
+}
+
+fn serve_flaky(body: Arc<Vec<u8>>, cut_first_at: usize) -> Server {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    thread::spawn(move || {
+        for (n, stream) in listener.incoming().flatten().enumerate() {
+            let body = body.clone();
+            let cut = (n == 0).then_some(cut_first_at);
+            thread::spawn(move || handle(stream, &body, cut, true));
+        }
+    });
+    Server { port }
 }
 
 fn serve(body: Arc<Vec<u8>>, truncate_after: Option<usize>, ranges: bool) -> Server {
@@ -415,7 +428,9 @@ fn http_seek_uses_range_requests() {
 #[test]
 fn a_connection_cut_mid_stream_is_an_error_not_an_ending() {
     let bytes = fixture_bytes("tone.mp3");
-    let server = serve(bytes.clone(), Some(bytes.len() * 6 / 10), true);
+    // Cada conexión se corta tras 2500 bytes: tras tres reconexiones sin avanzar lo
+    // bastante se da por perdida.
+    let server = serve(bytes.clone(), Some(2500), true);
     let engine = engine();
     // MP3 no necesita índice final: se abre y el corte aparece al decodificar.
     engine
@@ -483,4 +498,17 @@ fn a_lost_device_is_reported_in_the_state() {
     assert!(!engine.state().device_lost);
     engine.mark_device_lost();
     assert!(engine.state().device_lost);
+}
+
+#[test]
+fn a_dropped_connection_is_resumed_with_a_range_request() {
+    let bytes = fixture_bytes("tone.mp3");
+    let server = serve_flaky(bytes.clone(), bytes.len() * 4 / 10);
+    let engine = engine();
+    engine.load(&http_spec(server.port, 0.0)).unwrap();
+    engine.play();
+    let audio = drain(&engine, Duration::from_secs(20));
+    let state = engine.state();
+    assert!(state.ended && state.error.is_none(), "{state:?}");
+    assert!((audio.len() as f64 / 2.0 / RATE as f64 - 2.0).abs() < 0.1);
 }

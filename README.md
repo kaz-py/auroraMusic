@@ -5,7 +5,7 @@ Reproductor de música en Flutter y Dart para **Windows x64, Linux x64 y Android
 ## Motor de audio
 
 - **Búsqueda** en YouTube Music vía InnerTube, sin clave de API ([`innertube_source.dart`](lib/sources/innertube_source.dart)): canciones, álbumes, artistas y vídeos, con paginación y navegación de álbum/artista.
-- **Reproducción nativa**: el audio de YouTube se resuelve por InnerTube y suena en el motor nativo (Android Media3, Windows SoLoud + FFmpeg) a través de un proxy local en `127.0.0.1` que pide trozos acotados al CDN ([`lib/sources/stream/`](lib/sources/stream/)). Sin tokens PO ni descifrado de firmas. Si YouTube bloquea, en Windows entra el reproductor oficial en un WebView oculto como respaldo.
+- **Reproducción nativa**: el audio de YouTube se resuelve por InnerTube y suena en el motor nativo (Android Media3; Windows y Linux, el motor Rust `aurora_playback` con Symphonia + CPAL) a través de un proxy local en `127.0.0.1` que pide trozos acotados al CDN ([`lib/sources/stream/`](lib/sources/stream/)). Sin tokens PO ni descifrado de firmas. Si YouTube bloquea, en Windows entra el reproductor oficial en un WebView oculto como respaldo.
 - **Ecualizador y espectro** en el motor nativo; un único motor activo a la vez ([`routed_music_audio.dart`](lib/audio/routed_music_audio.dart)).
 - **Controles del sistema** (notificación Media3 en Android, SMTC en Windows).
 - **yt-dlp** solo para descargas explícitas e importación de listas.
@@ -139,7 +139,7 @@ Instalación, compilación, requisitos y diferencias con Windows: [docs/LINUX.md
 ./scripts/setup_tools.ps1
 ```
 
-Este comando permite prepararlas por separado. Descarga versiones oficiales verificadas de yt-dlp, Deno, FFmpeg y ffprobe en `tools/windows/`, junto a hashes, versiones y licencias. `scripts/windows_tools.lock.json` fija las versiones predeterminadas. **Ajustes → Herramientas** permite un diagnóstico o una carpeta personalizada. No se ejecutan herramientas encontradas arbitrariamente en `PATH`.
+Este comando permite prepararlas por separado. Descarga versiones oficiales verificadas de yt-dlp y Deno en `tools/windows/`, junto a hashes, versiones y licencias. `scripts/windows_tools.lock.json` fija las versiones predeterminadas. **Ajustes → Herramientas** permite un diagnóstico o una carpeta personalizada. No se ejecutan herramientas encontradas arbitrariamente en `PATH`.
 
 Android incorpora Python, JavaScript, yt-dlp y FFmpeg mediante `youtubedl-android` 0.18.1; no necesita instalar Python. Las primeras operaciones preparan esos componentes localmente.
 
@@ -202,14 +202,14 @@ ni contraseñas en el chat. El ZIP Windows no tiene firma Authenticode.
 
 ## Arquitectura y seguridad
 
-`lib/core/` define modelos y contratos; `lib/audio/` contiene SoLoud y controles
+`lib/core/` define modelos y contratos; `lib/audio/` contiene el motor de escritorio (Rust) y los controles
 del sistema; `lib/sources/` integra InnerTube (búsqueda) y yt-dlp (descargas); `lib/audio_web/` aloja el reproductor oficial oculto; `lib/metadata/spotify/` consulta
 metadatos; `lib/dj/` puntúa recomendaciones y aplica filtros; `lib/jam/` mantiene
 sesiones LAN y audio temporal; `lib/ui/studio/` presenta el Atelier Sonoro; `lib/library/`
 persiste la biblioteca; `lib/ui/` presenta las pantallas. `AppController`
 coordina estado y reproducción. Consulta el [árbol de módulos](docs/architecture.md).
 
-`rust/` contiene el motor en Rust (base de datos, DJ local y poda de cachés) expuesto con `flutter_rust_bridge`; compilar la aplicación requiere [rustup](https://rustup.rs) (la versión se fija en `rust/rust-toolchain.toml`). `flutter test` carga la biblioteca compilada, así que antes hay que ejecutar `cargo build --release --manifest-path rust/Cargo.toml`. Las pruebas del motor se lanzan con `cargo test --manifest-path rust/Cargo.toml --workspace`. En escritorio el audio local y el proxy de YouTube se decodifican y mezclan en Rust (`aurora_playback`); lo que ese motor no maneja cae al anterior (SoLoud + FFmpeg), y `AURORA_AUDIO_ENGINE=soloud` fuerza el anterior. Estado y hoja de ruta de la migración: [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md); lo que falta, en [MIGRATION_PENDIENTES.md](MIGRATION_PENDIENTES.md).
+`rust/` contiene el motor en Rust (base de datos, DJ local y poda de cachés) expuesto con `flutter_rust_bridge`; compilar la aplicación requiere [rustup](https://rustup.rs) (la versión se fija en `rust/rust-toolchain.toml`). `flutter test` carga la biblioteca compilada, así que antes hay que ejecutar `cargo build --release --manifest-path rust/Cargo.toml`. Las pruebas del motor se lanzan con `cargo test --manifest-path rust/Cargo.toml --workspace`. En escritorio el audio local y el proxy de YouTube se decodifican y mezclan en Rust (`aurora_playback`); SoLoud y FFmpeg ya no existen: un formato que Symphonia no maneja o la falta de dispositivo de salida son errores de carga con su motivo. Las descargas de escritorio conservan el audio tal como lo sirve YouTube (Opus en Ogg o M4A, sin recodificar). Estado y hoja de ruta de la migración: [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md); lo que falta, en [MIGRATION_PENDIENTES.md](MIGRATION_PENDIENTES.md).
 
 Los procesos reciben argumentos separados, con plugins/configuración externa desactivados; entradas YouTube restringidas a HTTPS y hosts permitidos. TLS permanece verificado, salidas/colas/buffers tienen límites y las descargas se publican por renombrado desde archivos temporales. Los mensajes ocultan consultas firmadas, cookies y autorización. No se guardan URLs de reproducción temporales.
 

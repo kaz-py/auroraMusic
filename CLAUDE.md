@@ -30,10 +30,10 @@ cola nativa), pero con la interfaz de Aurora. **No cambiar la estética.**
   pide consentimiento/acceso («Revisar sitio»). Solo Windows: en Android el WebView
   oculto no carga (hoja en blanco), así que allí `resolve()` reintenta una vez el
   camino nativo y si falla muestra el error real.
-- Motores: Android `AndroidMusicAudio` (Media3, servicio), Windows `MusicAudio`
-  (SoLoud + FFmpeg) con EQ/espectro. `RoutedMusicAudio` elige por
+- Motores: Android `AndroidMusicAudio` (Media3, servicio), escritorio `RustMusicAudio`
+  (`rust/crates/aurora_playback`: Symphonia + CPAL) con EQ/espectro. `RoutedMusicAudio` elige por
   `ResolvedAudio.engine`, nunca por host. `lib/audio/stream_guard.dart` impide que
-  una URL de YouTube/googlevideo llegue a FFmpeg/Media3 sin pasar por el proxy.
+  una URL de YouTube/googlevideo llegue al decodificador/Media3 sin pasar por el proxy.
 - Android: `network_security_config.xml` permite texto claro solo a `127.0.0.1`.
 - Comprobación manual del cliente: `dart run tool/probe_innertube_clients.dart <id>`.
 - **Permitido** (decisión del usuario): InnerTube `player` imitando clientes de la
@@ -84,7 +84,7 @@ $env:PATH = "$PWD/build/build-tools/nuget;$env:PATH"; & $flutter build windows -
 Linux (en Ubuntu/WSL, con Flutter 3.38.8 para Linux y las dependencias de apt
 del README): `flutter build linux --release` → `build/linux/x64/release/bundle`.
 En Linux no hay WebView (sin respaldo web: `resolve()` reintenta nativo como en
-Android), ni audio_service/MPRIS, bandeja ni actualizador; yt-dlp/ffmpeg salen
+Android), ni audio_service/MPRIS, bandeja ni actualizador; yt-dlp sale
 del `PATH` o de la carpeta de Ajustes; Discord y Duvet usan socket Unix.
 
 ## Reglas

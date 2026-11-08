@@ -96,7 +96,6 @@ class RoutedMusicAudio extends AudioBackend {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     final revision = ++_generation;
@@ -117,7 +116,7 @@ class RoutedMusicAudio extends AudioBackend {
     _active = next;
     _active.setVolume(_volume);
     notifyListeners();
-    await next.load(source, ffmpegExecutable: ffmpegExecutable, start: start);
+    await next.load(source, start: start);
   }
 
   @override

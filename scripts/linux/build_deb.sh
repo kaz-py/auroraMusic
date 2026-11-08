@@ -26,7 +26,7 @@ Package: aurora-music
 Version: $version
 Architecture: amd64
 Maintainer: Aurora <noreply@users.noreply.github.com>
-Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0, libasound2 | libasound2t64, ffmpeg
+Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0, libasound2 | libasound2t64
 Recommends: yt-dlp, gnome-keyring | kwalletmanager, xdg-desktop-portal-gtk | xdg-desktop-portal, pipewire-alsa | pulseaudio
 Description: Reproductor de música Aurora
 EOF

@@ -21,7 +21,7 @@ if (-not (Test-Path -LiteralPath $releaseEngine) -or (Get-FileHash -LiteralPath 
 $hashFile = Join-Path $ToolDirectory 'binaries.sha256.json'
 if (-not (Test-Path -LiteralPath $hashFile)) { throw 'Ejecuta scripts/setup_tools.ps1 para generar los hashes verificados.' }
 $hashes = Get-Content -LiteralPath $hashFile -Raw | ConvertFrom-Json
-foreach ($name in 'yt-dlp.exe','deno.exe','ffmpeg.exe','ffprobe.exe') {
+foreach ($name in 'yt-dlp.exe','deno.exe') {
     $binary = Join-Path $ToolDirectory $name
     if (-not (Test-Path -LiteralPath $binary) -or $hashes.$name -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hashes.$name) { throw "Herramienta modificada o sin verificar: $name" }
 }
@@ -34,13 +34,13 @@ New-Item -ItemType Directory -Path $package -Force | Out-Null
 Get-ChildItem -LiteralPath $ReleaseDirectory -Force | Copy-Item -Destination $package -Recurse
 $packageTools = Join-Path $package 'tools'
 New-Item -ItemType Directory -Path $packageTools -Force | Out-Null
-foreach ($name in 'yt-dlp.exe','deno.exe','ffmpeg.exe','ffprobe.exe','tools.lock.json','binaries.sha256.json','licenses') {
+foreach ($name in 'yt-dlp.exe','deno.exe','tools.lock.json','binaries.sha256.json','licenses') {
     Copy-Item -LiteralPath (Join-Path $ToolDirectory $name) -Destination $packageTools -Recurse -Force
 }
 @'
 # Aurora para Windows
 
-Extrae todo el ZIP en una carpeta y ejecuta aurora_music.exe. Mantén data/, las DLL y tools/ junto al ejecutable. No requiere Python instalado: yt-dlp, Deno y FFmpeg vienen incluidos.
+Extrae todo el ZIP en una carpeta y ejecuta aurora_music.exe. Mantén data/, las DLL y tools/ junto al ejecutable. No requiere Python instalado: yt-dlp y Deno vienen incluidos.
 
 Aurora detecta tools/ automáticamente. Si ya configuraste otra carpeta, selecciona la carpeta tools/ de este paquete en Ajustes. Importa archivos locales o busca canciones y enlaces públicos de YouTube.
 

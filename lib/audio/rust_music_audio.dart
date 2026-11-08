@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -9,39 +8,26 @@ import '../core/audio_backend.dart';
 import '../core/models.dart';
 import 'audio_math.dart';
 import 'eq_model.dart';
-import 'music_audio.dart';
 import 'stream_guard.dart';
 
-/// Motor de audio de escritorio: archivos y el proxy local de YouTube se
-/// decodifican y se mezclan en Rust (`rust/crates/aurora_playback`); lo que ese
-/// motor no maneja (https remoto, formatos fuera de Symphonia, sin dispositivo)
-/// pasa por [MusicAudio] (SoLoud + FFmpeg), que se inicia solo si hace falta.
-///
-/// `AURORA_AUDIO_ENGINE=soloud` fuerza el motor anterior.
+/// Motor de audio de escritorio: archivos, el proxy local de YouTube y las URL
+/// http(s) se decodifican y se mezclan en Rust (`rust/crates/aurora_playback`).
+/// Un formato que Symphonia no maneja o la falta de dispositivo de salida son
+/// errores de carga con su motivo; no hay motor de respaldo.
 class RustMusicAudio extends AudioBackend {
-  /// [engineFactory] y [legacy] existen para las pruebas (salida sin dispositivo
-  /// y motor anterior simulado).
-  RustMusicAudio({
-    MusicAudio? legacy,
-    rust.PlayerEngine Function()? engineFactory,
-  }) : _legacy = legacy ?? MusicAudio(),
-       _engineFactory = engineFactory ?? rust.PlayerEngine.create;
+  /// [engineFactory] existe para las pruebas (salida sin dispositivo).
+  RustMusicAudio({rust.PlayerEngine Function()? engineFactory})
+    : _engineFactory = engineFactory ?? rust.PlayerEngine.create;
 
-  /// El motor de escritorio que corresponde a esta ejecución.
-  static AudioBackend create() =>
-      Platform.environment['AURORA_AUDIO_ENGINE']?.toLowerCase() == 'soloud'
-      ? MusicAudio()
-      : RustMusicAudio();
+  /// El motor de escritorio.
+  static AudioBackend create() => RustMusicAudio();
 
-  final MusicAudio _legacy;
   final rust.PlayerEngine Function() _engineFactory;
   rust.PlayerEngine? _engine;
-  bool _legacyReady = false, _usingLegacy = false, _rustUnavailable = false;
   final _spectrum = ValueNotifier<List<double>>(List.filled(48, 0));
   final _completed = StreamController<void>.broadcast();
   Timer? _timer;
   ResolvedAudio? _resolved;
-  String? _ffmpeg;
   Future<void> _operations = Future.value();
   int _generation = 0, _seekGeneration = 0, _ticks = 0;
   bool _disposed = false, _playing = false, _buffering = false;
@@ -56,13 +42,13 @@ class RustMusicAudio extends AudioBackend {
   String? lastError;
 
   @override
-  bool get isPlaying => _usingLegacy ? _legacy.isPlaying : _playing;
+  bool get isPlaying => _playing;
   @override
-  bool get isBuffering => _usingLegacy ? _legacy.isBuffering : _buffering;
+  bool get isBuffering => _buffering;
   @override
-  Duration get position => _usingLegacy ? _legacy.position : _position;
+  Duration get position => _position;
   @override
-  Duration get duration => _usingLegacy ? _legacy.duration : _duration;
+  Duration get duration => _duration;
   @override
   double get volume => _volume;
   @override
@@ -70,39 +56,29 @@ class RustMusicAudio extends AudioBackend {
   @override
   Stream<void> get completed => _completed.stream;
 
-  /// Motivo por el que no se pudo abrir el dispositivo con el motor nuevo.
+  /// Motivo por el que no se pudo abrir el dispositivo de salida.
   String? rustUnavailableReason;
 
   @override
   Future<void> initialize() async {
-    try {
-      _engine = _engineFactory();
-    } catch (error) {
-      _rustUnavailable = true;
-      rustUnavailableReason = '$error';
-      await _initLegacy();
-      return;
-    }
-    _applyToEngine();
+    _openEngine();
     _timer = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
   }
 
-  Future<void> _initLegacy() async {
-    if (_legacyReady) return;
-    await _legacy.initialize();
-    _legacyReady = true;
-    _legacy.addListener(() {
-      if (_usingLegacy && !_disposed) notifyListeners();
-    });
-    _legacy.completed.listen((_) {
-      if (_usingLegacy && !_disposed) _completed.add(null);
-    });
-    _legacy.spectrum.addListener(() {
-      if (_usingLegacy && !_disposed) _spectrum.value = _legacy.spectrum.value;
-    });
-    _legacy.setVolume(_volume);
-    _legacy.setEqualizer(_eqEnabled, _eqBands, autoPreamp: _eqAutoPreamp);
-    _legacy.setVisualizationEnabled(_visualization);
+  /// Abre la salida de audio; `false` (con el motivo en [rustUnavailableReason])
+  /// si no hay dispositivo. Se reintenta en cada carga: pueden haber conectado
+  /// unos auriculares entretanto.
+  bool _openEngine() {
+    if (_engine != null) return true;
+    try {
+      _engine = _engineFactory();
+    } catch (error) {
+      rustUnavailableReason = '$error';
+      return false;
+    }
+    rustUnavailableReason = null;
+    _applyToEngine();
+    return true;
   }
 
   void _applyToEngine() {
@@ -141,36 +117,31 @@ class RustMusicAudio extends AudioBackend {
   }
 
   @override
-  Future<void> load(
-    ResolvedAudio source, {
-    String? ffmpegExecutable,
-    Duration start = Duration.zero,
-  }) {
+  Future<void> load(ResolvedAudio source, {Duration start = Duration.zero}) {
     assertNotRawYouTube(source.input);
     _playIntent = false;
     ++_seekGeneration;
-    return _load(source, ffmpegExecutable: ffmpegExecutable, start: start);
+    return _load(source, start: start);
   }
 
-  Future<void> _load(
-    ResolvedAudio source, {
-    String? ffmpegExecutable,
-    Duration start = Duration.zero,
-  }) {
+  Future<void> _load(ResolvedAudio source, {Duration start = Duration.zero}) {
     final generation = ++_generation;
     return _serialize(() async {
       if (_disposed || generation != _generation) return;
       _resolved = source;
-      _ffmpeg = ffmpegExecutable;
-      if (_rustUnavailable || _engine == null) {
-        await _loadLegacy(source, ffmpegExecutable, start);
-        return;
+      if (!_openEngine()) {
+        _loaded = false;
+        _playing = false;
+        _buffering = false;
+        final message =
+            'No hay un dispositivo de salida de audio disponible. '
+                    '${redactAudioError(rustUnavailableReason ?? '')}'
+                .trim();
+        lastError = message;
+        notifyListeners();
+        throw StateError(message);
       }
       final engine = _engine!;
-      if (_usingLegacy) {
-        await _legacy.stop();
-        _usingLegacy = false;
-      }
       engine.stop();
       _loaded = false;
       _completing = false;
@@ -196,14 +167,13 @@ class RustMusicAudio extends AudioBackend {
         return;
       }
       if (!result.ok) {
-        if (result.unsupported) {
-          await _loadLegacy(source, ffmpegExecutable, start);
-          return;
-        }
         _buffering = false;
-        lastError = redactAudioError(result.message);
+        final message = result.unsupported
+            ? 'Formato de audio no admitido: ${redactAudioError(result.message)}'
+            : redactAudioError(result.message);
+        lastError = message;
         notifyListeners();
-        throw StateError(redactAudioError(result.message));
+        throw StateError(message);
       }
       if (_duration == Duration.zero && result.durationMs != null) {
         _duration = Duration(milliseconds: result.durationMs!);
@@ -214,28 +184,9 @@ class RustMusicAudio extends AudioBackend {
     });
   }
 
-  Future<void> _loadLegacy(
-    ResolvedAudio source,
-    String? ffmpegExecutable,
-    Duration start,
-  ) async {
-    await _initLegacy();
-    _engine?.stop();
-    _loaded = false;
-    _playing = false;
-    _usingLegacy = true;
-    _buffering = false;
-    await _legacy.load(
-      source,
-      ffmpegExecutable: ffmpegExecutable,
-      start: start,
-    );
-    notifyListeners();
-  }
-
   void _tick() {
     final engine = _engine;
-    if (_disposed || _usingLegacy || engine == null || !_loaded) return;
+    if (_disposed || engine == null || !_loaded) return;
     final state = engine.state();
     if (state.deviceLost && !_recoveringDevice) {
       unawaited(_recoverDevice());
@@ -265,7 +216,7 @@ class RustMusicAudio extends AudioBackend {
 
   /// La salida de audio desapareció (auriculares desenchufados, dispositivo
   /// deshabilitado): se abre un motor nuevo y se sigue por donde iba. Si ya no
-  /// hay ningún dispositivo, cae al motor anterior.
+  /// hay ningún dispositivo, la carga falla con su motivo.
   Future<void> _recoverDevice() async {
     _recoveringDevice = true;
     final source = _resolved;
@@ -276,15 +227,8 @@ class RustMusicAudio extends AudioBackend {
       _engine?.stop();
       _engine?.dispose();
       _engine = null;
-      try {
-        _engine = _engineFactory();
-      } catch (error) {
-        _rustUnavailable = true;
-        rustUnavailableReason = '$error';
-      }
-      _applyToEngine();
       if (source != null && !_disposed) {
-        await _load(source, ffmpegExecutable: _ffmpeg, start: at);
+        await _load(source, start: at);
         if (resume && !_disposed) await play();
       }
     } catch (error) {
@@ -347,7 +291,6 @@ class RustMusicAudio extends AudioBackend {
 
   @override
   Future<void> play() async {
-    if (_usingLegacy) return _legacy.play();
     _playIntent = true;
     if (!_loaded) return;
     _engine?.play();
@@ -358,7 +301,6 @@ class RustMusicAudio extends AudioBackend {
 
   @override
   Future<void> pause() async {
-    if (_usingLegacy) return _legacy.pause();
     _playIntent = false;
     _engine?.pause();
     _playing = false;
@@ -368,7 +310,6 @@ class RustMusicAudio extends AudioBackend {
 
   @override
   Future<void> seek(Duration target) async {
-    if (_usingLegacy) return _legacy.seek(target);
     final source = _resolved;
     if (source == null) return;
     final bounded = Duration(
@@ -380,7 +321,7 @@ class RustMusicAudio extends AudioBackend {
       ),
     );
     final request = ++_seekGeneration;
-    await _load(source, ffmpegExecutable: _ffmpeg, start: bounded);
+    await _load(source, start: bounded);
     if (shouldResumeAfterSeek(
       request: request,
       latestRequest: _seekGeneration,
@@ -397,7 +338,6 @@ class RustMusicAudio extends AudioBackend {
     _playIntent = false;
     return _serialize(() async {
       _engine?.stop();
-      if (_usingLegacy) await _legacy.stop();
       _loaded = false;
       _playing = false;
       _buffering = false;
@@ -412,7 +352,6 @@ class RustMusicAudio extends AudioBackend {
   void setVolume(double volume) {
     _volume = volume.clamp(0, 1);
     _engine?.setVolume(volume: _volume);
-    if (_legacyReady) _legacy.setVolume(_volume);
     notifyListeners();
   }
 
@@ -426,16 +365,12 @@ class RustMusicAudio extends AudioBackend {
     _eqBands = bands;
     _eqAutoPreamp = autoPreamp;
     _pushEqualizer();
-    if (_legacyReady) {
-      _legacy.setEqualizer(enabled, bands, autoPreamp: autoPreamp);
-    }
   }
 
   @override
   void setVisualizationEnabled(bool enabled) {
     _visualization = enabled;
     _engine?.setVisualization(enabled: enabled);
-    if (_legacyReady) _legacy.setVisualizationEnabled(enabled);
     if (!enabled) _spectrum.value = List.filled(48, 0);
   }
 
@@ -447,7 +382,6 @@ class RustMusicAudio extends AudioBackend {
     _engine?.stop();
     _engine?.dispose();
     _engine = null;
-    _legacy.dispose();
     unawaited(_completed.close());
     _spectrum.dispose();
     super.dispose();

@@ -24,11 +24,11 @@ restricciones Premium, ni pasar una URL cruda de YouTube a FFmpeg/Media3.
 | [`WebMusicAudio`](../lib/audio_web/web_music_audio.dart) / [`NativeWebMusicBridge`](../lib/audio_web/web_music_bridge.dart) | Respaldo: `AudioBackend` sobre la página oficial (`flutter_inappwebview` 6.1.5, política de navegación, filtros de anuncios, `webMusicMediaScript`). |
 | [`aurora_shell.dart`](../lib/ui/aurora_shell.dart) | Monta el WebView una sola vez (siempre inicializado, necesario para el respaldo automático). |
 
-Locales: Android Media3 (`AndroidMusicAudio`) y Windows SoLoud + FFmpeg (`MusicAudio`).
+Locales: Android Media3 (`AndroidMusicAudio`) y escritorio, el motor Rust (`RustMusicAudio`).
 Con el motor nativo (local o YouTube vía proxy) hay ecualizador y espectro; con el
 respaldo web `supportsEqualizer` y `supportsVisualization` son falsos y la interfaz
-lo indica. `ffmpegHttpsOptions` (`audio_math.dart`) añade `-rw_timeout` y `-reconnect*`
-también al `http` de bucle local.
+lo indica. El motor Rust (`http.rs`) verifica TLS con el almacén del sistema, corta las lecturas a los 15 s
+y reconecta con `Range` (3 intentos), también en el `http` de bucle local.
 
 ## Flujo
 

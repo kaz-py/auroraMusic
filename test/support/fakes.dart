@@ -47,7 +47,6 @@ class FakeAudio extends AudioBackend {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     if (loadErrors.isNotEmpty) throw loadErrors.removeAt(0);
@@ -166,7 +165,7 @@ class FakeSource extends SourceBackend {
   }
 
   @override
-  Future<void> download(
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
@@ -180,6 +179,7 @@ class FakeSource extends SourceBackend {
       await downloadGate?.future;
       onProgress?.call(0.5);
       await destination.writeAsBytes([1, 2, 3]);
+      return destination;
     } finally {
       activeDownloads--;
     }
@@ -196,8 +196,6 @@ class FakeSource extends SourceBackend {
 
   @override
   String? toolDirectory;
-  @override
-  String? get ffmpegExecutable => null;
   @override
   void dispose() {}
 }

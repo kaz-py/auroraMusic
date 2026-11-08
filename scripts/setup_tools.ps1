@@ -2,8 +2,7 @@
 param(
     [string]$ToolDirectory = '',
     [string]$YtDlpVersion = '',
-    [string]$DenoVersion = '',
-    [string]$FfmpegVersion = ''
+    [string]$DenoVersion = ''
 )
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
@@ -55,37 +54,25 @@ if (-not $YtDlpVersion -and $pins.ytdlp.repository -ne 'yt-dlp/yt-dlp-nightly-bu
 # Explicit versions (including latest) update only the requested tool.
 if ($YtDlpVersion) { $pins.ytdlp = Get-PinnedAsset 'yt-dlp/yt-dlp-nightly-builds' $YtDlpVersion '^yt-dlp\.exe$' }
 if ($DenoVersion) { $pins.deno = Get-PinnedAsset 'denoland/deno' $DenoVersion '^deno-x86_64-pc-windows-msvc\.zip$' }
-if ($FfmpegVersion) { $pins.ffmpeg = Get-PinnedAsset 'yt-dlp/FFmpeg-Builds' $FfmpegVersion '^ffmpeg-(master-latest|N-\d+-g[0-9a-f]+)-win64-gpl\.zip$' }
+# Aurora ya no usa FFmpeg: un tools.lock.json antiguo puede traerlo.
+$pins.PSObject.Properties.Remove('ffmpeg')
 
 $staging = Join-Path $ToolDirectory ('.staging-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $staging | Out-Null
 try {
-    foreach ($tool in 'ytdlp', 'deno', 'ffmpeg') {
+    foreach ($tool in 'ytdlp', 'deno') {
         $pin = $pins.$tool
         if ($pin.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "Hash inválido para $tool." }
-        if ($pin.url -notmatch '^https://github\.com/(yt-dlp/yt-dlp-nightly-builds|denoland/deno|yt-dlp/FFmpeg-Builds)/releases/download/') { throw 'URL de herramientas no autorizada.' }
+        if ($pin.url -notmatch '^https://github\.com/(yt-dlp/yt-dlp-nightly-builds|denoland/deno)/releases/download/') { throw 'URL de herramientas no autorizada.' }
         $download = Join-Path $staging ([IO.Path]::GetFileName($pin.name))
         Write-Host "Descargando $tool ($($pin.version)); verificando SHA-256 oficial."
-        try {
-            Invoke-WebRequest -Uri $pin.url -OutFile $download -Headers $headers -TimeoutSec 600
-        } catch {
-            # FFmpeg-Builds borra sus autobuilds viejos: usa el último publicado,
-            # verificado con el SHA-256 que publica GitHub para ese archivo.
-            if ($tool -ne 'ffmpeg') { throw }
-            Write-Host 'La versión fijada de ffmpeg ya no existe; usando la última publicada.'
-            $pin = Get-PinnedAsset 'yt-dlp/FFmpeg-Builds' 'latest' '^ffmpeg-(master-latest|N-\d+-g[0-9a-f]+)-win64-gpl\.zip$'
-            $pins.ffmpeg = $pin
-            $download = Join-Path $staging ([IO.Path]::GetFileName($pin.name))
-            Invoke-WebRequest -Uri $pin.url -OutFile $download -Headers $headers -TimeoutSec 600
-        }
+        Invoke-WebRequest -Uri $pin.url -OutFile $download -Headers $headers -TimeoutSec 600
         if ((Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant() -ne $pin.sha256.ToLowerInvariant()) { throw "SHA-256 incorrecto: $tool. No se instalará." }
         if ($tool -ne 'ytdlp') { Expand-Archive -LiteralPath $download -DestinationPath (Join-Path $staging $tool) }
     }
     $binaries = @{
         'yt-dlp.exe' = Join-Path $staging $pins.ytdlp.name
         'deno.exe' = (Get-ChildItem -LiteralPath (Join-Path $staging 'deno') -Filter deno.exe -Recurse | Select-Object -First 1).FullName
-        'ffmpeg.exe' = (Get-ChildItem -LiteralPath (Join-Path $staging 'ffmpeg') -Filter ffmpeg.exe -Recurse | Select-Object -First 1).FullName
-        'ffprobe.exe' = (Get-ChildItem -LiteralPath (Join-Path $staging 'ffmpeg') -Filter ffprobe.exe -Recurse | Select-Object -First 1).FullName
     }
     foreach ($name in $binaries.Keys) {
         if (-not $binaries[$name] -or -not (Test-Path -LiteralPath $binaries[$name])) { throw "Falta el binario $name." }
@@ -101,9 +88,6 @@ try {
     foreach ($notice in $licenseSources.Keys) {
         Invoke-WebRequest -Uri $licenseSources[$notice] -OutFile (Join-Path $licenses $notice) -Headers $headers -TimeoutSec 60
     }
-    $ffmpegNotices = @(Get-ChildItem -LiteralPath (Join-Path $staging 'ffmpeg') -Recurse -File | Where-Object { $_.Name -match '^(LICENSE|COPYING|README)' })
-    if ($ffmpegNotices.Count -eq 0) { throw 'El archivo FFmpeg no contiene sus avisos de licencia.' }
-    foreach ($notice in $ffmpegNotices) { Copy-Item -LiteralPath $notice.FullName -Destination (Join-Path $licenses ('ffmpeg-' + $notice.Name)) -Force }
     $binaryHashes = @{}
     foreach ($name in $binaries.Keys) {
         Copy-Item -LiteralPath $binaries[$name] -Destination (Join-Path $ToolDirectory $name) -Force
@@ -115,7 +99,7 @@ try {
     Copy-Item -LiteralPath $licenses -Destination $ToolDirectory -Recurse -Force
     $licenseSources | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ToolDirectory 'licenses/sources.json') -Encoding utf8
     Write-Host "Herramientas verificadas instaladas en $ToolDirectory; la compilación las incluye automáticamente."
-    Write-Host 'tools.lock.json fija las versiones y hashes. Conserva las licencias GPL de los binarios al redistribuir.'
+    Write-Host 'tools.lock.json fija las versiones y hashes. Conserva los avisos de licencia de los binarios al redistribuir.'
 } finally {
     $resolvedStaging = [IO.Path]::GetFullPath($staging)
     if (-not $resolvedStaging.StartsWith($ToolDirectory + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Ruta temporal fuera del directorio de herramientas.' }

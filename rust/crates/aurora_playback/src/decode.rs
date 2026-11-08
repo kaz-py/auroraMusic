@@ -180,6 +180,7 @@ pub struct PcmStream {
     skip_until: Option<f64>,
     broken: Option<Arc<AtomicBool>>,
     duration_secs: Option<f64>,
+    strict: bool,
     finished: bool,
 }
 
@@ -219,6 +220,26 @@ impl PcmStream {
         out_rate: u32,
         start_secs: f64,
         broken: Option<Arc<AtomicBool>>,
+    ) -> Result<Self, OpenError> {
+        Self::open_inner(source, extension, Some(out_rate), start_secs, broken, false)
+    }
+
+    /// Sin remuestrear y con decodificación estricta (cualquier paquete que no
+    /// se decodifique es un error): para validar archivos descargados.
+    pub fn open_strict(
+        source: Box<dyn MediaSource>,
+        extension: Option<&str>,
+    ) -> Result<Self, OpenError> {
+        Self::open_inner(source, extension, None, 0.0, None, true)
+    }
+
+    fn open_inner(
+        source: Box<dyn MediaSource>,
+        extension: Option<&str>,
+        out_rate: Option<u32>,
+        start_secs: f64,
+        broken: Option<Arc<AtomicBool>>,
+        strict: bool,
     ) -> Result<Self, OpenError> {
         let mss = MediaSourceStream::new(source, MediaSourceStreamOptions::default());
         let mut hint = Hint::new();
@@ -294,6 +315,7 @@ impl PcmStream {
                 .ok_or_else(|| OpenError::Unsupported("frecuencia desconocida".into()))?;
             (Codec::Symphonia(decoder), rate)
         };
+        let out_rate = out_rate.unwrap_or(src_rate);
         let converter = Converter::new(src_rate, out_rate)?;
         let mut stream = Self {
             format,
@@ -307,6 +329,7 @@ impl PcmStream {
             skip_until: None,
             broken,
             duration_secs,
+            strict,
             finished: false,
         };
         if start_secs > 0.0 {
@@ -317,6 +340,23 @@ impl PcmStream {
 
     pub fn duration_secs(&self) -> Option<f64> {
         self.duration_secs
+    }
+
+    /// Duración sumando la de los paquetes (sin decodificar), para contenedores
+    /// que no la declaran. `None` si no hay base de tiempo o no suman nada.
+    pub fn scan_duration(&mut self) -> Option<f64> {
+        let time_base = self.time_base?;
+        let mut total = 0u64;
+        while let Ok(packet) = self.format.next_packet() {
+            if packet.track_id() == self.track_id {
+                total += packet.dur;
+            }
+        }
+        if total == 0 {
+            return None;
+        }
+        let time = time_base.calc_time(total);
+        Some(time.seconds as f64 + time.frac)
     }
 
     pub fn out_rate(&self) -> u32 {
@@ -395,6 +435,7 @@ impl PcmStream {
                 let t = tb.calc_time(packet.ts());
                 t.seconds as f64 + t.frac
             });
+            let strict = self.strict;
             let mut stereo = Vec::new();
             let frames_start_secs = packet_secs;
             match &mut self.codec {
@@ -412,7 +453,12 @@ impl PcmStream {
                         scratch.copy_interleaved_ref(buffer);
                         to_stereo(scratch.samples(), spec.channels.count(), &mut stereo);
                     }
-                    Err(SymError::DecodeError(_)) => continue,
+                    Err(SymError::DecodeError(message)) => {
+                        if strict {
+                            return Err(OpenError::Failed(format!("paquete dañado: {message}")));
+                        }
+                        continue;
+                    }
                     Err(e) => return Err(OpenError::Failed(e.to_string())),
                 },
                 Codec::Opus {
@@ -424,7 +470,14 @@ impl PcmStream {
                     let mut pcm = vec![0f32; decoder.max_frame_size_per_channel() * *channels];
                     let frames = match decoder.decode_float(&packet.data, &mut pcm, false) {
                         Ok(n) => n,
-                        Err(_) => continue,
+                        Err(e) => {
+                            if strict {
+                                return Err(OpenError::Failed(format!(
+                                    "paquete Opus dañado: {e:?}"
+                                )));
+                            }
+                            continue;
+                        }
                     };
                     let mut samples = &mut pcm[..frames * *channels];
                     if (*gain - 1.0).abs() > 1e-6 {

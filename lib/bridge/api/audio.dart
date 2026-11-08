@@ -25,32 +25,6 @@ bool audioIsCompleteStream({
   expectedUs: expectedUs,
 );
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Equalizer>>
-abstract class Equalizer implements RustOpaqueInterface {
-  /// `target_preamp`: ganancia lineal de compensación ya calculada (1 = ninguna).
-  void configure({
-    required bool enabled,
-    required List<EqBandParams> bands,
-    required double targetPreamp,
-  });
-
-  static Equalizer create({
-    required double sampleRate,
-    required int channels,
-    required double timeConstantMs,
-  }) => RustLib.instance.api.crateApiAudioEqualizerCreate(
-    sampleRate: sampleRate,
-    channels: channels,
-    timeConstantMs: timeConstantMs,
-  );
-
-  /// El EQ no modifica el audio y no hay rampa pendiente.
-  bool isIdle();
-
-  /// PCM `f32` entrelazado: devuelve el bloque procesado, de la misma longitud.
-  Float32List process({required List<double> pcm});
-}
-
 /// Una banda del ecualizador, ya acotada por Dart (`EqBand`).
 class EqBandParams {
   final double frequency;

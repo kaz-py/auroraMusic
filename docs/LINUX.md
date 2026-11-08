@@ -30,14 +30,14 @@ bash Aurora-<versión>-linux-x64/install.sh
 `install.sh` no necesita root. Copia la app a `~/.local/share/aurora-music`, crea
 `~/.local/bin/aurora-music` y añade la entrada del menú y el icono. Después comprueba
 las bibliotecas del sistema y, si falta alguna, dice qué paquete instalar con apt, dnf
-o pacman. También avisa si faltan `ffmpeg` o `yt-dlp`.
+o pacman. También avisa si falta `yt-dlp`.
 
 Para desinstalar: `bash ~/.local/share/aurora-music/install.sh --uninstall`.
 
 Bibliotecas del sistema que necesita la app:
 
 ```bash
-sudo apt-get install libgtk-3-0 libsecret-1-0 libasound2 ffmpeg
+sudo apt-get install libgtk-3-0 libsecret-1-0 libasound2
 ```
 
 En Ubuntu 24.04, el paquete de audio se llama `libasound2t64`. Los códecs (FLAC, Opus,
@@ -70,10 +70,9 @@ en un archivo JSON fuera del repositorio y pásalo con
 
 ## Requisitos
 
-- **ffmpeg en el `PATH`**: hace falta para reproducir YouTube y los formatos que no son
-  mp3, wav, ogg o flac.
-- **Descargas**: usan `yt-dlp`, `ffmpeg` y `ffprobe` del sistema
-  (`sudo apt-get install yt-dlp ffmpeg`), o la carpeta que elijas en Ajustes.
+- **Descargas**: usan `yt-dlp` del sistema (`sudo apt-get install yt-dlp`), o la
+  carpeta que elijas en Ajustes. No hace falta ffmpeg: el audio se guarda tal como
+  lo sirve YouTube (Opus o M4A) y la reproducción es nativa (Rust).
 - **Llavero del sistema**: la sesión de tu cuenta y la de Last.fm se guardan con
   libsecret. Necesitas un llavero activo, como GNOME Keyring o KWallet.
 - **Selector de archivos**: los diálogos para importar música y elegir carpetas usan

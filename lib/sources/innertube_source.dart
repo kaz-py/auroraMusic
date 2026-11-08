@@ -512,7 +512,7 @@ class InnerTubeSource extends SourceBackend {
   @override
   Future<List<Track>> importPlaylist(Uri url) => delegate.importPlaylist(url);
   @override
-  Future<void> download(
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
@@ -581,8 +581,6 @@ class InnerTubeSource extends SourceBackend {
   String? get cookieFile => delegate.cookieFile;
   @override
   String? get toolDirectory => delegate.toolDirectory;
-  @override
-  String? get ffmpegExecutable => delegate.ffmpegExecutable;
   @override
   void dispose() {
     _disposed = true;

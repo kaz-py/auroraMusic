@@ -74,16 +74,6 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
-# flutter_soloud links prebuilt codecs from its own source tree and points its
-# RUNPATH there; ship them in the bundle and resolve them via $ORIGIN instead.
-# Names are the SONAMEs listed as NEEDED by libflutter_soloud_plugin.so.
-if(TARGET flutter_soloud_plugin)
-  set_target_properties(flutter_soloud_plugin PROPERTIES
-    BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "$ORIGIN")
-  set(SOLOUD_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_soloud/linux/libs")
-endif()
-
-
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
 # directory.
@@ -117,13 +107,6 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endforeach(bundled_library)
-
-if(TARGET flutter_soloud_plugin)
-  foreach(lib libFLAC.so.14 libopus.so.0 libogg.so.0 libvorbis.so.0.4.9 libvorbisfile.so.3.3.8)
-    install(FILES "${SOLOUD_LIBS}/${lib}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-      COMPONENT Runtime)
-  endforeach()
-endif()
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")

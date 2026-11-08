@@ -1,40 +1,11 @@
 import 'dart:io';
 
-import 'package:aurora_music/audio/eq_model.dart';
-import 'package:aurora_music/audio/music_audio.dart';
 import 'package:aurora_music/audio/rust_music_audio.dart';
 import 'package:aurora_music/bridge/api/playback.dart' as rust;
 import 'package:aurora_music/core/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _media = 'rust/crates/aurora_audio/tests/fixtures/media';
-
-/// Motor anterior simulado: registra lo que se le pide.
-class _FakeLegacy extends MusicAudio {
-  final calls = <String>[];
-  @override
-  Future<void> initialize() async => calls.add('initialize');
-  @override
-  Future<void> load(
-    ResolvedAudio source, {
-    String? ffmpegExecutable,
-    Duration start = Duration.zero,
-  }) async => calls.add('load ${source.input} $start');
-  @override
-  Future<void> play() async => calls.add('play');
-  @override
-  Future<void> stop() async => calls.add('stop');
-  @override
-  void setVolume(double volume) => calls.add('volume $volume');
-  @override
-  void setEqualizer(bool e, List<EqBand> b, {bool autoPreamp = true}) =>
-      calls.add('eq $e');
-  @override
-  void setVisualizationEnabled(bool enabled) {}
-  @override
-  // ignore: must_call_super
-  void dispose() {}
-}
 
 String _file(String name) => File('$_media/$name').absolute.path;
 
@@ -49,12 +20,9 @@ void main() {
   _bufferingAfterSeek();
   _deviceLoss();
   late RustMusicAudio audio;
-  late _FakeLegacy legacy;
 
   setUp(() async {
-    legacy = _FakeLegacy();
     audio = RustMusicAudio(
-      legacy: legacy,
       engineFactory: () => rust.PlayerEngine.createSilent(sampleRate: 48000),
     );
     await audio.initialize();
@@ -75,7 +43,6 @@ void main() {
     expect(audio.isPlaying, isFalse);
     expect(audio.lastError, isNull);
     expect(audio.position.inMilliseconds, closeTo(2000, 60));
-    expect(legacy.calls, isEmpty, reason: 'no debe tocar el motor anterior');
   });
 
   test('pause holds the position and seek restarts from the target', () async {
@@ -107,20 +74,37 @@ void main() {
     expect(audio.isPlaying, isTrue);
   });
 
-  test('unsupported inputs fall back to the previous engine', () async {
-    await audio.load(
-      ResolvedAudio(
-        input: 'https://example.com/clip.mp3',
-        duration: const Duration(minutes: 3),
+  test('an unsupported format fails with its reason, not silently', () async {
+    final dir = Directory.systemTemp.createTempSync('aurora-junk');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final junk = File('${dir.path}/junk.mp3')
+      ..writeAsBytesSync(List.filled(5000, 0x11));
+    await expectLater(
+      audio.load(ResolvedAudio(input: junk.path, duration: Duration.zero)),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('Formato de audio no admitido'),
+        ),
       ),
     );
-    expect(legacy.calls, contains('initialize'));
-    expect(legacy.calls.any((c) => c.startsWith('load https://')), isTrue);
-    await audio.play();
-    expect(legacy.calls, contains('play'));
-    // Volume and EQ reach the legacy engine once it exists.
-    audio.setVolume(0.3);
-    expect(legacy.calls, contains('volume 0.3'));
+    expect(audio.lastError, contains('Formato de audio no admitido'));
+    expect(audio.isBuffering, isFalse);
+  });
+
+  test('an unreachable https stream is a network failure', () async {
+    await expectLater(
+      audio.load(
+        ResolvedAudio(
+          input: 'https://127.0.0.1:1/clip.mp3',
+          duration: const Duration(minutes: 3),
+        ),
+      ),
+      throwsStateError,
+    );
+    expect(audio.lastError, isNotNull);
+    expect(audio.lastError, isNot(contains('Formato de audio no admitido')));
   });
 
   test(
@@ -150,24 +134,39 @@ void main() {
       ),
       throwsStateError,
     );
-    expect(legacy.calls, isEmpty);
   });
 
   test(
-    'without an output device everything goes to the previous engine',
+    'without an output device loading fails and retries when one appears',
     () async {
-      final fallback = _FakeLegacy();
+      var available = false;
       final noDevice = RustMusicAudio(
-        legacy: fallback,
-        engineFactory: () => throw StateError('sin dispositivo'),
+        engineFactory: () => available
+            ? rust.PlayerEngine.createSilent(sampleRate: 48000)
+            : throw StateError('sin dispositivo'),
       );
       addTearDown(noDevice.dispose);
       await noDevice.initialize();
       expect(noDevice.rustUnavailableReason, contains('sin dispositivo'));
-      await noDevice.load(
-        ResolvedAudio(input: _file('tone.wav'), duration: Duration.zero),
+      final tone = ResolvedAudio(
+        input: _file('tone.wav'),
+        duration: Duration.zero,
       );
-      expect(fallback.calls.any((c) => c.startsWith('load ')), isTrue);
+      await expectLater(
+        noDevice.load(tone),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('dispositivo de salida'),
+          ),
+        ),
+      );
+      expect(noDevice.lastError, contains('dispositivo de salida'));
+      available = true;
+      await noDevice.load(tone);
+      expect(noDevice.lastError, isNull);
+      expect(noDevice.duration.inMilliseconds, closeTo(2000, 60));
     },
   );
 }
@@ -176,7 +175,6 @@ void _bufferingAfterSeek() {
   late RustMusicAudio audio;
   setUp(() async {
     audio = RustMusicAudio(
-      legacy: _FakeLegacy(),
       engineFactory: () => rust.PlayerEngine.createSilent(sampleRate: 48000),
     );
     await audio.initialize();
@@ -241,7 +239,6 @@ void _deviceLoss() {
   test('a lost output device is reopened and playback continues', () async {
     final engines = <rust.PlayerEngine>[];
     final audio = RustMusicAudio(
-      legacy: _FakeLegacy(),
       engineFactory: () {
         final engine = rust.PlayerEngine.createSilent(sampleRate: 48000);
         engines.add(engine);
@@ -269,31 +266,27 @@ void _deviceLoss() {
     expect(audio.lastError, isNull);
   });
 
-  test(
-    'losing the device with no replacement falls back to the old engine',
-    () async {
-      var created = 0;
-      final engines = <rust.PlayerEngine>[];
-      final legacy = _FakeLegacy();
-      final audio = RustMusicAudio(
-        legacy: legacy,
-        engineFactory: () {
-          if (created++ > 0) throw StateError('sin dispositivo');
-          final engine = rust.PlayerEngine.createSilent(sampleRate: 48000);
-          engines.add(engine);
-          return engine;
-        },
-      );
-      addTearDown(audio.dispose);
-      await audio.initialize();
-      await audio.load(
-        ResolvedAudio(input: _file('tone-opus.webm'), duration: Duration.zero),
-      );
-      await audio.play();
-      await _until(() => audio.position > const Duration(milliseconds: 300));
-      engines.single.simulateDeviceLoss();
-      await _until(() => legacy.calls.any((c) => c.startsWith('load ')));
-      expect(legacy.calls.any((c) => c.startsWith('load ')), isTrue);
-    },
-  );
+  test('losing the device with no replacement reports the failure', () async {
+    var created = 0;
+    final engines = <rust.PlayerEngine>[];
+    final audio = RustMusicAudio(
+      engineFactory: () {
+        if (created++ > 0) throw StateError('sin dispositivo');
+        final engine = rust.PlayerEngine.createSilent(sampleRate: 48000);
+        engines.add(engine);
+        return engine;
+      },
+    );
+    addTearDown(audio.dispose);
+    await audio.initialize();
+    await audio.load(
+      ResolvedAudio(input: _file('tone-opus.webm'), duration: Duration.zero),
+    );
+    await audio.play();
+    await _until(() => audio.position > const Duration(milliseconds: 300));
+    engines.single.simulateDeviceLoss();
+    await _until(() => audio.lastError != null);
+    expect(audio.lastError, contains('dispositivo de salida'));
+    expect(audio.isPlaying, isFalse);
+  });
 }

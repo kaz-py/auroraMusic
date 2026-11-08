@@ -77,7 +77,11 @@ abstract class SourceBackend {
     required void Function() onStatusChanged,
   }) async {}
   Future<void> checkForUpdates() async {}
-  Future<void> download(
+
+  /// Guarda el audio de [track] junto a [destination] y devuelve el archivo
+  /// final. La fuente elige la extensión (la de [destination] es solo una
+  /// sugerencia): en escritorio se conserva el formato original sin recodificar.
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
@@ -95,6 +99,5 @@ abstract class SourceBackend {
   Future<void> configureCookieFile(String? path);
   String? get cookieFile;
   String? get toolDirectory;
-  String? get ffmpegExecutable;
   void dispose();
 }

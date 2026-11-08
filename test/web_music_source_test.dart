@@ -29,13 +29,14 @@ class _VideoUtility extends FakeSource {
   }
 
   @override
-  Future<void> download(
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
     void Function(double)? onProgress,
   }) async {
     audioDownloads++;
+    return destination;
   }
 
   @override

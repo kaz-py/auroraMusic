@@ -203,11 +203,7 @@ class JamPlaybackBridge extends ChangeNotifier {
             service.clockOffsetMs,
             durationMs: resolved.duration.inMilliseconds,
           );
-          await app.audio.load(
-            resolved,
-            ffmpegExecutable: app.source.ffmpegExecutable,
-            start: Duration(milliseconds: start),
-          );
+          await app.audio.load(resolved, start: Duration(milliseconds: start));
           if (!enabled ||
               generation != _generation ||
               _disposed ||

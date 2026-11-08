@@ -155,7 +155,6 @@ val prepareAndroidYtDlp by tasks.registering(Exec::class) {
 
 tasks.named("preBuild").configure {
     dependsOn(prepareAndroidYtDlp)
-    dependsOn(rootProject.tasks.named("patchFlutterSoloud"))
 }
 
 dependencies {

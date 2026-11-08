@@ -2304,11 +2304,7 @@ class AppController extends ChangeNotifier {
       // Before load so the system session never shows the previous track.
       _publishMetadata(track);
       try {
-        await audio.load(
-          resolved,
-          ffmpegExecutable: source.ffmpegExecutable,
-          start: _resumePosition,
-        );
+        await audio.load(resolved, start: _resumePosition);
       } catch (loadError) {
         // The CDN can refuse one URL (410 from the loopback proxy, expiry):
         // a fresh resolve usually lands on another URL, so retry once.
@@ -2323,11 +2319,7 @@ class AppController extends ChangeNotifier {
         resolved = await source.resolve(track);
         if (generation != _playGeneration || _disposed) return;
         _loadedAudioInput = resolved.input;
-        await audio.load(
-          resolved,
-          ffmpegExecutable: source.ffmpegExecutable,
-          start: _resumePosition,
-        );
+        await audio.load(resolved, start: _resumePosition);
       }
       if (_youtubeMusicActive) {
         await audio.pause();
@@ -3650,14 +3642,19 @@ class AppController extends ChangeNotifier {
           await directory.create(recursive: true);
           if (_disposed) return;
           final safeId = _safeDownloadId(job.track.id);
+          // La fuente elige la extensión (Opus/M4A sin recodificar en escritorio,
+          // MP3 en Android); `.mp3` es solo la sugerencia.
           final destination = File(p.join(directory.path, '$safeId.mp3'));
-          if (await destination.exists()) {
-            throw FileSystemException(
-              'El archivo de destino ya existe.',
-              destination.path,
-            );
+          for (final extension in _downloadExtensions) {
+            final existing = File(p.join(directory.path, '$safeId$extension'));
+            if (await existing.exists()) {
+              throw FileSystemException(
+                'El archivo de destino ya existe.',
+                existing.path,
+              );
+            }
           }
-          await source.download(
+          final saved = await source.download(
             job.track,
             destination,
             jobId: job.id,
@@ -3671,8 +3668,8 @@ class AppController extends ChangeNotifier {
           if (job.status != DownloadStatus.cancelled) {
             job.status = DownloadStatus.completed;
             job.progress = 1;
-            job.localPath = destination.path;
-            final downloaded = job.track.copyWith(localPath: destination.path);
+            job.localPath = saved.path;
+            final downloaded = job.track.copyWith(localPath: saved.path);
             await _remember(downloaded);
             queue = queue
                 .map((item) => item.id == downloaded.id ? downloaded : item)
@@ -3683,11 +3680,11 @@ class AppController extends ChangeNotifier {
             recentTracks = recentTracks
                 .map((item) => item.id == downloaded.id ? downloaded : item)
                 .toList();
-          } else if (await destination.exists()) {
+          } else if (await saved.exists()) {
             final root = await directory.resolveSymbolicLinks();
-            final target = await destination.resolveSymbolicLinks();
+            final target = await saved.resolveSymbolicLinks();
             if (p.dirname(target) == root &&
-                p.basename(target) == '${_safeDownloadId(job.track.id)}.mp3') {
+                _isDownloadName(p.basename(target), job.track.id)) {
               await File(target).delete();
             }
           }
@@ -3739,12 +3736,11 @@ class AppController extends ChangeNotifier {
         final canonicalParent = await Directory(
           p.dirname(absolutePath),
         ).resolveSymbolicLinks();
-        final expectedName = '${_safeDownloadId(job.track.id)}.mp3';
         final target = await file.resolveSymbolicLinks();
         if (!p.equals(canonicalParent, root) ||
-            p.basename(absolutePath) != expectedName ||
+            !_isDownloadName(p.basename(absolutePath), job.track.id) ||
             !p.equals(p.dirname(target), root) ||
-            p.basename(target) != expectedName) {
+            !_isDownloadName(p.basename(target), job.track.id)) {
           throw StateError('La descarga está fuera de la carpeta de Aurora.');
         }
         if (currentTrack?.id == job.track.id && !_usingRemote) {
@@ -3797,6 +3793,14 @@ class AppController extends ChangeNotifier {
     }
     return p.normalize(root);
   }
+
+  // Formatos que puede dejar una descarga: Opus y M4A tal como los sirve la
+  // fuente, y MP3 (Android y descargas anteriores).
+  static const _downloadExtensions = ['.opus', '.m4a', '.mp3'];
+
+  bool _isDownloadName(String name, String trackId) =>
+      _downloadExtensions.contains(p.extension(name).toLowerCase()) &&
+      p.basenameWithoutExtension(name) == _safeDownloadId(trackId);
 
   String _safeDownloadId(String id) =>
       id.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
@@ -4199,8 +4203,8 @@ class AppController extends ChangeNotifier {
     try {
       final directory = await FilePicker.getDirectoryPath(
         dialogTitle: Platform.isWindows
-            ? 'Carpeta con yt-dlp.exe, ffmpeg.exe, ffprobe.exe y deno.exe'
-            : 'Carpeta con yt-dlp, ffmpeg y ffprobe',
+            ? 'Carpeta con yt-dlp.exe y deno.exe'
+            : 'Carpeta con yt-dlp',
       );
       if (directory == null) return;
       await source.configureToolDirectory(directory);

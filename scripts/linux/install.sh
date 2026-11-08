@@ -103,7 +103,7 @@ if [ -n "$libs" ]; then
   done
 fi
 
-for tool in ffmpeg yt-dlp; do
+for tool in yt-dlp; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Aviso: $tool no está en el PATH; instálalo para usar todas las funciones."
   fi

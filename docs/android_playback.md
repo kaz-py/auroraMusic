@@ -24,7 +24,7 @@ en el búfer; no espera una descarga completa para iniciar ni publica un archivo
 sin conexión. Se deshabilitan reintentos internos ante 403/429; otros errores de
 carga tienen un reintento antes del control de recuperación de Aurora.
 
-Windows conserva SoLoud, FFmpeg, su caché validada y el relay progresivo opcional
+Windows usa el motor Rust (ya sin SoLoud ni FFmpeg), su caché validada y el relay progresivo opcional
 existentes. Cambian el canal nightly, su actualización segura y los límites de
 solicitudes. No se modifica la base de datos ni se migra la biblioteca.
 

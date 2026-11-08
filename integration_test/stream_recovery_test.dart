@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:aurora_music/audio/music_audio.dart';
+import 'package:aurora_music/audio/rust_music_audio.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -26,7 +26,7 @@ void main() {
               ..add(fixture.bytes);
             await request.response.close();
           });
-          final audio = MusicAudio();
+          final audio = RustMusicAudio();
           try {
             await _initialize(audio);
             final completed = Completer<void>();
@@ -41,7 +41,6 @@ void main() {
                   input: server.url,
                   duration: Duration(seconds: seconds),
                 ),
-                ffmpegExecutable: _ffmpeg,
               );
               await audio.play();
               if (seconds > 120) {
@@ -88,7 +87,7 @@ void main() {
           request.response.add(fixture.bytes);
           await request.response.close();
         });
-        final audio = MusicAudio();
+        final audio = RustMusicAudio();
         try {
           await _initialize(audio);
           var completions = 0;
@@ -103,7 +102,6 @@ void main() {
                 input: server.url,
                 duration: const Duration(seconds: 8),
               ),
-              ffmpegExecutable: _ffmpeg,
             );
             await audio.play();
             await _waitFor(() => audio.lastError != null, audio: audio);
@@ -142,7 +140,7 @@ void main() {
           request.response.add(fixture.bytes);
           await request.response.close();
         });
-        final audio = MusicAudio();
+        final audio = RustMusicAudio();
         try {
           await _initialize(audio);
           var completions = 0;
@@ -153,7 +151,6 @@ void main() {
                 input: server.url,
                 duration: const Duration(seconds: 2),
               ),
-              ffmpegExecutable: _ffmpeg,
             );
             await audio.play();
             await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -180,26 +177,17 @@ void main() {
   );
 }
 
-String get _ffmpeg => Platform.isWindows
-    ? '$_toolsDirectory${Platform.pathSeparator}ffmpeg.exe'
-    : '$_toolsDirectory${Platform.pathSeparator}ffmpeg';
-
-Future<void> _initialize(MusicAudio audio) async {
+Future<void> _initialize(RustMusicAudio audio) async {
   expect(
     _toolsDirectory,
     isNotEmpty,
     reason: 'Pass --dart-define=AURORA_TOOLS=<folder>',
   );
-  expect(
-    await File(_ffmpeg).exists(),
-    isTrue,
-    reason: 'AURORA_TOOLS must contain FFmpeg',
-  );
   await audio.initialize();
   audio.setVolume(0);
 }
 
-Future<void> _dispose(MusicAudio audio) async {
+Future<void> _dispose(RustMusicAudio audio) async {
   await audio.stop();
   audio.dispose();
   await Future<void>.delayed(const Duration(milliseconds: 250));
@@ -207,7 +195,7 @@ Future<void> _dispose(MusicAudio audio) async {
 
 Future<void> _waitFor(
   bool Function() condition, {
-  required MusicAudio audio,
+  required RustMusicAudio audio,
 }) async {
   final deadline = DateTime.now().add(const Duration(seconds: 12));
   while (!condition()) {

@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:aurora_music/audio/music_audio.dart';
+import 'package:aurora_music/audio/rust_music_audio.dart';
 import 'package:aurora_music/sources/yt_dlp_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -23,7 +23,7 @@ void main() {
       final passed = await tester.runAsync(() async {
         SharedPreferences.setMockInitialValues({});
         final source = YtDlpSource(await SharedPreferences.getInstance());
-        final audio = MusicAudio();
+        final audio = RustMusicAudio();
         final directory = await (await getTemporaryDirectory()).createTemp(
           'aurora-source-smoke-',
         );
@@ -45,7 +45,7 @@ void main() {
           expect(resolved.input, startsWith('https://'));
           await audio.initialize();
           audio.setVolume(0.02);
-          await audio.load(resolved, ffmpegExecutable: source.ffmpegExecutable);
+          await audio.load(resolved);
           await audio.play();
           await _wait(
             audio,
@@ -68,7 +68,7 @@ void main() {
             track.copyWith(localPath: destination.path),
           );
           expect(offline.input, destination.path);
-          await audio.load(offline, ffmpegExecutable: source.ffmpegExecutable);
+          await audio.load(offline);
           await audio.play();
           await _wait(
             audio,
@@ -96,7 +96,7 @@ void main() {
   );
 }
 
-Future<void> _wait(MusicAudio audio, bool Function() condition) async {
+Future<void> _wait(RustMusicAudio audio, bool Function() condition) async {
   final deadline = DateTime.now().add(const Duration(seconds: 30));
   while (!condition()) {
     if (audio.lastError != null) {

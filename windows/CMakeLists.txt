@@ -55,22 +55,6 @@ add_subdirectory("runner")
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../.dart_tool/package_config.json" PACKAGE_CONFIG)
-string(REGEX MATCH "\"name\"[ \t\r\n]*:[ \t\r\n]*\"flutter_soloud\"[^}]*\"rootUri\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\"" SOLOUD_PACKAGE "${PACKAGE_CONFIG}")
-if(NOT SOLOUD_PACKAGE)
-  message(FATAL_ERROR "flutter_soloud package entry is missing from .dart_tool/package_config.json")
-endif()
-set(SOLOUD_ROOT "${CMAKE_MATCH_1}")
-string(REPLACE "file:///" "" SOLOUD_ROOT "${SOLOUD_ROOT}")
-string(REPLACE "%20" " " SOLOUD_ROOT "${SOLOUD_ROOT}")
-file(TO_CMAKE_PATH "${SOLOUD_ROOT}" SOLOUD_ROOT)
-execute_process(
-  COMMAND "${CMAKE_COMMAND}" "-DFLUTTER_SOLOUD_ROOT=${SOLOUD_ROOT}" -P "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/patch_flutter_soloud.cmake"
-  RESULT_VARIABLE SOLOUD_PATCH_RESULT
-)
-if(NOT SOLOUD_PATCH_RESULT EQUAL 0)
-  message(FATAL_ERROR "Unable to apply the pinned flutter_soloud clipper fix")
-endif()
 include(flutter/generated_plugins.cmake)
 
 

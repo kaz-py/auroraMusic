@@ -217,7 +217,7 @@ class WebMusicSource extends SourceBackend {
   }
 
   @override
-  Future<void> download(
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
@@ -275,6 +275,7 @@ class WebMusicSource extends SourceBackend {
       if (await destination.exists()) throw StateError('El destino ya existe.');
       await temporary.rename(destination.path);
       onProgress?.call(1);
+      return destination;
     } finally {
       client.close(force: true);
       _downloads.remove(jobId);
@@ -332,8 +333,6 @@ class WebMusicSource extends SourceBackend {
   String? get cookieFile => delegate.cookieFile;
   @override
   String? get toolDirectory => delegate.toolDirectory;
-  @override
-  String? get ffmpegExecutable => delegate.ffmpegExecutable;
   @override
   void dispose() {
     for (final client in _downloads.values) {

@@ -10,7 +10,7 @@ lib/
   main.dart                         Arranque, dependencias y tema compartido
   app_controller.dart               Estado personal, cola, reproducción y persistencia
   core/                             Track, playlists, contratos y controles de ventana
-  audio/                            SoLoud, DSP, FFT y controles multimedia
+  audio/                            motor Rust (Symphonia + CPAL), EQ/FFT y controles multimedia
   sources/                          InnerTube (búsqueda), yt-dlp (descargas)
   audio_web/                        reproductor oficial de YouTube Music en WebView oculto
   library/

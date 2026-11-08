@@ -24,11 +24,7 @@ abstract class AudioBackend extends ChangeNotifier {
   /// null returns the session to this backend.
   Future<void> mirrorExternalPlayback(AudioBackend? playback) async {}
   Future<void> initialize();
-  Future<void> load(
-    ResolvedAudio source, {
-    String? ffmpegExecutable,
-    Duration start = Duration.zero,
-  });
+  Future<void> load(ResolvedAudio source, {Duration start = Duration.zero});
   Future<void> play();
   Future<void> pause();
   Future<void> stop();

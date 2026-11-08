@@ -39,7 +39,6 @@ dependencies:
   # La tubería IPC de Duvet en Windows (CreateFileW/WriteFile), ya transitiva.
   ffi: ^2.2.0
   file_picker: ^13.1.0
-  flutter_soloud: ^3.5.4
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   audio_service_win: ^0.0.3

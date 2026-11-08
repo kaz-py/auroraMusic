@@ -153,7 +153,6 @@ class AndroidMusicAudio extends AudioBackend {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     assertNotRawYouTube(source.input);
