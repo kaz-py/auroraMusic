@@ -9,7 +9,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 | Fase | Contenido | Estado |
 |---|---|---|
 | 2b | Reproducción de escritorio con Symphonia + CPAL en lugar de SoLoud + ffmpeg | **Hecha y SoLoud/FFmpeg retirados de escritorio**; quedan los puntos de abajo |
-| 3.2+ | Orquestador de streams, proxy local de audio, cliente InnerTube con red | Pendiente |
+| 3.2+ | Orquestador de streams, proxy local de audio, cliente InnerTube con red | Pendiente; **medido: no mejora la latencia** (ver `MIGRATION_AUDIT.md`, resolver ≈ 0,4–0,6 s es red). Solo valdría por consolidar código, y exige decidir el modelo asíncrono. |
 | 4 (resto) | Ejecutor de yt-dlp (procesos, progreso, tope de salida, matar el árbol), cola de descargas, reanudación (la caché de audio ya está: 4.1; ffmpeg/ffprobe ya no existen en escritorio) | Pendiente |
 | 5 | Jam (servidor WS LAN, comandos, codec de invitaciones, deriva) | Pendiente |
 | 6 | Sincronización (LWW, Last.fm) | Pendiente |
