@@ -5,3 +5,4 @@ pub mod dj;
 pub mod media;
 pub mod playback;
 pub mod sources;
+pub mod voice;

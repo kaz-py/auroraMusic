@@ -14,5 +14,12 @@
         "repository": "yt-dlp/yt-dlp-nightly-builds",
         "sourceCommit": "897341241f2bfb2439fe0367f4c7c9ccd29a3828",
         "checksumUrl": "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/SHA2-256SUMS"
+    },
+    "vosk": {
+        "sha256": "f1dcc9cca460630f81ea8f71794f69c80bed6556d2a4e6237b5785e1d2dff34b",
+        "url": "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-win64-0.3.45.zip",
+        "name": "vosk-win64-0.3.45.zip",
+        "version": "v0.3.45",
+        "repository": "alphacep/vosk-api"
     }
 }

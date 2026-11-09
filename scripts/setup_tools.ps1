@@ -51,6 +51,10 @@ $pins = Get-Content -LiteralPath $pinsFile -Raw | ConvertFrom-Json
 if (-not $YtDlpVersion -and $pins.ytdlp.repository -ne 'yt-dlp/yt-dlp-nightly-builds') {
     $pins.ytdlp = (Get-Content -LiteralPath $defaultPins -Raw | ConvertFrom-Json).ytdlp
 }
+# Un tools.lock.json de una versión anterior no trae Vosk: se toma el fijado aquí.
+if (-not $pins.vosk) {
+    $pins | Add-Member -NotePropertyName vosk -NotePropertyValue (Get-Content -LiteralPath $defaultPins -Raw | ConvertFrom-Json).vosk
+}
 # Explicit versions (including latest) update only the requested tool.
 if ($YtDlpVersion) { $pins.ytdlp = Get-PinnedAsset 'yt-dlp/yt-dlp-nightly-builds' $YtDlpVersion '^yt-dlp\.exe$' }
 if ($DenoVersion) { $pins.deno = Get-PinnedAsset 'denoland/deno' $DenoVersion '^deno-x86_64-pc-windows-msvc\.zip$' }
@@ -60,10 +64,10 @@ $pins.PSObject.Properties.Remove('ffmpeg')
 $staging = Join-Path $ToolDirectory ('.staging-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $staging | Out-Null
 try {
-    foreach ($tool in 'ytdlp', 'deno') {
+    foreach ($tool in 'ytdlp', 'deno', 'vosk') {
         $pin = $pins.$tool
         if ($pin.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "Hash inválido para $tool." }
-        if ($pin.url -notmatch '^https://github\.com/(yt-dlp/yt-dlp-nightly-builds|denoland/deno)/releases/download/') { throw 'URL de herramientas no autorizada.' }
+        if ($pin.url -notmatch '^https://github\.com/(yt-dlp/yt-dlp-nightly-builds|denoland/deno|alphacep/vosk-api)/releases/download/') { throw 'URL de herramientas no autorizada.' }
         $download = Join-Path $staging ([IO.Path]::GetFileName($pin.name))
         Write-Host "Descargando $tool ($($pin.version)); verificando SHA-256 oficial."
         Invoke-WebRequest -Uri $pin.url -OutFile $download -Headers $headers -TimeoutSec 600
@@ -77,12 +81,22 @@ try {
     foreach ($name in $binaries.Keys) {
         if (-not $binaries[$name] -or -not (Test-Path -LiteralPath $binaries[$name])) { throw "Falta el binario $name." }
     }
+    # libvosk (comandos de voz) y las DLL de MinGW de las que depende: Aurora las
+    # carga en tiempo de ejecución desde tools/vosk, nunca enlazadas.
+    $voskDlls = @('libvosk.dll', 'libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
+    $voskStaged = @{}
+    foreach ($dll in $voskDlls) {
+        $found = Get-ChildItem -LiteralPath (Join-Path $staging 'vosk') -Filter $dll -Recurse | Select-Object -First 1
+        if (-not $found) { throw "Falta $dll en el paquete de Vosk." }
+        $voskStaged[$dll] = $found.FullName
+    }
     $licenses = Join-Path $staging 'licenses'
     New-Item -ItemType Directory -Path $licenses | Out-Null
     if ($pins.ytdlp.sourceCommit -notmatch '^[0-9a-f]{40}$') { throw 'Nightly yt-dlp source commit is missing or invalid.' }
     $licenseSources = @{
         'yt-dlp-LICENSE.txt' = "https://raw.githubusercontent.com/yt-dlp/yt-dlp/$($pins.ytdlp.sourceCommit)/LICENSE"
         'yt-dlp-THIRD_PARTY_LICENSES.txt' = "https://raw.githubusercontent.com/yt-dlp/yt-dlp/$($pins.ytdlp.sourceCommit)/THIRD_PARTY_LICENSES.txt"
+        'vosk-LICENSE.txt' = "https://raw.githubusercontent.com/alphacep/vosk-api/$($pins.vosk.version)/COPYING"
         'deno-LICENSE.md' = "https://raw.githubusercontent.com/denoland/deno/$($pins.deno.version)/LICENSE.md"
     }
     foreach ($notice in $licenseSources.Keys) {
@@ -92,6 +106,12 @@ try {
     foreach ($name in $binaries.Keys) {
         Copy-Item -LiteralPath $binaries[$name] -Destination (Join-Path $ToolDirectory $name) -Force
         $binaryHashes[$name] = (Get-FileHash -LiteralPath $binaries[$name] -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    $voskTarget = Join-Path $ToolDirectory 'vosk'
+    New-Item -ItemType Directory -Path $voskTarget -Force | Out-Null
+    foreach ($dll in $voskStaged.Keys) {
+        Copy-Item -LiteralPath $voskStaged[$dll] -Destination (Join-Path $voskTarget $dll) -Force
+        $binaryHashes["vosk/$dll"] = (Get-FileHash -LiteralPath $voskStaged[$dll] -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $binaryHashes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ToolDirectory 'binaries.sha256.json') -Encoding utf8
     # A rejected download must leave the installed versions' lock unchanged.

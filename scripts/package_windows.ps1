@@ -34,13 +34,13 @@ New-Item -ItemType Directory -Path $package -Force | Out-Null
 Get-ChildItem -LiteralPath $ReleaseDirectory -Force | Copy-Item -Destination $package -Recurse
 $packageTools = Join-Path $package 'tools'
 New-Item -ItemType Directory -Path $packageTools -Force | Out-Null
-foreach ($name in 'yt-dlp.exe','deno.exe','tools.lock.json','binaries.sha256.json','licenses') {
+foreach ($name in 'yt-dlp.exe','deno.exe','tools.lock.json','binaries.sha256.json','licenses','vosk') {
     Copy-Item -LiteralPath (Join-Path $ToolDirectory $name) -Destination $packageTools -Recurse -Force
 }
 @'
 # Aurora para Windows
 
-Extrae todo el ZIP en una carpeta y ejecuta aurora_music.exe. Mantén data/, las DLL y tools/ junto al ejecutable. No requiere Python instalado: yt-dlp y Deno vienen incluidos.
+Extrae todo el ZIP en una carpeta y ejecuta aurora_music.exe. Mantén data/, las DLL y tools/ junto al ejecutable. No requiere Python instalado: yt-dlp, Deno y la biblioteca de reconocimiento de voz (Vosk) vienen incluidos.
 
 Aurora detecta tools/ automáticamente. Si ya configuraste otra carpeta, selecciona la carpeta tools/ de este paquete en Ajustes. Importa archivos locales o busca canciones y enlaces públicos de YouTube.
 

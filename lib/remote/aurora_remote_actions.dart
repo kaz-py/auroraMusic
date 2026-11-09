@@ -46,6 +46,17 @@ class AuroraRemoteActions implements RemoteControlActions {
       if (!_playing) await _viaJam(jam, jam.togglePlayback);
       return;
     }
+    if (app.currentTrack == null) {
+      // Nada cargado: «reproduce música» empieza por la cola, la biblioteca o,
+      // si está vacía, el DJ personal.
+      final from = app.queue.isNotEmpty ? app.queue : app.tracks;
+      if (from.isNotEmpty) {
+        await app.playTrack(from.first, context: from);
+      } else {
+        await app.startPersonalDj();
+      }
+      return;
+    }
     await app.resumePlayback();
   }
 

@@ -35,6 +35,8 @@ import '../jam/jam_controller.dart';
 import '../remote/aurora_remote_actions.dart';
 import '../remote/remote_control_service.dart';
 import '../remote/remote_control_settings.dart';
+import '../voice/voice_command_service.dart';
+import '../voice/voice_settings.dart';
 import 'slush/slush_eq_queue.dart';
 import 'studio/equalizer_panel.dart';
 import 'studio/studio_navigation.dart';
@@ -245,6 +247,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   late final DesktopShell _desktop;
   late final DuvetPresence _duvet;
   late final RemoteControlService _remote;
+  late final VoiceCommandService _voice;
   // Hay un consumidor visible del espectro: Vinilo, EQ o la hoja del EQ.
   bool get _playerOpen =>
       _section == 4 || _section == 13 || equalizerSheetsOpen.value > 0;
@@ -266,13 +269,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _desktop = DesktopShell(ref.read(controllerProvider))..start();
     _duvet = DuvetPresence(ref.read(controllerProvider))..start();
     final app = ref.read(controllerProvider);
+    final remoteActions = AuroraRemoteActions(
+      app,
+      currentJam: () => _jam,
+      ensureJam: () => mounted ? _ensureJam() : null,
+    );
+    _voice = VoiceCommandService(
+      app.preferences,
+      remoteActions,
+      supportDirectory: app.supportDirectory,
+    )..start();
     _remote = RemoteControlService(
       app.preferences,
-      AuroraRemoteActions(
-        app,
-        currentJam: () => _jam,
-        ensureJam: () => mounted ? _ensureJam() : null,
-      ),
+      remoteActions,
       discoveryFile: File(
         p.join(app.supportDirectory.path, 'remote_control.json'),
       ),
@@ -418,6 +427,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _desktop.dispose();
     _duvet.dispose();
     _remote.dispose();
+    _voice.dispose();
     WindowControls.onArguments = null;
     WindowControls.setCloseConfirmation(null);
     WindowControls.guardClose(false);
@@ -2913,6 +2923,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               onChanged: c.setDiscordPresence,
             ),
           ],
+        ),
+      if (_voice.supported)
+        (
+          title: 'Comandos de voz',
+          subtitle: 'Di «Aurora, pausa», «Aurora, siguiente»…',
+          children: [VoiceSettings(service: _voice)],
         ),
       if (_remote.supported)
         (

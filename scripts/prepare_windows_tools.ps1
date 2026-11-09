@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
 $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $source = Join-Path $project 'tools/windows'
-$names = @('yt-dlp.exe','deno.exe','tools.lock.json','binaries.sha256.json','licenses')
+$names = @('yt-dlp.exe','deno.exe','tools.lock.json','binaries.sha256.json','licenses','vosk')
 $missing = @($names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $source $_)) })
 if ($missing.Count) {
     Write-Host 'Preparando las herramientas de Aurora con versiones y SHA-256 fijados...'

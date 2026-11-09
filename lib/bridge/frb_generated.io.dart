@@ -10,6 +10,7 @@ import 'api/dj.dart';
 import 'api/media.dart';
 import 'api/playback.dart';
 import 'api/sources.dart';
+import 'api/voice.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -36,6 +37,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   get rust_arc_decrement_strong_count_PlayerEnginePtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEnginePtr;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_VoiceListenerPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListenerPtr;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
@@ -58,6 +63,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  VoiceListener
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    dynamic raw,
+  );
+
+  @protected
   LibraryDb
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     dynamic raw,
@@ -76,6 +87,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  VoiceListener
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    dynamic raw,
+  );
+
+  @protected
   LibraryDb
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     dynamic raw,
@@ -90,6 +107,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PlayerEngine
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    dynamic raw,
+  );
+
+  @protected
+  VoiceListener
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
     dynamic raw,
   );
 
@@ -128,6 +151,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  VoiceIntent dco_decode_box_autoadd_voice_intent(dynamic raw);
 
   @protected
   DjEventInput dco_decode_dj_event_input(dynamic raw);
@@ -244,6 +270,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<VectorEntry> dco_decode_list_vector_entry(dynamic raw);
 
   @protected
+  List<VoiceEvent> dco_decode_list_voice_event(dynamic raw);
+
+  @protected
+  List<VoicePhrases> dco_decode_list_voice_phrases(dynamic raw);
+
+  @protected
   MediaResult dco_decode_media_result(dynamic raw);
 
   @protected
@@ -275,6 +307,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  VoiceIntent? dco_decode_opt_box_autoadd_voice_intent(dynamic raw);
 
   @protected
   Float32List? dco_decode_opt_list_prim_f_32_strict(dynamic raw);
@@ -337,6 +372,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VectorEntry dco_decode_vector_entry(dynamic raw);
 
   @protected
+  VoiceEvent dco_decode_voice_event(dynamic raw);
+
+  @protected
+  VoiceIntent dco_decode_voice_intent(dynamic raw);
+
+  @protected
+  VoicePhrases dco_decode_voice_phrases(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -354,6 +398,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PlayerEngine
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VoiceListener
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
     SseDeserializer deserializer,
   );
 
@@ -376,6 +426,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  VoiceListener
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LibraryDb
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     SseDeserializer deserializer,
@@ -390,6 +446,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PlayerEngine
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  VoiceListener
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
     SseDeserializer deserializer,
   );
 
@@ -430,6 +492,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  VoiceIntent sse_decode_box_autoadd_voice_intent(SseDeserializer deserializer);
 
   @protected
   DjEventInput sse_decode_dj_event_input(SseDeserializer deserializer);
@@ -558,6 +623,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<VectorEntry> sse_decode_list_vector_entry(SseDeserializer deserializer);
 
   @protected
+  List<VoiceEvent> sse_decode_list_voice_event(SseDeserializer deserializer);
+
+  @protected
+  List<VoicePhrases> sse_decode_list_voice_phrases(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MediaResult sse_decode_media_result(SseDeserializer deserializer);
 
   @protected
@@ -591,6 +664,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  VoiceIntent? sse_decode_opt_box_autoadd_voice_intent(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Float32List? sse_decode_opt_list_prim_f_32_strict(
@@ -659,6 +737,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VectorEntry sse_decode_vector_entry(SseDeserializer deserializer);
 
   @protected
+  VoiceEvent sse_decode_voice_event(SseDeserializer deserializer);
+
+  @protected
+  VoiceIntent sse_decode_voice_intent(SseDeserializer deserializer);
+
+  @protected
+  VoicePhrases sse_decode_voice_phrases(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -687,6 +774,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    VoiceListener self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     LibraryDb self,
     SseSerializer serializer,
@@ -708,6 +802,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    VoiceListener self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLibraryDb(
     LibraryDb self,
     SseSerializer serializer,
@@ -724,6 +825,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine(
     PlayerEngine self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    VoiceListener self,
     SseSerializer serializer,
   );
 
@@ -780,6 +888,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_voice_intent(
+    VoiceIntent self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_dj_event_input(DjEventInput self, SseSerializer serializer);
@@ -953,6 +1067,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_voice_event(
+    List<VoiceEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_voice_phrases(
+    List<VoicePhrases> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_media_result(MediaResult self, SseSerializer serializer);
 
   @protected
@@ -996,6 +1122,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_voice_intent(
+    VoiceIntent? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_list_prim_f_32_strict(
@@ -1080,6 +1212,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_vector_entry(VectorEntry self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_event(VoiceEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_intent(VoiceIntent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_voice_phrases(VoicePhrases self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -1196,5 +1337,39 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEngine =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPlayerEnginePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListenerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_aurora_music_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListenerPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListenerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_aurora_music_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListener =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerVoiceListenerPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 }
