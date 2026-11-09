@@ -10,6 +10,7 @@ import '../core/window_controls.dart';
 import '../jam/jam_controller.dart';
 import '../lyrics/lyrics_service.dart';
 import 'artwork.dart';
+import 'lyrics_offset_controls.dart';
 import 'mini_player/blurred_cover_backdrop.dart';
 import 'mini_player/mini_player_model.dart';
 import 'undo_snackbar.dart';
@@ -132,6 +133,19 @@ class _ArtistModePageState extends State<ArtistModePage> {
     }
   }
 
+  void _setOffset(int ms) {
+    final track = widget.controller.nowTrack;
+    if (track == null) return;
+    final value = ms.clamp(
+      -LyricsService.maxOffsetMs,
+      LyricsService.maxOffsetMs,
+    );
+    setState(() => _offsetMs = value);
+    unawaited(
+      _service.writeOffset(track, widget.controller.supportDirectory, value),
+    );
+  }
+
   /// La letra llegó sin sincronizar: se busca una versión sincronizada que
   /// case (ver [LyricsService.upgradeToSynced]) y, si hay, se usa.
   Future<void> _upgrade(Track track, int request) async {
@@ -141,7 +155,14 @@ class _ArtistModePageState extends State<ArtistModePage> {
         widget.controller.supportDirectory,
       );
       if (result == null || !mounted || request != _request) return;
+      // `upgradeToSynced` puede haber fijado un desfase inicial.
+      final offset = await _service.readOffset(
+        track,
+        widget.controller.supportDirectory,
+      );
+      if (!mounted || request != _request) return;
       setState(() {
+        _offsetMs = offset;
         _result = result;
         _lastActive = -1;
         _placed = false;
@@ -261,6 +282,8 @@ class _ArtistModePageState extends State<ArtistModePage> {
           onPressed: _copyText() == null ? null : _copy,
           style: style(),
         ),
+        if (!compact && _result?.kind == LyricsKind.synced)
+          LyricsOffsetControls(offsetMs: _offsetMs, onChanged: _setOffset),
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,

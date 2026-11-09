@@ -689,7 +689,17 @@ class LyricsService {
           ..sort((a, b) => b.score.compareTo(a.score));
     if (fits.isEmpty) return null;
     final result = await choose(track, root, fits.first);
-    return result.kind == LyricsKind.synced ? result : null;
+    if (result.kind != LyricsKind.synced) return null;
+    // La letra es de otra versión más corta (el vídeo suele traer una intro):
+    // sus tiempos van adelantados por esa diferencia. Se parte de ese desfase
+    // para que no empiece mal; el usuario lo afina con los botones de la letra.
+    // shortcut: supone que la diferencia es intro y no final; sin forma de
+    // saberlo desde aquí, se corrige a mano con el ajuste de la letra.
+    final gap = total - fits.first.seconds;
+    if (gap > syncToleranceSeconds && await readOffset(track, root) == 0) {
+      await writeOffset(track, root, -gap * 1000);
+    }
+    return result;
   }
 
   // ---- desfase por pista ------------------------------------------------
@@ -704,6 +714,29 @@ class LyricsService {
     } catch (_) {
       return 0;
     }
+  }
+
+  static const maxOffsetMs = 60000;
+
+  /// Desfase (ms) de la letra de [track]: se suma a la posición al buscar la
+  /// línea activa; negativo = la letra sale más tarde. 0 lo borra.
+  Future<void> writeOffset(Track track, Directory root, int ms) async {
+    final file = _offsetsFile(root);
+    Map<String, dynamic> all = {};
+    try {
+      final j = jsonDecode(await file.readAsString());
+      if (j is Map<String, dynamic>) all = j;
+    } catch (_) {}
+    final clamped = ms.clamp(-maxOffsetMs, maxOffsetMs);
+    if (clamped == 0) {
+      all.remove(_hash(track.id));
+    } else {
+      all[_hash(track.id)] = clamped;
+    }
+    await file.parent.create(recursive: true);
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(all), flush: true);
+    await temporary.rename(file.path);
   }
 
   // ---- importación manual -------------------------------------------------

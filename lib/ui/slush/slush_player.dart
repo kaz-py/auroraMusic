@@ -13,6 +13,7 @@ import '../../theme/accent_transition.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import '../mini_player/mini_player_model.dart';
+import '../lyrics_offset_controls.dart';
 import '../mini_player/song_card.dart';
 import '../studio/studio_transport.dart' show transportJamAudio;
 
@@ -346,6 +347,7 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
   String? _id;
   int _request = 0;
   bool _loading = false;
+  int _offsetMs = 0;
   double _lastVolume = .75;
 
   @override
@@ -367,9 +369,11 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
     if (track?.id == _id) return;
     _id = track?.id;
     _result = null;
+    _offsetMs = 0;
     final request = ++_request;
     if (track == null) return;
     _loading = true;
+    unawaited(_readOffset(track, request));
     unawaited(
       _service
           .load(track, widget.controller.supportDirectory)
@@ -387,6 +391,27 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
     );
   }
 
+  Future<void> _readOffset(Track track, int request) async {
+    final value = await _service.readOffset(
+      track,
+      widget.controller.supportDirectory,
+    );
+    if (mounted && request == _request) setState(() => _offsetMs = value);
+  }
+
+  void _setOffset(int ms) {
+    final track = widget.controller.nowTrack;
+    if (track == null) return;
+    final value = ms.clamp(
+      -LyricsService.maxOffsetMs,
+      LyricsService.maxOffsetMs,
+    );
+    setState(() => _offsetMs = value);
+    unawaited(
+      _service.writeOffset(track, widget.controller.supportDirectory, value),
+    );
+  }
+
   /// Letra sin tiempos: se busca una versión sincronizada que case.
   Future<void> _upgrade(Track track, int request) async {
     try {
@@ -395,7 +420,9 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
         widget.controller.supportDirectory,
       );
       if (up != null && mounted && request == _request) {
-        setState(() => _result = up);
+        // `upgradeToSynced` puede haber fijado un desfase inicial.
+        await _readOffset(track, request);
+        if (mounted && request == _request) setState(() => _result = up);
       }
     } catch (_) {
       // Se queda la letra aproximada.
@@ -464,7 +491,9 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
                       builder: (context, _) => _SyncedScroll(
                         lines: r.lines,
                         active: r.lines.lastIndexWhere(
-                          (l) => l.at <= c.audio.position,
+                          (l) =>
+                              l.at.inMilliseconds <=
+                              c.audio.position.inMilliseconds + _offsetMs,
                         ),
                       ),
                     )
@@ -525,6 +554,11 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
                         ).textTheme.titleLarge?.copyWith(fontSize: 24),
                       ),
                       SlushPill(_chip),
+                      if (synced)
+                        LyricsOffsetControls(
+                          offsetMs: _offsetMs,
+                          onChanged: _setOffset,
+                        ),
                     ],
                   ),
                   const SizedBox(height: SlushSpacing.s12),
