@@ -420,9 +420,9 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
         widget.controller.supportDirectory,
       );
       if (up != null && mounted && request == _request) {
+        setState(() => _result = up);
         // `upgradeToSynced` puede haber fijado un desfase inicial.
         await _readOffset(track, request);
-        if (mounted && request == _request) setState(() => _result = up);
       }
     } catch (_) {
       // Se queda la letra aproximada.

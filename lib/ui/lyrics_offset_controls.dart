@@ -32,15 +32,22 @@ class LyricsOffsetControls extends StatelessWidget {
         icon: const Icon(Icons.remove_rounded),
         onPressed: () => onChanged(offsetMs - step),
       ),
-      Tooltip(
-        message: offsetMs == 0 ? _label : '$_label · toca para quitar',
-        child: InkWell(
-          key: const ValueKey('lyrics-offset-reset'),
-          borderRadius: BorderRadius.circular(8),
-          onTap: offsetMs == 0 ? null : () => onChanged(0),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-            child: Text(_label, style: Theme.of(context).textTheme.labelMedium),
+      Flexible(
+        child: Tooltip(
+          message: offsetMs == 0 ? _label : '$_label · toca para quitar',
+          child: InkWell(
+            key: const ValueKey('lyrics-offset-reset'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: offsetMs == 0 ? null : () => onChanged(0),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: Text(
+                _label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ),
           ),
         ),
       ),

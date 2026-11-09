@@ -155,14 +155,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
         widget.controller.supportDirectory,
       );
       if (result == null || !mounted || request != _request) return;
-      // `upgradeToSynced` puede haber fijado un desfase inicial.
-      final offset = await _service.readOffset(
-        track,
-        widget.controller.supportDirectory,
-      );
-      if (!mounted || request != _request) return;
       setState(() {
-        _offsetMs = offset;
         _result = result;
         _lastActive = -1;
         _placed = false;
@@ -170,6 +163,12 @@ class _ArtistModePageState extends State<ArtistModePage> {
         _revealGen++;
         _lineKeys.clear();
       });
+      // `upgradeToSynced` puede haber fijado un desfase inicial.
+      final offset = await _service.readOffset(
+        track,
+        widget.controller.supportDirectory,
+      );
+      if (mounted && request == _request) setState(() => _offsetMs = offset);
     } catch (_) {
       // Se queda la letra aproximada.
     }
@@ -282,8 +281,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
           onPressed: _copyText() == null ? null : _copy,
           style: style(),
         ),
-        if (!compact && _result?.kind == LyricsKind.synced)
-          LyricsOffsetControls(offsetMs: _offsetMs, onChanged: _setOffset),
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
@@ -293,7 +290,21 @@ class _ArtistModePageState extends State<ArtistModePage> {
             onDoubleTap: () => _fullscreen
                 ? _setFullscreen(false)
                 : WindowControls.invoke('maximize'),
-            child: const SizedBox(height: 44),
+            // Se encoge antes que desbordar: ocupa el hueco de arrastre.
+            child: SizedBox(
+              height: 44,
+              child: _result?.kind == LyricsKind.synced
+                  ? Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: LyricsOffsetControls(
+                          offsetMs: _offsetMs,
+                          onChanged: _setOffset,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
           ),
         ),
         if (WindowControls.fullscreenSupported)
