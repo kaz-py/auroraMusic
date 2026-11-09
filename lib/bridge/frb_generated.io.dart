@@ -7,6 +7,7 @@ import 'api/audio.dart';
 import 'api/cache.dart';
 import 'api/database.dart';
 import 'api/dj.dart';
+import 'api/lyrics_align.dart';
 import 'api/media.dart';
 import 'api/playback.dart';
 import 'api/sources.dart';
@@ -120,6 +121,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AlignHeader dco_decode_align_header(dynamic raw);
+
+  @protected
+  AlignLine dco_decode_align_line(dynamic raw);
+
+  @protected
   AudioCacheInfo dco_decode_audio_cache_info(dynamic raw);
 
   @protected
@@ -201,6 +208,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<AlignHeader> dco_decode_list_align_header(dynamic raw);
+
+  @protected
+  List<AlignLine> dco_decode_list_align_line(dynamic raw);
+
+  @protected
   List<DjEventInput> dco_decode_list_dj_event_input(dynamic raw);
 
   @protected
@@ -274,6 +287,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<VoicePhrases> dco_decode_list_voice_phrases(dynamic raw);
+
+  @protected
+  LyricsAlignment dco_decode_lyrics_alignment(dynamic raw);
 
   @protected
   MediaResult dco_decode_media_result(dynamic raw);
@@ -459,6 +475,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AlignHeader sse_decode_align_header(SseDeserializer deserializer);
+
+  @protected
+  AlignLine sse_decode_align_line(SseDeserializer deserializer);
+
+  @protected
   AudioCacheInfo sse_decode_audio_cache_info(SseDeserializer deserializer);
 
   @protected
@@ -540,6 +562,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<AlignHeader> sse_decode_list_align_header(SseDeserializer deserializer);
+
+  @protected
+  List<AlignLine> sse_decode_list_align_line(SseDeserializer deserializer);
 
   @protected
   List<DjEventInput> sse_decode_list_dj_event_input(
@@ -629,6 +657,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<VoicePhrases> sse_decode_list_voice_phrases(
     SseDeserializer deserializer,
   );
+
+  @protected
+  LyricsAlignment sse_decode_lyrics_alignment(SseDeserializer deserializer);
 
   @protected
   MediaResult sse_decode_media_result(SseDeserializer deserializer);
@@ -839,6 +870,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_align_header(AlignHeader self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_align_line(AlignLine self, SseSerializer serializer);
+
+  @protected
   void sse_encode_audio_cache_info(
     AudioCacheInfo self,
     SseSerializer serializer,
@@ -942,6 +979,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_align_header(
+    List<AlignHeader> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_align_line(
+    List<AlignLine> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_dj_event_input(
@@ -1075,6 +1124,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_voice_phrases(
     List<VoicePhrases> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_lyrics_alignment(
+    LyricsAlignment self,
     SseSerializer serializer,
   );
 

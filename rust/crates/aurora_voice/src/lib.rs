@@ -5,12 +5,14 @@
 //! `libvosk` se carga al activar la función; el audio no se guarda ni sale
 //! del equipo.
 
+pub mod align;
 mod capture;
 pub mod command;
 mod listener;
 mod model;
 pub mod vosk;
 
+pub use align::{align_lyrics, Alignment, LyricLine};
 pub use command::{grammar_json, phrases, vocabulary, Gate, Heard, Intent, Word};
 pub use listener::{analyze_pcm, Event, Listener};
 pub use model::{install_model, model_is_installed};

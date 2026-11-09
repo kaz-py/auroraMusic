@@ -15,6 +15,10 @@ abstract class AudioBackend extends ChangeNotifier {
   Stream<void> get completed;
   Stream<String> get mediaActions => const Stream.empty();
   Track? get currentTrackMetadata => null;
+
+  /// Lo que está cargado ahora (archivo o proxy local), si el motor puede
+  /// decodificarlo aparte; `null` si no (reproductor web, Android).
+  ResolvedAudio? get currentSource => null;
   Future<void> updateTrackMetadata(Track track) async {}
 
   /// True while the web player is showing an advertisement.

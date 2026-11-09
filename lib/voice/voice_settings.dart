@@ -53,7 +53,7 @@ class VoiceSettings extends StatelessWidget {
             value: service.enabled,
             onChanged: busy ? null : service.setEnabled,
           ),
-          if (service.state == VoiceState.downloading)
+          if (service.state == VoiceState.downloading || service.modelBusy)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: LinearProgressIndicator(value: service.progress),
@@ -88,6 +88,24 @@ class VoiceSettings extends StatelessWidget {
                 value: (service.level * 4).clamp(0.02, 1.0),
                 minHeight: 4,
               ),
+            ),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            key: const ValueKey('lyrics-sync-switch'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Sincronizar las letras con el audio'),
+            subtitle: const Text(
+              'Mide cuánto se desvía la letra respecto a la canción (por '
+              'ejemplo, por una introducción larga) y la corrige sola. Usa el '
+              'mismo modelo de voz; solo letras en español.',
+            ),
+            value: service.lyricsSyncEnabled,
+            onChanged: busy || service.modelBusy ? null : service.setLyricsSync,
+          ),
+          if (service.modelError != null)
+            Text(
+              service.modelError!,
+              style: TextStyle(color: theme.colorScheme.error),
             ),
           if (service.lastCommand != null)
             Text('Última orden: ${service.lastCommand}'),

@@ -380,7 +380,11 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
           .then((r) {
             if (!mounted || request != _request) return;
             setState(() => _result = r);
-            if (r.kind == LyricsKind.plain) unawaited(_upgrade(track, request));
+            if (r.kind == LyricsKind.plain) {
+              unawaited(_upgrade(track, request));
+            } else if (r.kind == LyricsKind.synced) {
+              unawaited(_autoSync(track, r, request));
+            }
           })
           .catchError((Object _) {})
           .whenComplete(() {
@@ -389,6 +393,19 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
             }
           }),
     );
+  }
+
+  /// Mide la desviación real de la letra con el audio (una vez por pista).
+  Future<void> _autoSync(Track track, LyricsResult result, int request) async {
+    final offset = await widget.controller.lyricsAutoSync?.run(
+      track,
+      result,
+      widget.controller.audio.currentSource,
+      widget.controller.supportDirectory,
+    );
+    if (offset != null && mounted && request == _request) {
+      setState(() => _offsetMs = offset);
+    }
   }
 
   Future<void> _readOffset(Track track, int request) async {
@@ -423,6 +440,7 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
         setState(() => _result = up);
         // `upgradeToSynced` puede haber fijado un desfase inicial.
         await _readOffset(track, request);
+        unawaited(_autoSync(track, up, request));
       }
     } catch (_) {
       // Se queda la letra aproximada.

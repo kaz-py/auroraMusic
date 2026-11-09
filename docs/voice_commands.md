@@ -25,6 +25,18 @@ No entiende nombres de canciones o artistas: el reconocedor está cerrado a esta
 - `libvosk` se carga al activar la función (no se enlaza): si faltara, solo esta función falla, con un mensaje. En Windows viene en `tools/vosk/` junto a la app (lo instala `scripts/setup_tools.ps1` con versión y SHA-256 fijados). En Linux se busca `lib/libvosk.so` junto a la app o la del sistema.
 - Con una Jam activa, las órdenes pasan por la Jam y respetan tus permisos (igual que la API del Stream Deck).
 
+## Letras sincronizadas con el audio
+
+Con el mismo modelo, Aurora corrige sola las letras que van desfasadas (por ejemplo, un vídeo con una introducción que la versión de estudio no tiene). **Ajustes → Comandos de voz → Sincronizar las letras con el audio** (activado por defecto; actúa en cuanto el modelo está descargado, que se hace al activar cualquiera de las dos funciones).
+
+1. Al elegir la letra, si hay varias versiones, se prefiere la de duración más cercana. Si la sincronizada es más corta, se parte de esa diferencia como desfase.
+2. Después, una vez por canción y en segundo plano, se decodifican los primeros 100 s del audio (archivo o proxy local, sin tocar la reproducción) y se reconocen con una gramática hecha solo con las primeras líneas de la letra. De cada línea reconocida sale un desfase (momento en el audio − tiempo de la letra) y vale la mediana de los que coinciden (al menos dos, o una larga y muy segura). Un desfase menor de 0,4 s se ignora.
+3. Si no hay resultado fiable, la letra queda como estaba (y no se reintenta con esa canción).
+
+Los botones − / + de la letra siguen mandando: un ajuste hecho a mano nunca se pisa, y «Letra: sin ajuste» elegido por ti gana al automático.
+
+Límites: solo letras en español (las palabras que el modelo no conoce se descartan) y canto reconocible sobre el acompañamiento; en pruebas con voz sintética sobre ruido fuerte acertó o no dio resultado, pero no se ha medido con canciones reales.
+
 ## Privacidad
 
 El audio se reconoce en tu equipo: no se guarda ni se envía. El micrófono solo se abre mientras el interruptor esté activado, y la barra de nivel de Ajustes muestra si llega sonido.

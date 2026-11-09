@@ -30,6 +30,20 @@ class _RustListener implements VoiceListenerPort {
   void stop() => _inner.stop();
 }
 
+/// Ruta de `libvosk`, junto a las herramientas de Aurora.
+String? voskLibraryPath() {
+  final exeDir = p.dirname(Platform.resolvedExecutable);
+  final name = Platform.isWindows ? 'libvosk.dll' : 'libvosk.so';
+  for (final candidate in [
+    p.join(exeDir, 'tools', 'vosk', name),
+    p.join(exeDir, 'lib', name),
+  ]) {
+    if (File(candidate).existsSync()) return candidate;
+  }
+  // Linux: biblioteca del sistema (LD_LIBRARY_PATH / ld.so.cache).
+  return Platform.isLinux ? name : null;
+}
+
 enum VoiceState { off, downloading, starting, listening, error }
 
 /// Comandos de voz: «Aurora, pausa», «Aurora, siguiente»… Apagados por
@@ -75,6 +89,7 @@ class VoiceCommandService extends ChangeNotifier {
            modelInstalled ?? ((dir) => rust.voiceModelInstalled(dir: dir));
 
   static const enabledKey = 'voiceCommandsEnabled';
+  static const lyricsSyncKey = 'lyricsAutoSync';
 
   final SharedPreferences _prefs;
   final RemoteControlActions _actions;
@@ -110,19 +125,50 @@ class VoiceCommandService extends ChangeNotifier {
 
   bool get enabled => supported && (_prefs.getBool(enabledKey) ?? false);
 
-  /// Ruta de `libvosk`, junto a las herramientas de Aurora.
-  static String? _defaultLibraryPath() {
-    final exeDir = p.dirname(Platform.resolvedExecutable);
-    final name = Platform.isWindows ? 'libvosk.dll' : 'libvosk.so';
-    for (final candidate in [
-      p.join(exeDir, 'tools', 'vosk', name),
-      p.join(exeDir, 'lib', name),
-    ]) {
-      if (File(candidate).existsSync()) return candidate;
-    }
-    // Linux: biblioteca del sistema (LD_LIBRARY_PATH / ld.so.cache).
-    return Platform.isLinux ? name : null;
+  /// Alinear las letras con el audio (usa el mismo modelo). Activada por
+  /// defecto, pero solo trabaja cuando el modelo ya está descargado.
+  bool get lyricsSyncEnabled =>
+      supported && (_prefs.getBool(lyricsSyncKey) ?? true);
+
+  /// Descarga del modelo por la alineación de letras (sin escuchar).
+  bool modelBusy = false;
+  String? modelError;
+
+  /// El modelo y `libvosk` están listos para analizar audio.
+  bool get analysisReady {
+    final library = _libraryPath();
+    return supported && library != null && _modelInstalled(_modelDir.path);
   }
+
+  String? get libraryPath => _libraryPath();
+  String get modelPath => _modelDir.path;
+
+  Future<void> setLyricsSync(bool value) => _enqueue(() async {
+    if (!supported) return;
+    await _prefs.setBool(lyricsSyncKey, value);
+    modelError = null;
+    if (value && !_modelInstalled(_modelDir.path)) {
+      if (_libraryPath() == null) {
+        modelError = 'Falta la biblioteca de voz (libvosk). Reinstala Aurora.';
+      } else {
+        modelBusy = true;
+        progress = 0;
+        _notify();
+        try {
+          await _fetchModel(listening: false);
+        } catch (failure) {
+          modelError = failure is VoiceModelException
+              ? failure.message
+              : '$failure';
+        } finally {
+          modelBusy = false;
+        }
+      }
+    }
+    _notify();
+  });
+
+  static String? _defaultLibraryPath() => voskLibraryPath();
 
   static const _labels = {
     rust.VoiceIntent.pause: 'Pausa',
@@ -183,10 +229,12 @@ class VoiceCommandService extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> _fetchModel() async {
-    state = VoiceState.downloading;
-    progress = 0;
-    _notify();
+  Future<void> _fetchModel({bool listening = true}) async {
+    if (listening) {
+      state = VoiceState.downloading;
+      progress = 0;
+      _notify();
+    }
     final archive = File(
       p.join(supportDirectory.path, 'voice', '${VoiceModel.name}.zip'),
     );

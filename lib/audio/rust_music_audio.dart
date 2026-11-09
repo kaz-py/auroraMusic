@@ -52,6 +52,8 @@ class RustMusicAudio extends AudioBackend {
   @override
   double get volume => _volume;
   @override
+  ResolvedAudio? get currentSource => _loaded ? _resolved : null;
+  @override
   ValueListenable<List<double>> get spectrum => _spectrum;
   @override
   Stream<void> get completed => _completed.stream;

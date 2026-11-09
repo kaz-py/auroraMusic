@@ -50,6 +50,8 @@ class RoutedMusicAudio extends AudioBackend {
   }
 
   @override
+  ResolvedAudio? get currentSource => _active.currentSource;
+  @override
   bool get supportsEqualizer => _active.supportsEqualizer;
   @override
   bool get supportsVisualization => _active.supportsVisualization;

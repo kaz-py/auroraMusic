@@ -25,6 +25,7 @@ import 'import/spotify_import.dart';
 import 'follow/follow_boost.dart';
 import 'library/library_database.dart';
 import 'jam/jam_models.dart' show jamCleanName;
+import 'lyrics/lyrics_auto_sync.dart';
 import 'lastfm/lastfm_service.dart';
 import 'lastfm/lastfm_stats.dart';
 import 'profile/avatar_image.dart';
@@ -79,6 +80,9 @@ class AppController extends ChangeNotifier {
   final SourceBackend source;
   final LibraryDatabase database;
   final SharedPreferences preferences;
+
+  /// Alinea las letras con el audio; lo conecta la interfaz de escritorio.
+  LyricsAutoSync? lyricsAutoSync;
   final Directory supportDirectory;
 
   /// Ecualizador local de este dispositivo (la Jam no lo sincroniza).

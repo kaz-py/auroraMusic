@@ -94,19 +94,33 @@ void main() {
   LyricsService service(String body) =>
       LyricsService(clientFactory: () => _Client(body), backoff: Duration.zero);
 
-  test('offsets are stored per track, clamped, and 0 removes them', () async {
+  test('user offsets are per track, clamped, and an explicit 0 wins', () async {
     final s = service('[]');
     final a = _track(200), b = Track(id: 'yt:y', title: 't', artist: 'a');
     expect(await s.readOffset(a, dir), 0);
+    expect(await s.hasUserOffset(a, dir), isFalse);
     await s.writeOffset(a, dir, -2500);
     await s.writeOffset(b, dir, 700);
     expect(await s.readOffset(a, dir), -2500);
     expect(await s.readOffset(b, dir), 700);
     await s.writeOffset(a, dir, -9999999);
     expect(await s.readOffset(a, dir), -LyricsService.maxOffsetMs);
+    // «Sin ajuste» elegido a mano gana a cualquier offset automático.
+    await s.writeAutoOffset(a, dir, 4000, 'audio');
     await s.writeOffset(a, dir, 0);
     expect(await s.readOffset(a, dir), 0);
+    expect(await s.hasUserOffset(a, dir), isTrue);
     expect(await s.readOffset(b, dir), 700, reason: 'no toca otras pistas');
+  });
+
+  test('automatic offsets apply until the user sets one', () async {
+    final s = service('[]');
+    final t = _track(200);
+    await s.writeAutoOffset(t, dir, -12000, 'audio');
+    expect(await s.readOffset(t, dir), -12000);
+    expect((await s.readAutoOffset(t, dir))?.source, 'audio');
+    await s.writeOffset(t, dir, 300);
+    expect(await s.readOffset(t, dir), 300);
   });
 
   test(
@@ -117,6 +131,8 @@ void main() {
       final up = await s.upgradeToSynced(_track(200), dir);
       expect(up?.kind, LyricsKind.synced);
       expect(await s.readOffset(_track(200), dir), -12000);
+      expect((await s.readAutoOffset(_track(200), dir))?.source, 'duration');
+      expect(await s.hasUserOffset(_track(200), dir), isFalse);
     },
   );
 

@@ -15,3 +15,4 @@ pub use engine::{Engine, LoadInfo, LoadSpec, PlayerState};
 pub use http::HttpSource;
 pub use probe::{probe_duration, validate_decode, ValidateReport};
 pub use remux::remux_opus_to_ogg;
+pub use symphonia::core::io::MediaSource;

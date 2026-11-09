@@ -640,7 +640,7 @@ class LyricsService {
         dir: dir.path,
         maxFiles: maxCacheFiles,
         nameSuffix: '.json',
-        excludeNames: const ['offsets.json'],
+        excludeNames: const ['offsets.json', 'offsets_auto.json'],
       );
     } catch (_) {
       // la caché es opcional
@@ -696,8 +696,10 @@ class LyricsService {
     // shortcut: supone que la diferencia es intro y no final; sin forma de
     // saberlo desde aquí, se corrige a mano con el ajuste de la letra.
     final gap = total - fits.first.seconds;
-    if (gap > syncToleranceSeconds && await readOffset(track, root) == 0) {
-      await writeOffset(track, root, -gap * 1000);
+    if (gap > syncToleranceSeconds &&
+        await readOffset(track, root) == 0 &&
+        await readAutoOffset(track, root) == null) {
+      await writeAutoOffset(track, root, -gap * 1000, 'duration');
     }
     return result;
   }
@@ -707,19 +709,74 @@ class LyricsService {
   File _offsetsFile(Directory root) =>
       File(p.join(root.path, 'lyrics', 'offsets.json'));
 
+  /// Desfase efectivo: el que fijó el usuario (aunque sea 0) y, si no, el
+  /// calculado solo (por duración o por el audio).
   Future<int> readOffset(Track track, Directory root) async {
+    final user = await _readUserOffset(track, root);
+    if (user != null) return user;
+    return (await readAutoOffset(track, root))?.ms ?? 0;
+  }
+
+  Future<int?> _readUserOffset(Track track, Directory root) async {
     try {
       final j = jsonDecode(await _offsetsFile(root).readAsString());
-      return j is Map ? (j[_hash(track.id)] as num?)?.toInt() ?? 0 : 0;
+      return j is Map ? (j[_hash(track.id)] as num?)?.toInt() : null;
     } catch (_) {
-      return 0;
+      return null;
     }
+  }
+
+  /// ¿Ajustó el usuario esta pista a mano?
+  Future<bool> hasUserOffset(Track track, Directory root) async =>
+      await _readUserOffset(track, root) != null;
+
+  File _autoOffsetsFile(Directory root) =>
+      File(p.join(root.path, 'lyrics', 'offsets_auto.json'));
+
+  /// Desfase calculado solo, con su origen: `duration` (diferencia de
+  /// duración), `audio` (medido en el audio) o `tried` (se intentó medir y no
+  /// hubo resultado fiable; no se reintenta).
+  Future<({int ms, String source})?> readAutoOffset(
+    Track track,
+    Directory root,
+  ) async {
+    try {
+      final j = jsonDecode(await _autoOffsetsFile(root).readAsString());
+      final e = j is Map ? j[_hash(track.id)] : null;
+      if (e is Map && e['ms'] is num) {
+        return (ms: (e['ms'] as num).toInt(), source: '${e['source']}');
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> writeAutoOffset(
+    Track track,
+    Directory root,
+    int ms,
+    String source,
+  ) async {
+    final file = _autoOffsetsFile(root);
+    Map<String, dynamic> all = {};
+    try {
+      final j = jsonDecode(await file.readAsString());
+      if (j is Map<String, dynamic>) all = j;
+    } catch (_) {}
+    all[_hash(track.id)] = {
+      'ms': ms.clamp(-maxOffsetMs, maxOffsetMs),
+      'source': source,
+    };
+    await file.parent.create(recursive: true);
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(all), flush: true);
+    await temporary.rename(file.path);
   }
 
   static const maxOffsetMs = 60000;
 
-  /// Desfase (ms) de la letra de [track]: se suma a la posición al buscar la
-  /// línea activa; negativo = la letra sale más tarde. 0 lo borra.
+  /// Desfase (ms) que el usuario fija para la letra de [track]: se suma a la
+  /// posición al buscar la línea activa; negativo = la letra sale más tarde.
+  /// 0 también cuenta: «sin ajuste» elegido a mano gana a los automáticos.
   Future<void> writeOffset(Track track, Directory root, int ms) async {
     final file = _offsetsFile(root);
     Map<String, dynamic> all = {};
@@ -727,12 +784,7 @@ class LyricsService {
       final j = jsonDecode(await file.readAsString());
       if (j is Map<String, dynamic>) all = j;
     } catch (_) {}
-    final clamped = ms.clamp(-maxOffsetMs, maxOffsetMs);
-    if (clamped == 0) {
-      all.remove(_hash(track.id));
-    } else {
-      all[_hash(track.id)] = clamped;
-    }
+    all[_hash(track.id)] = ms.clamp(-maxOffsetMs, maxOffsetMs);
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(jsonEncode(all), flush: true);

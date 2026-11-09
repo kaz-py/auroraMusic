@@ -125,11 +125,26 @@ class _ArtistModePageState extends State<ArtistModePage> {
       setState(() => _result = result);
       if (result.kind == LyricsKind.plain) {
         unawaited(_upgrade(track, request));
+      } else if (result.kind == LyricsKind.synced) {
+        unawaited(_autoSync(track, result, request));
       }
     } catch (_) {
       // Sin letra: se muestra el aviso de siempre.
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
+    }
+  }
+
+  /// Mide la desviación real de la letra con el audio (una vez por pista).
+  Future<void> _autoSync(Track track, LyricsResult result, int request) async {
+    final offset = await widget.controller.lyricsAutoSync?.run(
+      track,
+      result,
+      widget.controller.audio.currentSource,
+      widget.controller.supportDirectory,
+    );
+    if (offset != null && mounted && request == _request) {
+      setState(() => _offsetMs = offset);
     }
   }
 
@@ -169,6 +184,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
         widget.controller.supportDirectory,
       );
       if (mounted && request == _request) setState(() => _offsetMs = offset);
+      unawaited(_autoSync(track, result, request));
     } catch (_) {
       // Se queda la letra aproximada.
     }

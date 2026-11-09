@@ -35,6 +35,8 @@ import '../jam/jam_controller.dart';
 import '../remote/aurora_remote_actions.dart';
 import '../remote/remote_control_service.dart';
 import '../remote/remote_control_settings.dart';
+import '../lyrics/lyrics_auto_sync.dart';
+import '../lyrics/lyrics_service.dart';
 import '../voice/voice_command_service.dart';
 import '../voice/voice_settings.dart';
 import 'slush/slush_eq_queue.dart';
@@ -248,6 +250,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   late final DuvetPresence _duvet;
   late final RemoteControlService _remote;
   late final VoiceCommandService _voice;
+  late final LyricsService _lyricsSyncService;
+  late final AppController _syncOwner;
   // Hay un consumidor visible del espectro: Vinilo, EQ o la hoja del EQ.
   bool get _playerOpen =>
       _section == 4 || _section == 13 || equalizerSheetsOpen.value > 0;
@@ -279,6 +283,14 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       remoteActions,
       supportDirectory: app.supportDirectory,
     )..start();
+    _syncOwner = app;
+    _lyricsSyncService = LyricsService();
+    app.lyricsAutoSync = LyricsAutoSync(
+      _lyricsSyncService,
+      available: () => _voice.lyricsSyncEnabled && _voice.analysisReady,
+      libraryPath: () => _voice.libraryPath,
+      modelPath: () => _voice.modelPath,
+    );
     _remote = RemoteControlService(
       app.preferences,
       remoteActions,
@@ -428,6 +440,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _duvet.dispose();
     _remote.dispose();
     _voice.dispose();
+    _syncOwner.lyricsAutoSync = null;
+    _lyricsSyncService.dispose();
     WindowControls.onArguments = null;
     WindowControls.setCloseConfirmation(null);
     WindowControls.guardClose(false);
