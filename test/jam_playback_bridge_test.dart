@@ -21,14 +21,9 @@ class _EngineSource extends FakeSource {
 }
 
 void main() {
-  for (final audio in [
-    const ResolvedAudio(input: 'http://127.0.0.1:4000/t/a/i'),
-    const ResolvedAudio(
-      input: 'https://music.youtube.com/watch?v=abcdefghijk',
-      engine: AudioEngine.web,
-    ),
-  ]) {
-    test('Jam plays ${audio.engine.name} resolved audio', () async {
+  {
+    const audio = ResolvedAudio(input: 'http://127.0.0.1:4000/t/a/i');
+    test('Jam plays resolved audio', () async {
       final now = DateTime.utc(2026, 10, 12);
       final out = FakeAudio();
       final app = await createTestController(
@@ -65,7 +60,6 @@ void main() {
         ),
       );
       expect(out.loaded?.input, audio.input);
-      expect(out.loaded?.engine, audio.engine);
     });
   }
 

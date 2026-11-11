@@ -11,9 +11,6 @@ import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.PowerManager
-import androidx.media3.common.SimpleBasePlayer
-import android.net.wifi.WifiManager
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingSimpleBasePlayer
@@ -55,19 +52,6 @@ class AuroraPlaybackService : MediaSessionService() {
     inner class AudioBinder : Binder() { val service get() = this@AuroraPlaybackService }
     private lateinit var player: ExoPlayer
     private lateinit var sessionPlayer: SessionPlayer
-    /** Playback owned by the hidden YouTube Music WebView, mirrored into the session. */
-    private data class External(val playing: Boolean, val buffering: Boolean,
-        val positionMs: Long, val durationMs: Long)
-    private var external: External? = null
-    private val webWakeLock by lazy {
-        (getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "aurora:web-playback").apply { setReferenceCounted(false) }
-    }
-    @Suppress("DEPRECATION")
-    private val webWifiLock by lazy {
-        (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
-            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "aurora:web-playback").apply { setReferenceCounted(false) }
-    }
     private var session: MediaSession? = null
     private val main = Handler(Looper.getMainLooper())
     var eventSink: ((Map<String, Any?>) -> Unit)? = null
@@ -138,8 +122,6 @@ class AuroraPlaybackService : MediaSessionService() {
 
     /** Flutter owns the queue: transport commands become actions for the controller. */
     private inner class SessionPlayer(player: Player) : ForwardingSimpleBasePlayer(player) {
-        fun refresh() = invalidateState()
-
         override fun getState(): State {
             val base = super.getState()
             val commands = base.availableCommands.buildUpon()
@@ -147,31 +129,14 @@ class AuroraPlaybackService : MediaSessionService() {
                     Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                 .remove(Player.COMMAND_CHANGE_MEDIA_ITEMS)
                 .remove(Player.COMMAND_SET_MEDIA_ITEM)
-            val web = external ?: return base.buildUpon().setAvailableCommands(commands.build()).build()
-            commands.addAll(Player.COMMAND_PLAY_PAUSE, Player.COMMAND_STOP, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
-                Player.COMMAND_GET_CURRENT_MEDIA_ITEM, Player.COMMAND_GET_METADATA, Player.COMMAND_GET_TIMELINE)
-            val item = SimpleBasePlayer.MediaItemData.Builder("aurora-web")
-                .setMediaItem(MediaItem.Builder().setMediaId("aurora-web").setMediaMetadata(metadata).build())
-                .setMediaMetadata(metadata)
-                .setDurationUs(if (web.durationMs > 0) web.durationMs * 1000 else C.TIME_UNSET)
-                .setIsSeekable(web.durationMs > 0)
-                .build()
-            return base.buildUpon().setAvailableCommands(commands.build())
-                .setPlaylist(listOf(item)).setCurrentMediaItemIndex(0)
-                .setPlayWhenReady(web.playing || web.buffering, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
-                .setPlaybackState(if (web.buffering) Player.STATE_BUFFERING else Player.STATE_READY)
-                .setIsLoading(false)
-                .setContentPositionMs(web.positionMs)
-                .build()
+            return base.buildUpon().setAvailableCommands(commands.build()).build()
         }
 
         override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
             when (seekCommand) {
                 Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> emit("action", mapOf("action" to "next"))
                 Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> emit("action", mapOf("action" to "previous"))
-                else -> if (external != null) {
-                    emit("action", mapOf("action" to "seek", "positionMs" to positionMs.coerceAtLeast(0L)))
-                } else return super.handleSeek(mediaItemIndex, positionMs, seekCommand)
+                else -> return super.handleSeek(mediaItemIndex, positionMs, seekCommand)
             }
             return Futures.immediateVoidFuture()
         }
@@ -183,28 +148,6 @@ class AuroraPlaybackService : MediaSessionService() {
             emit("action", mapOf("action" to "stop"))
             return Futures.immediateVoidFuture()
         }
-    }
-
-    /** A playing WebView needs the same locks ExoPlayer takes for its own streams. */
-    private fun setExternal(arguments: Map<*, *>) {
-        external = if (arguments["active"] != true) null else External(
-            playing = arguments["playing"] == true,
-            buffering = arguments["buffering"] == true,
-            positionMs = ((arguments["positionMs"] as? Number)?.toLong() ?: 0L).coerceAtLeast(0L),
-            durationMs = ((arguments["durationMs"] as? Number)?.toLong() ?: 0L).coerceAtLeast(0L),
-        )
-        val web = external
-        if (web != null && (web.playing || web.buffering)) {
-            // Renewed with every update; expires on its own if Flutter stops reporting.
-            webWakeLock.acquire(10 * 60 * 1000L)
-            webWifiLock.acquire()
-        } else releaseWebLocks()
-        sessionPlayer.refresh()
-    }
-
-    private fun releaseWebLocks() {
-        if (webWakeLock.isHeld) webWakeLock.release()
-        if (webWifiLock.isHeld) webWifiLock.release()
     }
 
     override fun onBind(intent: Intent?): IBinder? =
@@ -313,11 +256,6 @@ class AuroraPlaybackService : MediaSessionService() {
         val start = ((arguments["startMs"] as? Number)?.toLong() ?: 0L).coerceAtLeast(0L)
         val duration = ((arguments["durationMs"] as? Number)?.toLong() ?: 0L).coerceAtLeast(0L)
         // Validate all inputs before replacing the currently playable source.
-        if (external != null) {
-            external = null
-            releaseWebLocks()
-            sessionPlayer.refresh()
-        }
         player.pause()
         player.stop()
         generation = nextGeneration
@@ -361,7 +299,6 @@ class AuroraPlaybackService : MediaSessionService() {
             .setArtist(arguments["artist"] as? String).setAlbumTitle(arguments["album"] as? String)
             .setDurationMs(((arguments["durationMs"] as? Number)?.toLong() ?: 0L).takeIf { it > 0 })
             .setArtworkUri(artwork).build()
-        if (external != null) sessionPlayer.refresh()
         player.currentMediaItem?.let { current ->
             player.replaceMediaItem(0, current.buildUpon().setMediaMetadata(metadata).build())
         }
@@ -391,7 +328,6 @@ class AuroraPlaybackService : MediaSessionService() {
             }
             "equalizer" -> setEqualizer(arguments)
             "metadata" -> updateMetadata(arguments)
-            "external" -> setExternal(arguments)
             "state", "initialize" -> return state()
             else -> throw IllegalArgumentException("Comando no permitido")
         }
@@ -409,8 +345,7 @@ class AuroraPlaybackService : MediaSessionService() {
         "audioNetworkRequests" to networkRequests.get(), "audioNetworkBytes" to networkBytes.get(),
     )
     private fun publishState() {
-        playbackActive = player.playWhenReady || player.isPlaying || player.playbackState == Player.STATE_BUFFERING ||
-            external?.let { it.playing || it.buffering } == true
+        playbackActive = player.playWhenReady || player.isPlaying || player.playbackState == Player.STATE_BUFFERING
         eventSink?.invoke(state())
     }
     private fun emit(type: String, extra: Map<String, Any?> = emptyMap()) {
@@ -428,7 +363,6 @@ class AuroraPlaybackService : MediaSessionService() {
     override fun onDestroy() {
         playbackActive = false
         main.removeCallbacks(progress)
-        releaseWebLocks()
         eventSink = null
         session?.release()
         session = null

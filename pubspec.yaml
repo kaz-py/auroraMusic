@@ -47,9 +47,7 @@ dependencies:
   package_info_plus: ^10.2.2
   zxing2: 0.2.4
   mobile_scanner: 7.4.2
-  flutter_inappwebview: 6.1.5
   url_launcher: 6.3.2
-  adblocker_webview: 2.3.0
   # JAM remota: cliente puro Dart (sin plugins nativos ni deep links propios).
   supabase: 2.16.5
   flutter_secure_storage: ^11.2.0

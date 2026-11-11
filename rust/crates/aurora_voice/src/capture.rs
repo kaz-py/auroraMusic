@@ -86,7 +86,7 @@ pub fn open() -> Result<Capture, VoiceError> {
     })
 }
 
-/// Convierte audio mono a [`MODEL_RATE`] en `i16`, por bloques.
+/// Convierte audio mono a [`MODEL_RATE`] (f32), por bloques.
 pub struct Downmix {
     resampler: Option<FftFixedIn<f32>>,
     pending: Vec<f32>,
@@ -108,9 +108,9 @@ impl Downmix {
         })
     }
 
-    pub fn push(&mut self, input: &[f32], out: &mut Vec<i16>) {
+    pub fn push(&mut self, input: &[f32], out: &mut Vec<f32>) {
         let Some(resampler) = self.resampler.as_mut() else {
-            out.extend(input.iter().map(|s| to_i16(*s)));
+            out.extend_from_slice(input);
             return;
         };
         self.pending.extend_from_slice(input);
@@ -121,14 +121,10 @@ impl Downmix {
             }
             let chunk: Vec<f32> = self.pending.drain(..need).collect();
             if let Ok(result) = resampler.process(&[chunk], None) {
-                out.extend(result[0].iter().map(|s| to_i16(*s)));
+                out.extend_from_slice(&result[0]);
             }
         }
     }
-}
-
-fn to_i16(sample: f32) -> i16 {
-    (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16
 }
 
 /// Nivel RMS (0–1) de un bloque.
@@ -139,6 +135,3 @@ pub fn level(block: &[f32]) -> f32 {
     let sum: f32 = block.iter().map(|s| s * s).sum();
     (sum / block.len() as f32).sqrt().min(1.0)
 }
-
-#[allow(dead_code)]
-fn _assert_sample<T: Sample>() {}

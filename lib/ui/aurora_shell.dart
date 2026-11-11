@@ -66,6 +66,7 @@ import 'playlist_views/playlist_view_mode.dart';
 import 'playlist_detail_tools.dart';
 import 'profile_page.dart';
 import '../dj/ai_dj.dart';
+import '../import/spotify_import.dart';
 import '../metadata/spotify/spotify_metadata_provider.dart';
 import '../metadata/spotify_recs.dart';
 import 'spotify_auto_add.dart';
@@ -80,7 +81,6 @@ import 'vinyl_player.dart';
 import 'queue_panel.dart';
 import 'settings_layout.dart';
 import 'offline_settings_panel.dart';
-import '../youtube_music/youtube_music_page.dart';
 import 'video_downloads_page.dart';
 import 'artists_page.dart';
 import 'follow_widgets.dart';
@@ -91,45 +91,42 @@ import 'friends_page.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
 import 'undo_snackbar.dart';
-import '../audio/routed_music_audio.dart';
-import '../audio_web/web_music_audio.dart';
 import '../updater/update_controller.dart';
 import '../updater/update_ui.dart';
 
-const _sections = [
-  'Inicio',
-  'Buscar',
-  'Biblioteca',
-  'Descargas locales',
-  'Modo Vinilo',
-  'Cola de reproducción',
-  'Letras',
-  'Ajustes',
-  'DJ',
-  'Jam',
-  'YouTube Music',
-  'Descargar vídeos',
-  'Artistas',
-  'Ecualizador',
-  'Amigos',
-];
-const _icons = [
-  Icons.home_outlined,
-  Icons.search,
-  Icons.library_music_outlined,
-  Icons.download_outlined,
-  Icons.album_outlined,
-  Icons.queue_music,
-  Icons.lyrics_outlined,
-  Icons.tune,
-  Icons.explore_outlined,
-  Icons.groups_outlined,
-  Icons.music_video_outlined,
-  Icons.video_file_outlined,
-  Icons.mic_none_rounded,
-  Icons.equalizer,
-  Icons.people_outline,
-];
+// Los ids de sección son estables: no se renumeran al quitar una.
+const _sections = <int, String>{
+  0: 'Inicio',
+  1: 'Buscar',
+  2: 'Biblioteca',
+  3: 'Descargas locales',
+  4: 'Modo Vinilo',
+  5: 'Cola de reproducción',
+  6: 'Letras',
+  7: 'Ajustes',
+  8: 'DJ',
+  9: 'Jam',
+  11: 'Descargar vídeos',
+  12: 'Artistas',
+  13: 'Ecualizador',
+  14: 'Amigos',
+};
+const _icons = <int, IconData>{
+  0: Icons.home_outlined,
+  1: Icons.search,
+  2: Icons.library_music_outlined,
+  3: Icons.download_outlined,
+  4: Icons.album_outlined,
+  5: Icons.queue_music,
+  6: Icons.lyrics_outlined,
+  7: Icons.tune,
+  8: Icons.explore_outlined,
+  9: Icons.groups_outlined,
+  11: Icons.video_file_outlined,
+  12: Icons.mic_none_rounded,
+  13: Icons.equalizer,
+  14: Icons.people_outline,
+};
 const _primarySections = [0, 1, 8, 2, 3];
 const _slushPrimarySections = [0, 1, 2, 8, 9];
 
@@ -143,11 +140,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     with WidgetsBindingObserver {
   int _section = 0;
   bool _jamVisited = false;
-  bool _musicVisited = false;
   bool _videosVisited = false;
   bool _navigationPending = false;
-  Uri? _musicUri;
-  final _musicKey = GlobalKey<YouTubeMusicPageState>();
   JamController? _jam;
 
   /// Amigo con el chat abierto en Amigos (`null`: la lista). Lo comparten
@@ -184,7 +178,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     AppController app() => ref.read(controllerProvider);
     final source = app().source;
     return SpotifyAutoAdder(
-      matcher: source is InnerTubeSource && !app().usesOfficialYouTubeMusic
+      matcher: source is InnerTubeSource
           ? YoutubeMatcher(
               search: (q, k) => source.searchPage(q, k).then((p) => p.tracks),
             )
@@ -215,15 +209,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   Future<void> _spotifyManual(Track track, Track? replacing) {
     final c = ref.read(controllerProvider);
-    if (c.usesOfficialYouTubeMusic) {
-      return Future<void>.sync(
-        () => c.openYouTubeMusic(
-          Uri.https('music.youtube.com', '/search', {
-            'q': '${track.title} ${track.artist}',
-          }),
-        ),
-      );
-    }
     return SpotifyMatchDialog.show(
       context,
       track: track,
@@ -269,7 +254,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _audio = ref.read(controllerProvider).audio;
     _updates = UpdateController(ref.read(controllerProvider).preferences)
       ..start();
-    WindowControls.setCloseConfirmation(_confirmWindowClose);
+    WindowControls.install();
     _desktop = DesktopShell(ref.read(controllerProvider))..start();
     _duvet = DuvetPresence(ref.read(controllerProvider))..start();
     final app = ref.read(controllerProvider);
@@ -288,7 +273,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     app.lyricsAutoSync = LyricsAutoSync(
       _lyricsSyncService,
       available: () => _voice.lyricsSyncEnabled && _voice.analysisReady,
-      libraryPath: () => _voice.libraryPath,
       modelPath: () => _voice.modelPath,
     );
     _remote = RemoteControlService(
@@ -298,7 +282,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         p.join(app.supportDirectory.path, 'remote_control.json'),
       ),
     )..start();
-    _guardWebClose();
     _audio.setVisualizationEnabled(false);
     equalizerSheetsOpen.addListener(_eqSheetChanged);
     _listenForJamLinks();
@@ -387,16 +370,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     await _ensureJam().joinFromLink(link, 'Invitado');
   }
 
-  /// The hidden official player, when it initialized.
-  WebMusicAudio? get _webAudio {
-    final audio = _audio;
-    return audio is RoutedMusicAudio &&
-            audio.web is WebMusicAudio &&
-            audio.webInitializationError == null
-        ? audio.web as WebMusicAudio
-        : null;
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -428,10 +401,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     }
   }
 
-  // With the web engine mounted every close passes through _confirmWindowClose.
-  void _guardWebClose() =>
-      WindowControls.guardClose(_section == 10 || _webAudio != null);
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -443,8 +412,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _syncOwner.lyricsAutoSync = null;
     _lyricsSyncService.dispose();
     WindowControls.onArguments = null;
-    WindowControls.setCloseConfirmation(null);
-    WindowControls.guardClose(false);
     _jam?.removeListener(_jamChanged);
     _jam?.dispose();
     _friendsChat.dispose();
@@ -469,25 +436,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _jamChanged();
   }
 
-  Future<void> _navigate(
-    int value, {
-    bool fromRequest = false,
-    bool recordBack = true,
-  }) async {
-    if (value == 10 &&
-        !fromRequest &&
-        ref.read(controllerProvider).usesOfficialYouTubeMusic) {
-      ref.read(controllerProvider).openYouTubeMusic();
-      return;
-    }
+  Future<void> _navigate(int value, {bool recordBack = true}) async {
     if (_navigationPending) return;
     _navigationPending = true;
     try {
-      if (_section == 10 &&
-          value != 10 &&
-          !(await _musicKey.currentState?.confirmExit() ?? true)) {
-        return;
-      }
       if (!mounted) return;
       if (value != 0 && value != 8) {
         ref.read(controllerProvider).cancelRecommendationDiscovery();
@@ -501,16 +453,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         }
         _section = value;
         if (value == 9) _jamVisited = true;
-        _musicVisited = value == 10;
         if (value == 11) _videosVisited = true;
         _playlist = null;
         _likesSelected = false;
       });
-      _guardWebClose();
       _syncVisualization();
-      if (value != 10 && ref.read(controllerProvider).youtubeMusicActive) {
-        ref.read(controllerProvider).closeYouTubeMusic();
-      }
     } finally {
       _navigationPending = false;
     }
@@ -626,23 +573,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     }
   }
 
-  void _closeMusic() {
-    WindowControls.guardClose(false);
-    ref.read(controllerProvider).closeYouTubeMusic();
-    setState(() {
-      _musicVisited = false;
-      _musicUri = null;
-      _section = 0;
-    });
-  }
-
-  Future<bool> _confirmWindowClose() async {
-    final close = await _musicKey.currentState?.confirmExit() ?? true;
-    // Release WebView2 before the window goes so the process can exit.
-    if (close) await _webAudio?.shutdown();
-    return close;
-  }
-
   Future<void> _openLibrary({
     MusicPlaylist? playlist,
     bool likes = false,
@@ -664,23 +594,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(controllerProvider);
-    ref.listen(controllerProvider.select((c) => c.youtubeMusicRequest), (
-      _,
-      uri,
-    ) {
-      if (uri == null) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(controllerProvider).clearYouTubeMusicRequest();
-        setState(() => _musicUri = uri);
-        _navigate(10, fromRequest: true);
-      });
-    });
     ref.listen(
       controllerProvider.select((c) => (c.reducedMotion, c.audio.isPlaying)),
       (_, _) => _syncVisualization(),
     );
-    final web = _webAudio;
     final shell = TrackActionsScope(
       jam: _jam,
       ensureJam: _ensureJam,
@@ -688,16 +605,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       child: ShortcutHost(
         service: ref.watch(shortcutServiceProvider),
         onAction: (id) => _runShortcut(c, id),
-        enabled: (id) => _section != 10 || id != ShortcutId.playPause,
         extraBindings: {
-          if (_section != 10)
-            const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
-                _togglePlay(c),
-          if (_section != 10)
-            const SingleActivator(LogicalKeyboardKey.mediaTrackNext): c.next,
-          if (_section != 10)
-            const SingleActivator(LogicalKeyboardKey.mediaTrackPrevious):
-                c.previous,
+          const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
+              _togglePlay(c),
+          const SingleActivator(LogicalKeyboardKey.mediaTrackNext): c.next,
+          const SingleActivator(LogicalKeyboardKey.mediaTrackPrevious):
+              c.previous,
         },
         child: Focus(
           autofocus: true,
@@ -781,7 +694,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                                       4,
                                                       5,
                                                       9,
-                                                      10,
                                                       11,
                                                     ].contains(_section)
                                                     ? double.infinity
@@ -804,7 +716,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 _section != 6 &&
                                 _section != 7 &&
                                 _section != 13 &&
-                                _section != 10 &&
                                 _section != 11)
                               StudioSessionAside(
                                 controller: c,
@@ -837,11 +748,12 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 2 => Icons.queue_music,
                                 8 => Icons.auto_awesome,
                                 9 => Icons.groups_outlined,
-                                _ => _icons[s],
+                                _ => _icons[s]!,
                               },
                           ],
                           labels: [
-                            for (final s in _slushPrimarySections) _sections[s],
+                            for (final s in _slushPrimarySections)
+                              _sections[s]!,
                           ],
                           selected: _slushPrimarySections.indexOf(_section),
                           onSelect: (i) => _navigate(_slushPrimarySections[i]),
@@ -893,7 +805,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 : null,
                             label: _primarySections[i] == 3
                                 ? 'Descargas'
-                                : _sections[_primarySections[i]],
+                                : _sections[_primarySections[i]]!,
                             tooltip: _sections[_primarySections[i]],
                           ),
                         ),
@@ -908,15 +820,13 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // La página de YouTube Music gestiona su propio atrás.
-        if (_section == 10 && _musicKey.currentState != null) return;
         if (!_handleBack(c)) SystemNavigator.pop();
       },
       child: shell,
     );
     // Modo mini y Modo artista sustituyen a todo el shell (que conserva su
     // estado, incluida la sección) mientras están activos.
-    final content = _miniWindow
+    return _miniWindow
         ? MiniWindowView(
             controller: c,
             jam: _jam,
@@ -935,75 +845,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             ),
           )
         : guarded;
-    if (web == null) return content;
-    return ListenableBuilder(
-      listenable: web,
-      builder: (context, _) => Stack(
-        fit: StackFit.expand,
-        children: [content, ..._webEngineLayers(web)],
-      ),
-    );
-  }
-
-  /// The official player is always mounted at the same tree position (so it
-  /// keeps playing) and covered. It is shown only as a sheet when the site
-  /// itself asks the user for consent, sign-in or a verification.
-  List<Widget> _webEngineLayers(WebMusicAudio web) {
-    final visible = web.showingWebsite;
-    final colors = Theme.of(context).colorScheme;
-    return [
-      Positioned.fill(
-        child: IgnorePointer(
-          ignoring: !visible,
-          child: ColoredBox(
-            color: visible ? Colors.black54 : Colors.transparent,
-          ),
-        ),
-      ),
-      Positioned(
-        left: 0,
-        top: visible ? 72 : 0,
-        right: visible ? 0 : null,
-        bottom: visible ? 0 : null,
-        width: visible ? null : 1,
-        height: visible ? null : 1,
-        child: web.buildEngineView(),
-      ),
-      if (visible)
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 16,
-          height: 56,
-          child: Material(
-            color: colors.surfaceContainerHigh,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Resuelve el aviso de YouTube Music y pulsa Listo',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  FilledButton(
-                    onPressed: () {
-                      web.setWebsiteVisible(false);
-                      final c = ref.read(controllerProvider);
-                      c.clearError();
-                      unawaited(c.resumePlayback());
-                    },
-                    child: const Text('Listo'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-    ];
   }
 
   Widget _sidebar(AppController c, bool wide) {
@@ -1074,7 +915,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 children: [
                   for (final i in _primarySections) _navItem(i, wide),
                   const Divider(indent: 20, endIndent: 20, height: 18),
-                  for (final i in [12, 10, 11, 9, 14, 4, 5, 6, 13])
+                  for (final i in [12, 11, 9, 14, 4, 5, 6, 13])
                     _navItem(i, wide),
                   if (wide && c.playlists.isNotEmpty) ...[
                     const Divider(indent: 20, endIndent: 20, height: 18),
@@ -1148,7 +989,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        _sections[index],
+                        _sections[index]!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1305,7 +1146,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 .where((p) => p.id == _playlist!.id)
                                 .firstOrNull
                                 ?.name) ??
-                      _sections[_section],
+                      _sections[_section]!,
                 )
               : Text(
                   (_playlist == null
@@ -1314,7 +1155,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                 .where((p) => p.id == _playlist!.id)
                                 .firstOrNull
                                 ?.name) ??
-                      _sections[_section],
+                      _sections[_section]!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1491,11 +1332,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                       style: const TextStyle(fontSize: 14, color: Brasa.cream),
                     ),
                   ),
-                  if (_webAudio?.needsWebsiteAccess == true)
-                    FilledButton(
-                      onPressed: () => _webAudio?.setWebsiteVisible(true),
-                      child: const Text('Revisar sitio'),
-                    ),
                   IconButton(
                     tooltip: 'Cerrar aviso',
                     onPressed: c.clearError,
@@ -1507,14 +1343,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         )
       : isModern(context)
-      ? ModernBanner(
-          message: c.error!,
-          actionLabel: _webAudio?.needsWebsiteAccess == true
-              ? 'Revisar sitio'
-              : null,
-          onAction: () => _webAudio?.setWebsiteVisible(true),
-          onClose: c.clearError,
-        )
+      ? ModernBanner(message: c.error!, onClose: c.clearError)
       : Material(
           color: Theme.of(context).colorScheme.errorContainer,
           child: Padding(
@@ -1534,11 +1363,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                     ),
                   ),
                 ),
-                if (_webAudio?.needsWebsiteAccess == true)
-                  TextButton(
-                    onPressed: () => _webAudio?.setWebsiteVisible(true),
-                    child: const Text('Revisar sitio'),
-                  ),
                 IconButton(
                   tooltip: 'Cerrar aviso',
                   onPressed: c.clearError,
@@ -1553,17 +1377,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     fit: StackFit.expand,
     children: [
       Offstage(
-        offstage: [9, 10, 11].contains(_section),
+        offstage: [9, 11].contains(_section),
         child: isSlush(context)
             ? _SlushSectionFade(section: _section, child: _page(c))
             : _page(c),
       ),
-      if (_musicVisited && c.usesOfficialYouTubeMusic)
-        YouTubeMusicPage(
-          key: _musicKey,
-          initialUri: _musicUri,
-          onClosed: _closeMusic,
-        ),
       if (_videosVisited)
         Offstage(
           offstage: _section != 11,
@@ -1676,7 +1494,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         );
       case 9:
-      case 10:
       case 11:
         return const SizedBox.shrink();
       default:
@@ -1827,7 +1644,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   Widget _searchPage(AppController c) {
     final chips = [
       _chip(
-        c.usesOfficialYouTubeMusic ? 'Biblioteca local' : 'Audio · YouTube',
+        'Audio · YouTube',
         !_spotifySearch,
         () => setState(() => _spotifySearch = false),
       ),
@@ -1836,12 +1653,6 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         _spotifySearch,
         () => setState(() => _spotifySearch = true),
       ),
-      if (c.usesOfficialYouTubeMusic)
-        ActionChip(
-          label: const Text('YouTube Music'),
-          avatar: const Icon(Icons.music_video_outlined),
-          onPressed: () => _navigate(10),
-        ),
     ];
     final column = Column(
       children: [
@@ -1890,11 +1701,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             focusNode: _searchFocus,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              labelText: c.usesOfficialYouTubeMusic
-                  ? 'Buscar en tu biblioteca'
-                  : c.usesYouTubeWebAudio
-                  ? 'Canción, artista o enlace de YouTube Music'
-                  : 'Canción, artista o enlace',
+              labelText: 'Canción, artista o enlace',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(
                 tooltip: 'Buscar',
@@ -1914,50 +1721,36 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             onChanged: (_) => setState(() {}),
           ),
         ),
-      if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: _pagePad),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              spacing: 8,
-              children: [
-                for (final (kind, label) in const [
-                  (SearchKind.songs, 'Canciones'),
-                  (SearchKind.albums, 'Álbumes'),
-                  (SearchKind.artists, 'Artistas'),
-                  (SearchKind.videos, 'Vídeos'),
-                ])
-                  _chip(
-                    label,
-                    c.searchKind == kind,
-                    () => c.setSearchKind(kind),
-                  ),
-              ],
-            ),
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: _pagePad),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            spacing: 8,
+            children: [
+              for (final (kind, label) in const [
+                (SearchKind.songs, 'Canciones'),
+                (SearchKind.albums, 'Álbumes'),
+                (SearchKind.artists, 'Artistas'),
+                (SearchKind.videos, 'Vídeos'),
+              ])
+                _chip(label, c.searchKind == kind, () => c.setSearchKind(kind)),
+            ],
           ),
         ),
+      ),
       if (c.searching) const LinearProgressIndicator(minHeight: 2),
-      if (c.usesYouTubeWebAudio)
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-          child: Text(
-            'Busca canciones o pega el enlace de una canción. '
-            'El streaming usa WebView; yt-dlp solo se usa para descargar vídeos.',
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: _pagePad),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => _importPlaylist(c),
+            icon: const Icon(Icons.playlist_add),
+            label: const Text('Importar una lista por enlace'),
           ),
         ),
-      if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: _pagePad),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => _importPlaylist(c),
-              icon: const Icon(Icons.playlist_add),
-              label: const Text('Importar una lista por enlace'),
-            ),
-          ),
-        ),
+      ),
       Expanded(
         // Las bandas de ListTile pintan en el Material más cercano: sin este
         // recorte la lista (Slush) se dibuja encima de pestañas y campo.
@@ -2496,7 +2289,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     final active = c.currentTrack?.id == t.id;
     final playlistIndex = playlist?.trackIds.indexOf(t.id) ?? -1;
     final extras = <TrackMenuExtra>[
-      if (t.isPendingSpotifyMatch && !c.usesOfficialYouTubeMusic)
+      if (t.isPendingSpotifyMatch)
         (
           label: 'Elegir coincidencia de YouTube',
           run: () => _matchSpotify(c, t),
@@ -2560,9 +2353,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
           subtitle: Text(
             t.isPendingSpotifyMatch
-                ? '${t.artist} · ${c.usesOfficialYouTubeMusic ? 'Buscar en YouTube Music' : 'Elige una coincidencia de YouTube'}'
-                : c.requiresOfficialYouTubeMusic(t)
-                ? '${t.artist} · Abrir reproductor oficial'
+                ? '${t.artist} · Elige una coincidencia de YouTube'
                 : '${t.artist}${t.isLocal ? ' · Disponible sin conexión' : ''}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -2752,40 +2543,11 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         title: 'Música sin conexión',
         subtitle: 'Descargas explícitas y archivos locales',
         children: [
-          if (c.usesOfficialYouTubeMusic) ...[
-            const Text(
-              'Los archivos locales y las descargas existentes siguen disponibles. YouTube Music reproduce en su página oficial; Aurora no descarga sus canciones.',
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _navigate(3),
-              icon: const Icon(Icons.offline_pin_outlined),
-              label: const Text('Gestionar archivos locales'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _navigate(11),
-              icon: const Icon(Icons.video_file_outlined),
-              label: const Text('Descargar vídeos con yt-dlp'),
-            ),
-          ] else
-            OfflineSettingsPanel(
-              controller: c,
-              onManage: () => _navigate(3),
-              onSearch: () => _navigate(1),
-            ),
-          if (c.usesYouTubeWebAudio) ...[
-            const SizedBox(height: 12),
-            const Text(
-              'YouTube Music se escucha con los controles de Aurora mediante '
-              'WebView. Las canciones locales siguen usando su motor nativo. '
-              'La descarga de vídeos es una acción separada.',
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _navigate(11),
-              icon: const Icon(Icons.video_file_outlined),
-              label: const Text('Descargar vídeos con yt-dlp'),
-            ),
-          ],
+          OfflineSettingsPanel(
+            controller: c,
+            onManage: () => _navigate(3),
+            onSearch: () => _navigate(1),
+          ),
         ],
       ),
       if (c.source.supportsExperimentalProgressivePlayback)
@@ -3020,9 +2782,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         ],
       ),
       (
-        title: c.usesOfficialYouTubeMusic || c.usesYouTubeWebAudio
-            ? 'Descargador de vídeos y diagnóstico'
-            : 'Herramientas, sesión y diagnóstico',
+        title: 'Herramientas, sesión y diagnóstico',
         subtitle: 'Fuentes locales y utilidades opcionales',
         children: [
           Text(
@@ -3083,56 +2843,53 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               child: SelectableText(c.diagnostics!),
             ),
           const SizedBox(height: 16),
-          if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
-            Text(
-              c.hasYouTubeSession
-                  ? 'Sesión de YouTube configurada'
-                  : 'Sesión de YouTube opcional sin importar',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+          Text(
+            c.hasYouTubeSession
+                ? 'Sesión de YouTube configurada'
+                : 'Sesión de YouTube opcional sin importar',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
-          if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
-            const Text(
-              'Importa un archivo cookies.txt en formato Netscape exportado por ti de tu sesión de YouTube. Aurora guarda una copia local. Puedes reemplazarla o eliminarla desde aquí. Una sesión no garantiza resolver límites de YouTube ni errores 429.',
-              style: TextStyle(height: 1.6),
-            ),
+          const Text(
+            'Importa un archivo cookies.txt en formato Netscape exportado por ti de tu sesión de YouTube. Aurora guarda una copia local. Puedes reemplazarla o eliminarla desde aquí. Una sesión no garantiza resolver límites de YouTube ni errores 429.',
+            style: TextStyle(height: 1.6),
+          ),
           const SizedBox(height: 12),
-          if (!c.usesOfficialYouTubeMusic && !c.usesYouTubeWebAudio)
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: c.sessionBusy ? null : c.importYouTubeSession,
-                  icon: const Icon(Icons.person_outline),
-                  label: Text(
-                    c.sessionBusy
-                        ? 'Procesando sesión…'
-                        : c.hasYouTubeSession
-                        ? 'Reemplazar sesión'
-                        : 'Importar sesión',
-                  ),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              OutlinedButton.icon(
+                onPressed: c.sessionBusy ? null : c.importYouTubeSession,
+                icon: const Icon(Icons.person_outline),
+                label: Text(
+                  c.sessionBusy
+                      ? 'Procesando sesión…'
+                      : c.hasYouTubeSession
+                      ? 'Reemplazar sesión'
+                      : 'Importar sesión',
                 ),
-                if (c.hasYouTubeSession)
-                  TextButton.icon(
-                    onPressed: c.sessionBusy ? null : c.clearYouTubeSession,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Eliminar sesión'),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    if (await _confirm(
-                      'Limpiar caché',
-                      'Se eliminarán los archivos temporales. Tus descargas y listas se conservarán.',
-                    )) {
-                      c.clearCache();
-                    }
-                  },
-                  icon: const Icon(Icons.cleaning_services_outlined),
-                  label: const Text('Limpiar caché temporal'),
+              ),
+              if (c.hasYouTubeSession)
+                TextButton.icon(
+                  onPressed: c.sessionBusy ? null : c.clearYouTubeSession,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Eliminar sesión'),
                 ),
-              ],
-            ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  if (await _confirm(
+                    'Limpiar caché',
+                    'Se eliminarán los archivos temporales. Tus descargas y listas se conservarán.',
+                  )) {
+                    c.clearCache();
+                  }
+                },
+                icon: const Icon(Icons.cleaning_services_outlined),
+                label: const Text('Limpiar caché temporal'),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           const Text(
             'Aurora · Tu biblioteca permanece en este dispositivo. Utiliza enlaces y contenido que tengas permiso para reproducir y guardar.',
@@ -3346,30 +3103,26 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
 
   Future<void> _importSpotify(AppController c) async {
     c.clearError();
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Importar datos de Spotify'),
-        scrollable: true,
-        content: const Text(
-          '1. Exporta un CSV o solicita tus datos en Spotify → Cuenta → Privacidad. Usa el archivo Playlist*.json.\n\n'
-          '2. Elige el archivo, revisa las listas y pulsa Importar.\n\n'
-          '3. Toca una canción pendiente para elegir su versión de YouTube.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Elegir archivo'),
-          ),
-        ],
-      ),
-    );
-    if (proceed != true || !mounted) return;
-    final result = await c.pickSpotifyImport();
+    final source = await SpotifyImportSourceDialog.show(context);
+    if (source == null || !mounted) return;
+    SpotifyImportResult? result;
+    if (source.link != null) {
+      final fetched = await c.fetchSpotifyLink(source.link!);
+      if (!mounted) return;
+      if (fetched != null) {
+        result = SpotifyImportResult(playlists: [fetched.playlist], skipped: 0);
+        if (fetched.truncated) {
+          showUndoSnackBar(
+            ScaffoldMessenger.maybeOf(context),
+            const Text(
+              'Spotify solo dejó leer las primeras 100 canciones sin iniciar sesión.',
+            ),
+          );
+        }
+      }
+    } else {
+      result = await c.pickSpotifyImport();
+    }
     if (!mounted) return;
     if (result == null) {
       if (c.error != null) {
@@ -3389,21 +3142,13 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   }
 
   Future<void> _matchSpotify(AppController c, Track track) =>
-      c.usesOfficialYouTubeMusic
-      ? Future<void>.sync(
-          () => c.openYouTubeMusic(
-            Uri.https('music.youtube.com', '/search', {
-              'q': '${track.title} ${track.artist}',
-            }),
-          ),
-        )
-      : SpotifyMatchDialog.show(
-          context,
-          track: track,
-          onSearch: () => c.findSpotifyMatches(track),
-          onSave: (match, {required play}) =>
-              c.matchSpotifyTrack(track.id, match, play: play),
-        );
+      SpotifyMatchDialog.show(
+        context,
+        track: track,
+        onSearch: () => c.findSpotifyMatches(track),
+        onSave: (match, {required play}) =>
+            c.matchSpotifyTrack(track.id, match, play: play),
+      );
 
   Future<String?> _askText(
     String title,

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show Int64List;
 
 import 'package:aurora_music/bridge/api/lyrics_align.dart' as rust;
 import 'package:aurora_music/core/models.dart';
@@ -14,36 +16,43 @@ final _synced = LyricsResult(
       LyricLine(Duration(seconds: 2 + i * 5), 'linea numero $i de la letra'),
   ],
 );
+const _plain = LyricsResult(
+  LyricsKind.plain,
+  text: 'uno dos tres\ncuatro cinco seis\n\nsiete ocho nueve\ndiez once doce',
+);
 const _file = ResolvedAudio(input: 'C:/musica/cancion.mp3');
 
 void main() {
   late Directory dir;
   late LyricsService service;
-  late List<List<rust.AlignLine>> calls;
+  late List<({List<rust.AlignLine> lines, int scan})> calls;
   var ready = true;
-  rust.LyricsAlignment result = const rust.LyricsAlignment(
-    found: true,
-    shiftMs: 12000,
-    anchors: 3,
-  );
+  var found = true;
+  List<int> starts = [14000, 19000, 24000, 29000, 34000];
+  int? shift = 12000;
   Object? failure;
 
   LyricsAutoSync create() => LyricsAutoSync(
     service,
     available: () => ready,
-    libraryPath: () => 'libvosk.fake',
-    modelPath: () => 'modelo',
+    modelPath: () => 'modelo.bin',
     align:
         ({
-          required libPath,
-          required modelDir,
+          required modelPath,
           required input,
           required headers,
           required lines,
+          required scanSecs,
+          language,
         }) async {
-          calls.add(lines);
+          calls.add((lines: lines, scan: scanSecs));
           if (failure != null) throw failure!;
-          return result;
+          return rust.LyricsAlignment(
+            found: found,
+            startsMs: Int64List.fromList(found ? starts : const []),
+            anchored: found ? 4 : 0,
+            shiftMs: found ? shift : null,
+          );
         },
   );
 
@@ -52,107 +61,142 @@ void main() {
     service = LyricsService();
     calls = [];
     ready = true;
+    found = true;
+    starts = [14000, 19000, 24000, 29000, 34000];
+    shift = 12000;
     failure = null;
-    result = const rust.LyricsAlignment(
-      found: true,
-      shiftMs: 12000,
-      anchors: 3,
-    );
   });
   tearDown(() {
     service.dispose();
     dir.deleteSync(recursive: true);
   });
 
-  test(
-    'a song that starts 12 s after its lyrics gets the lyrics delayed',
-    () async {
-      final offset = await create().run(_track, _synced, _file, dir);
-      expect(offset, -12000);
-      expect(await service.readOffset(_track, dir), -12000);
-      expect((await service.readAutoOffset(_track, dir))?.source, 'audio');
-      expect(calls.single, hasLength(5));
-      expect(calls.single.first.atMs, 2000);
-    },
-  );
+  test('a synced lyric measured 12 s late is stored and applied', () async {
+    expect(await create().run(_track, _synced, _file, dir), isTrue);
+    final adjust = await service.readAdjust(_track, dir);
+    expect(adjust?.source, 'audio');
+    expect(adjust?.startsMs, starts);
+    final shown = await service.adjusted(_track, dir, _synced);
+    expect(shown.lines.first.at, const Duration(seconds: 14));
+    // Con tiempos solo se analiza el principio de la canción.
+    expect(calls.single.scan, LyricsAutoSync.scanSyncedSecs);
+    expect(calls.single.lines.first.atMs, 2000);
+  });
+
+  test('a plain lyric gets a time per line and is analysed in full', () async {
+    starts = [34000, 38000, 45000, 52000];
+    expect(await create().run(_track, _plain, _file, dir), isTrue);
+    // Las líneas vacías no cuentan: cuatro textos, cuatro horas.
+    expect(calls.single.lines.map((l) => l.text), [
+      'uno dos tres',
+      'cuatro cinco seis',
+      'siete ocho nueve',
+      'diez once doce',
+    ]);
+    expect(calls.single.lines.every((l) => l.atMs == null), isTrue);
+    expect(calls.single.scan, LyricsAutoSync.scanPlainSecs);
+    final shown = await service.adjusted(_track, dir, _plain);
+    expect(shown.kind, LyricsKind.synced);
+    expect(shown.lines.map((l) => l.at.inSeconds), [34, 38, 45, 52]);
+  });
 
   test(
     'it measures once per track, even when the result was nothing',
     () async {
       final sync = create();
-      expect(await sync.run(_track, _synced, _file, dir), isNotNull);
-      expect(await sync.run(_track, _synced, _file, dir), isNull);
+      expect(await sync.run(_track, _synced, _file, dir), isTrue);
+      expect(await sync.run(_track, _synced, _file, dir), isFalse);
       expect(calls, hasLength(1));
 
       const other = Track(id: 'yt:w', title: 'Otra', artist: 'Artista');
-      result = const rust.LyricsAlignment(found: false, shiftMs: 0, anchors: 0);
-      expect(await sync.run(other, _synced, _file, dir), isNull);
-      expect(await sync.run(other, _synced, _file, dir), isNull);
+      found = false;
+      expect(await sync.run(other, _synced, _file, dir), isFalse);
+      expect(await sync.run(other, _synced, _file, dir), isFalse);
       expect(
         calls,
         hasLength(2),
         reason: 'el intento fallido tampoco se repite',
       );
-      expect((await service.readAutoOffset(other, dir))?.source, 'tried');
+      expect((await service.readAdjust(other, dir))?.tried, isTrue);
     },
   );
 
-  test('a failed measurement keeps the duration estimate', () async {
-    await service.writeAutoOffset(_track, dir, -9000, 'duration');
-    result = const rust.LyricsAlignment(found: false, shiftMs: 0, anchors: 0);
-    expect(await create().run(_track, _synced, _file, dir), isNull);
-    expect(await service.readOffset(_track, dir), -9000);
-  });
+  test(
+    'a failed measurement keeps the duration estimate and does not retry',
+    () async {
+      await service.writeAdjust(
+        _track,
+        dir,
+        const LyricsAdjust(source: 'duration', shiftMs: 9000),
+      );
+      found = false;
+      expect(await create().run(_track, _synced, _file, dir), isFalse);
+      final adjust = await service.readAdjust(_track, dir);
+      expect(adjust?.shiftMs, 9000);
+      expect(adjust?.source, 'duration');
+      expect(adjust?.settled, isTrue);
+    },
+  );
 
   test('a measured shift replaces the duration estimate', () async {
-    await service.writeAutoOffset(_track, dir, -9000, 'duration');
-    final offset = await create().run(_track, _synced, _file, dir);
-    expect(offset, -12000);
-    expect(await service.readOffset(_track, dir), -12000);
+    await service.writeAdjust(
+      _track,
+      dir,
+      const LyricsAdjust(source: 'duration', shiftMs: 9000),
+    );
+    expect(await create().run(_track, _synced, _file, dir), isTrue);
+    final shown = await service.adjusted(_track, dir, _synced);
+    expect(shown.lines.first.at, const Duration(seconds: 14));
   });
 
-  test('a user adjustment is never touched', () async {
-    await service.writeOffset(_track, dir, 700);
-    expect(await create().run(_track, _synced, _file, dir), isNull);
-    expect(calls, isEmpty);
-    expect(await service.readOffset(_track, dir), 700);
-  });
-
-  test('tiny shifts are measurement noise and count as zero', () async {
-    result = const rust.LyricsAlignment(found: true, shiftMs: 250, anchors: 4);
-    await service.writeAutoOffset(_track, dir, -9000, 'duration');
-    expect(await create().run(_track, _synced, _file, dir), 0);
-    expect(await service.readOffset(_track, dir), 0);
+  test('a lyric that already matches the audio changes nothing', () async {
+    shift = 150;
+    starts = [for (final l in _synced.lines) l.at.inMilliseconds + 150];
+    expect(await create().run(_track, _synced, _file, dir), isFalse);
+    final adjust = await service.readAdjust(_track, dir);
+    expect(adjust?.settled, isTrue);
+    expect(adjust?.startsMs, isNull);
+    expect(
+      (await service.adjusted(_track, dir, _synced)).lines.first.at,
+      const Duration(seconds: 2),
+    );
   });
 
   test(
-    'nothing runs without synced lyrics, local audio, model or library',
+    'nothing runs without audio, model, enough lines or a usable lyric',
     () async {
       final sync = create();
-      const plain = LyricsResult(LyricsKind.plain, text: 'a\nb');
-      expect(await sync.run(_track, plain, _file, dir), isNull);
-      expect(await sync.run(_track, _synced, null, dir), isNull);
+      expect(await sync.run(_track, _synced, null, dir), isFalse);
       expect(
         await sync.run(
           _track,
-          _synced,
-          const ResolvedAudio(input: 'x', engine: AudioEngine.web),
+          const LyricsResult(LyricsKind.notFound),
+          _file,
           dir,
         ),
-        isNull,
+        isFalse,
+      );
+      expect(
+        await sync.run(
+          _track,
+          const LyricsResult(LyricsKind.plain, text: 'solo\ndos'),
+          _file,
+          dir,
+        ),
+        isFalse,
       );
       ready = false;
-      expect(await sync.run(_track, _synced, _file, dir), isNull);
+      expect(await sync.run(_track, _synced, _file, dir), isFalse);
       expect(calls, isEmpty);
     },
   );
 
   test('errors leave the lyrics as they were and can be retried', () async {
-    failure = StateError('sin red');
+    failure = StateError('sin modelo');
     final sync = create();
-    expect(await sync.run(_track, _synced, _file, dir), isNull);
-    expect(await service.readAutoOffset(_track, dir), isNull);
+    expect(await sync.run(_track, _synced, _file, dir), isFalse);
+    expect(await service.readAdjust(_track, dir), isNull);
     failure = null;
-    expect(await sync.run(_track, _synced, _file, dir), -12000);
+    expect(await sync.run(_track, _synced, _file, dir), isTrue);
   });
 }

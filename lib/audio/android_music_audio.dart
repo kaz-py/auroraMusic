@@ -130,9 +130,6 @@ class AndroidMusicAudio extends AudioBackend {
           'stop',
         ].contains(action)) {
           _mediaActions.add(action as String);
-        } else if (action == 'seek' && raw['positionMs'] is num) {
-          // Session seeks while the web engine plays go to the controller.
-          _mediaActions.add('seek:${(raw['positionMs'] as num).toInt()}');
         }
     }
   }
@@ -199,21 +196,6 @@ class AndroidMusicAudio extends AudioBackend {
     duration: track.duration,
     artworkUrl: track.artworkUrl,
   );
-
-  /// Keeps the Media3 session, notification and foreground service in step
-  /// with web playback so Android does not freeze the app in background.
-  @override
-  Future<void> mirrorExternalPlayback(AudioBackend? playback) async {
-    if (_disposed) return;
-    // Not _invoke: a session-mirror failure must not mark native audio failed.
-    await _channel.invokeMethod<void>('external', {
-      'active': playback != null,
-      'playing': playback?.isPlaying ?? false,
-      'buffering': playback?.isBuffering ?? false,
-      'positionMs': playback?.position.inMilliseconds ?? 0,
-      'durationMs': playback?.duration.inMilliseconds ?? 0,
-    });
-  }
 
   @override
   Future<void> play() => _invoke('play');

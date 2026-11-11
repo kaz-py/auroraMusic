@@ -14,19 +14,12 @@ abstract class AudioBackend extends ChangeNotifier {
   ValueListenable<List<double>> get spectrum;
   Stream<void> get completed;
   Stream<String> get mediaActions => const Stream.empty();
-  Track? get currentTrackMetadata => null;
 
   /// Lo que está cargado ahora (archivo o proxy local), si el motor puede
-  /// decodificarlo aparte; `null` si no (reproductor web, Android).
+  /// decodificarlo aparte; `null` si no (Android).
   ResolvedAudio? get currentSource => null;
   Future<void> updateTrackMetadata(Track track) async {}
 
-  /// True while the web player is showing an advertisement.
-  bool get adPlaying => false;
-
-  /// Lets a native media session reflect [playback] owned by another engine;
-  /// null returns the session to this backend.
-  Future<void> mirrorExternalPlayback(AudioBackend? playback) async {}
   Future<void> initialize();
   Future<void> load(ResolvedAudio source, {Duration start = Duration.zero});
   Future<void> play();

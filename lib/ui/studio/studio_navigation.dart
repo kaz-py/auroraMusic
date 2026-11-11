@@ -447,16 +447,6 @@ class StudioSidebar extends StatelessWidget {
                     Icons.mic_none_rounded,
                     '',
                   ),
-                  if (controller.usesOfficialYouTubeMusic ||
-                      controller.usesYouTubeWebAudio)
-                    _nav(
-                      context,
-                      10,
-                      'Acceso a YouTube Music',
-                      'Acceso a YouTube Music',
-                      Icons.music_video_outlined,
-                      '',
-                    ),
                   _nav(
                     context,
                     2,
@@ -473,16 +463,6 @@ class StudioSidebar extends StatelessWidget {
                     StudioSymbols.downloadDone,
                     shortcuts?.labelOf(ShortcutId.downloads) ?? 'Ctrl+4',
                   ),
-                  if (controller.usesOfficialYouTubeMusic ||
-                      controller.usesYouTubeWebAudio)
-                    _nav(
-                      context,
-                      11,
-                      'Descargar vídeos',
-                      'Descargar vídeos',
-                      Icons.video_file_outlined,
-                      '',
-                    ),
                   const SizedBox(height: 20),
                   Tooltip(
                     message: controller.downloadsDirectoryPath,
@@ -668,21 +648,10 @@ class StudioSidebar extends StatelessWidget {
 
   /// Brasa: sidebar de ~300 px sin borde, accesos arriba y panel «Tu biblioteca».
   Widget _brasa(BuildContext context) {
-    final c = controller;
-    final web = c.usesOfficialYouTubeMusic || c.usesYouTubeWebAudio;
     // (índice, título, tooltip, icono)
     final items = <(int, String, String, IconData)>[
       (2, 'Biblioteca', 'Biblioteca', StudioSymbols.libraryMusic),
       (3, 'Descargas', 'Descargas locales', StudioSymbols.downloadDone),
-      if (web)
-        (
-          10,
-          'Acceso a YouTube Music',
-          'Acceso a YouTube Music',
-          Icons.music_video_outlined,
-        ),
-      if (web)
-        (11, 'Descargar vídeos', 'Descargar vídeos', Icons.video_file_outlined),
       (4, 'Modo Vinilo', 'Modo Vinilo', StudioSymbols.album),
       (6, 'Letras', 'Letras', StudioSymbols.lyrics),
       (9, 'Jam', 'Jam', StudioSymbols.groups),

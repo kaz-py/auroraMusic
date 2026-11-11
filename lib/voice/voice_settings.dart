@@ -20,7 +20,7 @@ class VoiceSettings extends StatelessWidget {
   String _status() => switch (service.state) {
     VoiceState.off => '',
     VoiceState.downloading =>
-      'Descargando el modelo de voz (40 MB)… ${(service.progress * 100).round()} %',
+      'Descargando el modelo de voz (60 MB)… ${(service.progress * 100).round()} %',
     VoiceState.starting => 'Iniciando el micrófono…',
     VoiceState.listening =>
       service.awaitingCommand
@@ -47,8 +47,8 @@ class VoiceSettings extends StatelessWidget {
             title: const Text('Activar comandos de voz'),
             subtitle: const Text(
               'Aurora escucha el micrófono y solo obedece lo que empieza por '
-              '«Aurora». El audio se reconoce en este equipo: no se guarda ni '
-              'se envía.',
+              '«Aurora». El audio se reconoce en este equipo con Whisper: no '
+              'se guarda ni se envía. Se descarga un modelo de ≈ 60 MB.',
             ),
             value: service.enabled,
             onChanged: busy ? null : service.setEnabled,
@@ -67,6 +67,16 @@ class VoiceSettings extends StatelessWidget {
                 style: service.state == VoiceState.error
                     ? TextStyle(color: theme.colorScheme.error)
                     : null,
+              ),
+            ),
+          if (service.state == VoiceState.listening &&
+              service.lastHeard != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Escuché: “${service.lastHeard}”',
+                key: const ValueKey('voice-heard'),
+                style: theme.textTheme.bodySmall,
               ),
             ),
           if (service.state == VoiceState.listening && service.microphoneSilent)
@@ -96,8 +106,9 @@ class VoiceSettings extends StatelessWidget {
             title: const Text('Sincronizar las letras con el audio'),
             subtitle: const Text(
               'Mide cuánto se desvía la letra respecto a la canción (por '
-              'ejemplo, por una introducción larga) y la corrige sola. Usa el '
-              'mismo modelo de voz; solo letras en español.',
+              'ejemplo, por una introducción larga) y la corrige sola. Analiza '
+              'el audio una vez por canción, en segundo plano, con el mismo '
+              'modelo de voz (≈ 60 MB).',
             ),
             value: service.lyricsSyncEnabled,
             onChanged: busy || service.modelBusy ? null : service.setLyricsSync,

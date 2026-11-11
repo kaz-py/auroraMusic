@@ -236,11 +236,11 @@ void main() {
     expect(colorOf('Segunda línea').a, greaterThan(colorOf('Primera línea').a));
   });
 
-  testWidgets('letra sin sincronizar: se reparte por la pista y se avisa', (
+  testWidgets('letra sin sincronizar: se muestra sin avisos ni ajustes', (
     tester,
   ) async {
     await mountPage(tester, service: _PlainLyrics());
-    expect(find.text('Sincronización aproximada'), findsOneWidget);
+    expect(find.text('Sincronización aproximada'), findsNothing);
     expect(find.text('Línea uno'), findsOneWidget);
     expect(find.text('Línea dos'), findsOneWidget);
     expect(tester.takeException(), isNull);

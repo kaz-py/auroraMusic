@@ -19,26 +19,20 @@ typedef InnerTubePost =
     );
 
 /// YouTube Music search (InnerTube). Playback resolves through the stream
-/// orchestrator and a loopback proxy, falling back to the official watch page
-/// (web engine) when YouTube blocks it; yt-dlp stays for downloads and imports.
+/// orchestrator and a loopback proxy; yt-dlp stays for downloads and imports.
 class InnerTubeSource extends SourceBackend {
   InnerTubeSource(
     this.delegate, {
     InnerTubePost? post,
     Future<AudioProxy> Function()? proxyFactory,
     StreamOrchestrator Function()? orchestratorFactory,
-    bool? webFallback,
   }) : _post = post ?? _httpPost,
-       // The hidden official player only exists on Windows (blank sheet on
-       // Android, no WebView plugin on Linux).
-       _webFallbackEnabled = webFallback ?? Platform.isWindows,
        _proxyFactory = proxyFactory ?? AudioProxy.start,
        _orchestratorFactory =
            orchestratorFactory ?? (() => StreamOrchestrator());
 
   final SourceBackend delegate;
   final InnerTubePost _post;
-  final bool _webFallbackEnabled;
   final Future<AudioProxy> Function() _proxyFactory;
   final StreamOrchestrator Function() _orchestratorFactory;
   // Created on the first YouTube resolve, never in the constructor.
@@ -112,9 +106,6 @@ class InnerTubeSource extends SourceBackend {
       'hl': 'es',
     },
   };
-
-  @override
-  bool get supportsOnlineMetadataSearch => true;
 
   @override
   Future<List<Track>> search(String query, {int limit = 20}) async {
@@ -384,12 +375,6 @@ class InnerTubeSource extends SourceBackend {
   static Duration? _knownDuration(Track track) =>
       track.duration > Duration.zero ? track.duration : null;
 
-  ResolvedAudio _webFallback(String id, Track track) => ResolvedAudio(
-    input: Uri.https('music.youtube.com', '/watch', {'v': id}).toString(),
-    duration: track.duration,
-    engine: AudioEngine.web,
-  );
-
   Future<AudioProxy> _startProxy() async {
     if (_disposed) throw StateError('La fuente ya se cerró.');
     final future = _proxyFuture ??= _proxyFactory();
@@ -443,23 +428,18 @@ class InnerTubeSource extends SourceBackend {
     _currentVideoId = id;
     final generation = ++_resolveGeneration;
     final orch = _orch;
-    if (_webFallbackEnabled && orch.isBlacklisted(id)) {
-      return _webFallback(id, track);
-    }
     final duration = _knownDuration(track);
     ResolvedStream stream;
     try {
       stream = await orch.resolve(id, trackDuration: duration);
     } on StreamResolveException catch (error) {
       // Network and removed videos are real errors; anything else (bot check,
-      // login, ciphered or changed responses) still plays in the official player.
+      // login, ciphered or changed responses) gets one fresh attempt.
       if (error.kind == YouTubeFailure.transient ||
           error.kind == YouTubeFailure.unavailable) {
         rethrow;
       }
-      if (_webFallbackEnabled) return _webFallback(id, track);
       if (generation != _resolveGeneration) rethrow; // user moved on
-      // No official player here: one fresh attempt, then the real error.
       stream = await orch.resolve(
         id,
         forceRefresh: true,
@@ -467,12 +447,7 @@ class InnerTubeSource extends SourceBackend {
       );
     }
     final AudioProxy proxy;
-    try {
-      proxy = await _startProxy();
-    } catch (_) {
-      if (_disposed || !_webFallbackEnabled) rethrow;
-      return _webFallback(id, track); // proxy unavailable: official player
-    }
+    proxy = await _startProxy();
     // Only the newest resolve may drop the previous video; a superseded call
     // registers without unregistering (the registry's FIFO cap cleans up).
     if (generation == _resolveGeneration) {

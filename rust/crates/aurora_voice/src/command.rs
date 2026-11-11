@@ -1,9 +1,10 @@
 //! Qué frases entiende Aurora por voz y cuándo cuentan como una orden.
 //!
-//! La gramática que se le da al reconocedor sale de la misma tabla que usa el
-//! analizador, así que no pueden divergir. Una orden solo vale si va tras la
-//! palabra de activación «aurora» (en la misma frase o, como mucho, 4 s
-//! antes); lo demás se ignora.
+//! Whisper entrega texto libre; aquí se decide si es una orden. Solo vale si va
+//! tras la palabra de activación «aurora» (en la misma frase o, como mucho, 4 s
+//! antes); lo demás se ignora. La comparación tolera una letra de error por
+//! palabra («bon música» por «pon música»), pero «Laura» o «aurora boreal» no
+//! activan nada.
 
 use std::time::{Duration, Instant};
 
@@ -21,8 +22,8 @@ pub enum Intent {
 pub const WAKE_WORD: &str = "aurora";
 /// Tras oír solo «aurora», una orden suelta vale durante este tiempo.
 pub const ARMED_FOR: Duration = Duration::from_secs(4);
-/// Confianza mínima de cada palabra (0–1) para aceptar una orden.
-pub const MIN_CONFIDENCE: f32 = 0.6;
+/// Por encima de esta probabilidad de «no hay voz», la frase se descarta.
+pub const MAX_NO_SPEECH: f32 = 0.6;
 /// Entre dos órdenes iguales seguidas (eco, repetición del reconocedor).
 pub const COOLDOWN: Duration = Duration::from_millis(1500);
 
@@ -86,51 +87,65 @@ pub fn phrases() -> Vec<(Intent, &'static [&'static str])> {
     PHRASES.to_vec()
 }
 
-/// Palabras que debe conocer el modelo.
-pub fn vocabulary() -> Vec<String> {
-    let mut words: Vec<String> = vec![WAKE_WORD.to_string()];
-    for (_, list) in PHRASES {
-        for phrase in *list {
-            words.extend(phrase.split_whitespace().map(str::to_string));
-        }
+/// Minúsculas, sin acentos ni puntuación, en palabras.
+pub fn words_of(text: &str) -> Vec<String> {
+    let mut plain = String::with_capacity(text.len());
+    for c in text.chars().flat_map(char::to_lowercase) {
+        plain.push(match c {
+            'á' | 'à' | 'ä' | 'â' => 'a',
+            'é' | 'è' | 'ë' | 'ê' => 'e',
+            'í' | 'ì' | 'ï' | 'î' => 'i',
+            'ó' | 'ò' | 'ö' | 'ô' => 'o',
+            'ú' | 'ù' | 'ü' | 'û' => 'u',
+            'ñ' => 'n',
+            c if c.is_alphanumeric() => c,
+            _ => ' ',
+        });
     }
-    words.sort();
-    words.dedup();
-    words
+    plain.split_whitespace().map(str::to_string).collect()
 }
 
-/// Gramática de Vosk (arreglo JSON): «aurora <orden>», «aurora» sola, la orden
-/// suelta (para cuando se dice tras una pausa) y `[unk]` para todo lo demás.
-pub fn grammar_json() -> String {
-    let mut items: Vec<String> = vec![WAKE_WORD.to_string()];
-    for (_, list) in PHRASES {
-        for phrase in *list {
-            items.push(format!("{WAKE_WORD} {phrase}"));
-            items.push((*phrase).to_string());
+/// Distancia de edición (inserciones, borrados, sustituciones).
+pub fn edit_distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.iter().enumerate() {
+        let mut diagonal = row[0];
+        row[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let above = row[j + 1];
+            row[j + 1] = (diagonal + usize::from(ca != cb))
+                .min(row[j] + 1)
+                .min(above + 1);
+            diagonal = above;
         }
     }
-    items.push("[unk]".to_string());
-    serde_json::to_string(&items).expect("la gramática es JSON válido")
+    row[b.len()]
 }
 
-fn lookup(phrase: &str) -> Option<Intent> {
+/// Dos palabras cuentan como la misma si son iguales o, siendo de 3 o más
+/// letras, difieren en una.
+pub fn same_word(heard: &str, wanted: &str) -> bool {
+    heard == wanted || (wanted.chars().count() >= 3 && edit_distance(heard, wanted) <= 1)
+}
+
+fn same_phrase(heard: &[String], phrase: &str) -> bool {
+    let wanted = words_of(phrase);
+    heard.len() == wanted.len() && heard.iter().zip(&wanted).all(|(h, w)| same_word(h, w))
+}
+
+fn lookup(heard: &[String]) -> Option<Intent> {
     PHRASES
         .iter()
-        .find(|(_, list)| list.contains(&phrase))
+        .find(|(_, list)| list.iter().any(|p| same_phrase(heard, p)))
         .map(|(intent, _)| *intent)
 }
 
-/// Una palabra reconocida con su confianza.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Word {
-    pub text: String,
-    pub confidence: f32,
-    /// Segundos desde el inicio del audio entregado al reconocedor.
-    pub start: f32,
-    pub end: f32,
-}
+const FILLERS_BEFORE: &[&str] = &["oye", "hey", "ey", "ok", "okay", "hola"];
+const FILLERS_AFTER: &[&[&str]] = &[&["por", "favor"], &["porfa"], &["gracias"]];
 
-/// Lo que se concluye de un resultado final del reconocedor.
+/// Lo que se concluye de una frase.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Heard {
     Command(Intent),
@@ -151,34 +166,49 @@ impl Gate {
         Self::default()
     }
 
-    pub fn feed(&mut self, words: &[Word], now: Instant) -> Heard {
+    /// `text`: lo que transcribió Whisper; `no_speech`: su probabilidad de que
+    /// no hubiera voz.
+    pub fn feed(&mut self, text: &str, no_speech: f32, now: Instant) -> Heard {
         let armed = self.armed_until.is_some_and(|until| now <= until);
         self.armed_until = None;
-        if words.is_empty()
-            || words
-                .iter()
-                .any(|w| w.text == "[unk]" || w.confidence < MIN_CONFIDENCE)
-        {
+        if no_speech > MAX_NO_SPEECH {
             return Heard::Ignored;
         }
-        let text = words
-            .iter()
-            .map(|w| w.text.as_str())
-            .collect::<Vec<_>>()
-            .join(" ");
-        if text == WAKE_WORD {
-            self.armed_until = Some(now + ARMED_FOR);
-            return Heard::Wake;
+        let mut words = words_of(text);
+        while words
+            .first()
+            .is_some_and(|w| FILLERS_BEFORE.contains(&w.as_str()))
+        {
+            words.remove(0);
         }
-        let spoken = text
-            .strip_prefix(WAKE_WORD)
-            .and_then(|rest| rest.strip_prefix(' '));
-        let phrase = match spoken {
-            Some(rest) => rest,
-            None if armed => text.as_str(),
-            None => return Heard::Ignored,
+        for tail in FILLERS_AFTER {
+            if words.len() > tail.len()
+                && words[words.len() - tail.len()..]
+                    .iter()
+                    .map(String::as_str)
+                    .eq(tail.iter().copied())
+            {
+                words.truncate(words.len() - tail.len());
+            }
+        }
+        let woke = words
+            .first()
+            .is_some_and(|w| w.chars().count() >= 5 && edit_distance(w, WAKE_WORD) <= 1);
+        let command: &[String] = if woke {
+            &words[1..]
+        } else if armed {
+            &words
+        } else {
+            return Heard::Ignored;
         };
-        let Some(intent) = lookup(phrase) else {
+        if command.is_empty() {
+            if woke {
+                self.armed_until = Some(now + ARMED_FOR);
+                return Heard::Wake;
+            }
+            return Heard::Ignored;
+        }
+        let Some(intent) = lookup(command) else {
             return Heard::Ignored;
         };
         if let Some((previous, at)) = self.last {
@@ -195,15 +225,8 @@ impl Gate {
 mod tests {
     use super::*;
 
-    fn words(text: &str, confidence: f32) -> Vec<Word> {
-        text.split_whitespace()
-            .map(|t| Word {
-                text: t.to_string(),
-                confidence,
-                start: 0.0,
-                end: 0.0,
-            })
-            .collect()
+    fn hear(gate: &mut Gate, text: &str, at: Instant) -> Heard {
+        gate.feed(text, 0.0, at)
     }
 
     #[test]
@@ -211,21 +234,54 @@ mod tests {
         let mut gate = Gate::new();
         let t = Instant::now();
         assert_eq!(
-            gate.feed(&words("aurora pausa", 1.0), t),
+            hear(&mut gate, "Aurora, pausa.", t),
             Heard::Command(Intent::Pause)
         );
-        // Sin «aurora» no hace nada, aunque la orden sea válida.
         let t = t + Duration::from_secs(10);
-        assert_eq!(gate.feed(&words("pausa", 1.0), t), Heard::Ignored);
+        assert_eq!(hear(&mut gate, "Pausa.", t), Heard::Ignored);
+        assert_eq!(hear(&mut gate, "Siguiente canción.", t), Heard::Ignored);
         assert_eq!(
-            gate.feed(&words("siguiente canción", 1.0), t),
+            hear(&mut gate, "Hola, buenas, aurora pausa", t),
             Heard::Ignored
         );
-        // «aurora» no al principio tampoco.
-        assert_eq!(
-            gate.feed(&words("hola aurora pausa", 1.0), t),
-            Heard::Ignored
-        );
+    }
+
+    #[test]
+    fn near_misses_of_the_wake_word_and_commands_still_work() {
+        let mut gate = Gate::new();
+        let mut t = Instant::now();
+        for (text, want) in [
+            ("Aurora, bon música.", Intent::Play),
+            ("aurora pon musica", Intent::Play),
+            ("¡Aurora, PAUSA!", Intent::Pause),
+            ("Oye Aurora, siguiente", Intent::Next),
+            ("Aurora, siguiente canción por favor", Intent::Next),
+            ("Auroras, continúa", Intent::Resume),
+            ("Aurora, cancion anterior.", Intent::Previous),
+        ] {
+            t += Duration::from_secs(5);
+            assert_eq!(hear(&mut gate, text, t), Heard::Command(want), "{text}");
+        }
+    }
+
+    #[test]
+    fn similar_sounding_words_and_chatter_never_trigger() {
+        let mut gate = Gate::new();
+        let t = Instant::now();
+        for text in [
+            "Laura, pausa.",
+            "La aurora boreal es muy hermosa en invierno.",
+            "Ponle pausa al video que ya me cansé de verlo",
+            "Aurora, baila",
+            "Aurora, pausa pausa",
+            "Aurora, pon pausa a todo",
+            "Hola, ¿qué tal estuvo tu día de hoy?",
+            "Subtítulos realizados por la comunidad de Amara.org",
+            "",
+            "   ",
+        ] {
+            assert_eq!(hear(&mut gate, text, t), Heard::Ignored, "{text:?}");
+        }
     }
 
     #[test]
@@ -235,8 +291,11 @@ mod tests {
         for (intent, list) in PHRASES {
             for phrase in *list {
                 t += Duration::from_secs(5);
-                let heard = gate.feed(&words(&format!("aurora {phrase}"), 0.9), t);
-                assert_eq!(heard, Heard::Command(*intent), "{phrase}");
+                assert_eq!(
+                    hear(&mut gate, &format!("Aurora, {phrase}."), t),
+                    Heard::Command(*intent),
+                    "{phrase}"
+                );
             }
         }
     }
@@ -245,55 +304,38 @@ mod tests {
     fn wake_then_command_within_the_window() {
         let mut gate = Gate::new();
         let t = Instant::now();
-        assert_eq!(gate.feed(&words("aurora", 1.0), t), Heard::Wake);
+        assert_eq!(hear(&mut gate, "Aurora.", t), Heard::Wake);
         assert_eq!(
-            gate.feed(&words("siguiente", 1.0), t + Duration::from_secs(2)),
+            hear(&mut gate, "Siguiente.", t + Duration::from_secs(2)),
             Heard::Command(Intent::Next)
         );
         // La activación se gasta con la primera orden.
         assert_eq!(
-            gate.feed(&words("pausa", 1.0), t + Duration::from_secs(3)),
+            hear(&mut gate, "Pausa.", t + Duration::from_secs(3)),
             Heard::Ignored
         );
         // Fuera de la ventana no cuenta.
         assert_eq!(
-            gate.feed(&words("aurora", 1.0), t + Duration::from_secs(10)),
+            hear(&mut gate, "Aurora.", t + Duration::from_secs(10)),
             Heard::Wake
         );
         assert_eq!(
-            gate.feed(&words("pausa", 1.0), t + Duration::from_secs(15)),
+            hear(&mut gate, "Pausa.", t + Duration::from_secs(15)),
             Heard::Ignored
         );
     }
 
     #[test]
-    fn unknown_words_low_confidence_and_garbage_are_ignored() {
+    fn a_frame_that_is_probably_not_speech_is_dropped() {
         let mut gate = Gate::new();
-        let t = Instant::now();
-        assert_eq!(gate.feed(&words("aurora [unk]", 1.0), t), Heard::Ignored);
-        assert_eq!(gate.feed(&words("aurora pausa", 0.4), t), Heard::Ignored);
-        assert_eq!(gate.feed(&[], t), Heard::Ignored);
-        assert_eq!(gate.feed(&words("aurora baila", 1.0), t), Heard::Ignored);
         assert_eq!(
-            gate.feed(&words("aurora pausa pausa", 1.0), t),
+            gate.feed("Aurora, pausa.", 0.9, Instant::now()),
             Heard::Ignored
         );
-        // Una palabra dudosa dentro de una orden válida la anula entera.
-        let mixed = vec![
-            Word {
-                text: "aurora".into(),
-                confidence: 1.0,
-                start: 0.0,
-                end: 0.0,
-            },
-            Word {
-                text: "pausa".into(),
-                confidence: 0.3,
-                start: 0.0,
-                end: 0.0,
-            },
-        ];
-        assert_eq!(gate.feed(&mixed, t), Heard::Ignored);
+        assert_eq!(
+            gate.feed("Aurora, pausa.", 0.2, Instant::now()),
+            Heard::Command(Intent::Pause)
+        );
     }
 
     #[test]
@@ -301,38 +343,37 @@ mod tests {
         let mut gate = Gate::new();
         let t = Instant::now();
         assert_eq!(
-            gate.feed(&words("aurora siguiente", 1.0), t),
+            hear(&mut gate, "Aurora siguiente", t),
             Heard::Command(Intent::Next)
         );
         assert_eq!(
-            gate.feed(
-                &words("aurora siguiente", 1.0),
+            hear(
+                &mut gate,
+                "Aurora siguiente",
                 t + Duration::from_millis(600)
             ),
             Heard::Ignored
         );
         assert_eq!(
-            gate.feed(&words("aurora siguiente", 1.0), t + Duration::from_secs(3)),
+            hear(&mut gate, "Aurora siguiente", t + Duration::from_secs(3)),
             Heard::Command(Intent::Next)
         );
-        // Otra orden distinta no espera.
         assert_eq!(
-            gate.feed(&words("aurora pausa", 1.0), t + Duration::from_millis(3200)),
+            hear(&mut gate, "Aurora pausa", t + Duration::from_millis(3200)),
             Heard::Command(Intent::Pause)
         );
     }
 
     #[test]
-    fn the_grammar_lists_exactly_the_phrases() {
-        let grammar: Vec<String> = serde_json::from_str(&grammar_json()).unwrap();
-        assert!(grammar.contains(&"aurora".to_string()));
-        assert!(grammar.contains(&"aurora pausa".to_string()));
-        assert!(grammar.contains(&"pausa".to_string()));
-        assert!(grammar.contains(&"[unk]".to_string()));
-        let count: usize = PHRASES.iter().map(|(_, l)| l.len()).sum();
-        assert_eq!(grammar.len(), 1 + count * 2 + 1);
-        for word in vocabulary() {
-            assert_eq!(word, word.to_lowercase());
-        }
+    fn text_helpers() {
+        assert_eq!(words_of("¡Continúa, Ñandú!"), ["continua", "nandu"]);
+        assert_eq!(edit_distance("aurora", "laura"), 3);
+        assert_eq!(edit_distance("pon", "bon"), 1);
+        assert!(same_word("bon", "pon"));
+        assert!(
+            !same_word("no", "un"),
+            "las palabras de dos letras son exactas"
+        );
+        assert!(same_word("musica", "musica") && same_word("reproduse", "reproduce"));
     }
 }

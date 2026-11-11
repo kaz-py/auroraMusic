@@ -122,7 +122,6 @@ class StreamOrchestrator {
   );
   static final _swUri = Uri.parse('https://music.youtube.com/sw.js_data');
   static const _cacheCap = 50;
-  static const _blacklistTtl = Duration(minutes: 30);
   // Worst first, so one summary exception reflects the most actionable cause.
   static const _severity = [
     YouTubeFailure.blocked,
@@ -150,7 +149,6 @@ class StreamOrchestrator {
   final _generation = <String, int>{};
   final _inflight = <String, Future<ResolvedStream>>{};
   final _badUntil = <String, DateTime>{};
-  final _blacklist = <String, DateTime>{};
   Future<String?>? _visitor;
 
   Future<ResolvedStream> resolve(
@@ -188,14 +186,6 @@ class StreamOrchestrator {
     _inflight.remove('$videoId|false');
     final client = _servedBy[videoId];
     if (client != null) _markBad(client, _isAuthStatus(httpStatus));
-  }
-
-  bool isBlacklisted(String videoId) {
-    final until = _blacklist[videoId];
-    if (until == null) return false;
-    if (_now().isBefore(until)) return true;
-    _blacklist.remove(videoId);
-    return false;
   }
 
   static bool _isAuthStatus(int? s) =>
@@ -243,10 +233,6 @@ class StreamOrchestrator {
                     .compareTo(_severity.indexOf(b.kind)),
               ))
               .first;
-    if (worst.kind == YouTubeFailure.blocked ||
-        worst.kind == YouTubeFailure.accessDenied) {
-      _blacklist[videoId] = _now().add(_blacklistTtl);
-    }
     throw worst;
   }
 

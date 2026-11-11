@@ -137,9 +137,6 @@ bool FlutterWindow::OnCreate() {
           PostMessage(host, WM_CLOSE, 0, 0);
           // Solo este camino lleva vigilante: el instalador necesita el proceso muerto.
           ArmExitWatchdog();
-        } else if (name == "guardClose") {
-          const auto* enabled = args ? std::get_if<bool>(args) : nullptr;
-          close_guard_enabled_ = enabled && *enabled;
         } else if (name == "setBackground") {
           // Color del tema (RGB): fondo de la ventana mientras se redimensiona.
           const auto* rgb = args ? std::get_if<int32_t>(args) : nullptr;
@@ -282,8 +279,8 @@ bool FlutterWindow::OnCreate() {
 }
 
 // Red de seguridad del actualizador: si 3 s despues el proceso sigue vivo
-// (Dart colgado, guardia de cierre activa, WebView2 sin soltar), lo termina.
-// Hilo nativo independiente de Dart y de close_guard_enabled_.
+// (Dart colgado, audio sin soltar), lo termina.
+// Hilo nativo independiente de Dart.
 void FlutterWindow::ArmExitWatchdog(bool save_geometry) {
   if (watchdog_armed_) return;
   watchdog_armed_ = true;
@@ -308,7 +305,7 @@ void FlutterWindow::ArmExitWatchdog(bool save_geometry) {
 void FlutterWindow::OnDestroy() {
   // Sin ventana ya no hay a quien avisar: libera el mutex para que un nuevo
   // lanzamiento arranque limpio, y garantiza que el proceso muera aunque el
-  // motor de audio/WebView2 se cuelgue al cerrar (antes quedaba zombi sin ventana).
+  // motor de audio se cuelgue al cerrar (antes quedaba zombi sin ventana).
   // OnDestroy tambien se llama desde Create() y el destructor: solo la primera
   // vez tras una creacion real.
   if (created_) {
@@ -439,8 +436,8 @@ void FlutterWindow::ShowTrayMenu() {
   }
 }
 
-// Cierre definitivo: pregunta a Dart (dialogo de la pagina de musica, cerrar
-// WebView2, pausar audio) y solo entonces destruye la ventana.
+// Cierre definitivo: avisa a Dart (pausar audio) y solo entonces destruye la
+// ventana.
 void FlutterWindow::RequestClose() {
   if (close_request_pending_) return;
   const HWND hwnd = GetHandle();
@@ -451,8 +448,8 @@ void FlutterWindow::RequestClose() {
     PostMessage(hwnd, WM_CLOSE, 0, 0);
   };
   close_request_pending_ = true;
-  // Sin dialogo previsto, un Dart que no responde no debe impedir salir.
-  if (!close_guard_enabled_) SetTimer(hwnd, kCloseTimer, 3000, nullptr);
+  // Un Dart que no responde no debe impedir salir.
+  SetTimer(hwnd, kCloseTimer, 3000, nullptr);
   window_channel_->InvokeMethod(
       "confirmClose", std::make_unique<flutter::EncodableValue>(true),
       std::make_unique<flutter::MethodResultFunctions<flutter::EncodableValue>>(

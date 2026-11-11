@@ -1,4 +1,4 @@
-//! Hilo de escucha: micrófono → Vosk (gramática cerrada) → regla de activación.
+//! Hilo de escucha: micrófono → frases (VAD) → Whisper → regla de activación.
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -9,8 +9,9 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crate::capture::{self, Downmix, MODEL_RATE};
-use crate::command::{grammar_json, vocabulary, Gate, Heard, Intent, WAKE_WORD};
-use crate::vosk::{Model, Vosk};
+use crate::command::{Gate, Heard, Intent};
+use crate::vad::Segmenter;
+use crate::whisper::Transcriber;
 use crate::VoiceError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +19,8 @@ pub enum Event {
     Command(Intent),
     /// Se dijo «aurora» y se espera la orden.
     Wake,
+    /// Lo último que se entendió (cualquier frase), para diagnosticar.
+    Heard(String),
     /// La escucha se detuvo (micrófono perdido…).
     Stopped(String),
 }
@@ -34,30 +37,15 @@ pub struct Listener {
     thread: Option<JoinHandle<()>>,
 }
 
-fn load(lib: &Path, model_dir: &Path) -> Result<Arc<Model>, VoiceError> {
-    let vosk = Vosk::load(lib)?;
-    let model = Arc::new(vosk.model(model_dir)?);
-    // Vosk ignora sin avisar una palabra que el modelo no conoce: la orden
-    // simplemente nunca se reconocería. Mejor decirlo al activar.
-    let unknown: Vec<String> = vocabulary()
-        .into_iter()
-        .filter(|w| !model.knows(w))
-        .collect();
-    if unknown.iter().any(|w| w == WAKE_WORD) {
-        return Err(VoiceError::Model(
-            "El modelo de voz no conoce la palabra «aurora».".into(),
-        ));
-    }
-    if !unknown.is_empty() {
-        eprintln!("Aurora voz: el modelo no conoce {unknown:?}");
-    }
-    Ok(model)
+/// Hilos para la inferencia: la mitad de los núcleos, entre 2 y 4.
+pub(crate) fn worker_threads() -> i32 {
+    thread::available_parallelism().map_or(2, |n| (n.get() / 2).clamp(2, 4)) as i32
 }
 
 impl Listener {
-    /// Carga la biblioteca y el modelo y abre el micrófono; espera a que todo
-    /// esté listo (puede tardar unos segundos): llamar desde un hilo de trabajo.
-    pub fn start(lib: &Path, model_dir: &Path) -> Result<Self, VoiceError> {
+    /// Carga el modelo y abre el micrófono; espera a que todo esté listo.
+    /// Llamar desde un hilo de trabajo.
+    pub fn start(model: &Path) -> Result<Self, VoiceError> {
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             events: Mutex::new(VecDeque::new()),
@@ -65,10 +53,10 @@ impl Listener {
         });
         let (ready_tx, ready_rx) = mpsc::channel::<Result<(), VoiceError>>();
         let worker = shared.clone();
-        let (lib, model_dir) = (lib.to_path_buf(), model_dir.to_path_buf());
+        let model = model.to_path_buf();
         let thread = thread::Builder::new()
             .name("aurora-voice".into())
-            .spawn(move || run(worker, &lib, &model_dir, ready_tx))
+            .spawn(move || run(worker, &model, ready_tx))
             .map_err(|e| VoiceError::Audio(e.to_string()))?;
         match ready_rx.recv() {
             Ok(Ok(())) => Ok(Self {
@@ -120,20 +108,14 @@ fn push(shared: &Shared, event: Event) {
     queue.push_back(event);
 }
 
-fn run(
-    shared: Arc<Shared>,
-    lib: &Path,
-    model_dir: &Path,
-    ready: mpsc::Sender<Result<(), VoiceError>>,
-) {
+fn run(shared: Arc<Shared>, model: &Path, ready: mpsc::Sender<Result<(), VoiceError>>) {
     let setup = || -> Result<_, VoiceError> {
-        let model = load(lib, model_dir)?;
-        let recognizer = model.recognizer(MODEL_RATE as f32, Some(&grammar_json()))?;
+        let transcriber = Transcriber::load(model, worker_threads(), false)?;
         let mic = capture::open()?;
         let downmix = Downmix::new(mic.rate)?;
-        Ok((model, recognizer, mic, downmix))
+        Ok((transcriber, mic, downmix))
     };
-    let (_model, mut recognizer, mut mic, mut downmix) = match setup() {
+    let (mut transcriber, mut mic, mut downmix) = match setup() {
         Ok(parts) => {
             let _ = ready.send(Ok(()));
             parts
@@ -144,8 +126,9 @@ fn run(
         }
     };
     let mut gate = Gate::new();
+    let mut segmenter = Segmenter::new();
     let mut block: Vec<f32> = Vec::with_capacity(4096);
-    let mut pcm: Vec<i16> = Vec::with_capacity(2048);
+    let mut pcm: Vec<f32> = Vec::with_capacity(2048);
     while !shared.stop.load(Ordering::Relaxed) {
         if mic.lost.load(Ordering::Relaxed) {
             push(
@@ -170,39 +153,45 @@ fn run(
             .store((capture::level(&block) * 1000.0) as u32, Ordering::Relaxed);
         pcm.clear();
         downmix.push(&block, &mut pcm);
-        if recognizer.accept(&pcm) {
-            match gate.feed(&recognizer.result(), Instant::now()) {
-                Heard::Command(intent) => push(&shared, Event::Command(intent)),
-                Heard::Wake => push(&shared, Event::Wake),
-                Heard::Ignored => {}
+        for utterance in segmenter.push(&pcm) {
+            match transcriber.command(&utterance) {
+                Ok(heard) => {
+                    if !heard.text.is_empty() {
+                        push(&shared, Event::Heard(heard.text.clone()));
+                    }
+                    match gate.feed(&heard.text, heard.no_speech, Instant::now()) {
+                        Heard::Command(intent) => push(&shared, Event::Command(intent)),
+                        Heard::Wake => push(&shared, Event::Wake),
+                        Heard::Ignored => {}
+                    }
+                }
+                Err(e) => push(&shared, Event::Stopped(e.to_string())),
             }
         }
     }
 }
 
-/// Analiza audio ya grabado (16 kHz, mono) como si llegara del micrófono.
-/// Para pruebas y diagnóstico; el tiempo de la regla de activación es el del audio.
-pub fn analyze_pcm(lib: &Path, model_dir: &Path, pcm: &[i16]) -> Result<Vec<Heard>, VoiceError> {
-    let model = load(lib, model_dir)?;
-    let mut recognizer = model.recognizer(MODEL_RATE as f32, Some(&grammar_json()))?;
+/// Analiza audio ya grabado (16 kHz, mono) como si llegara del micrófono: lo
+/// que se entendió de cada frase y lo que Aurora haría con ella. Para pruebas
+/// y diagnóstico; el reloj de la regla de activación es el del audio.
+pub fn listen_offline(model: &Path, pcm: &[f32]) -> Result<Vec<(String, Heard)>, VoiceError> {
+    let mut transcriber = Transcriber::load(model, worker_threads(), false)?;
     let mut gate = Gate::new();
+    let mut segmenter = Segmenter::new();
     let start = Instant::now();
     let mut heard = Vec::new();
     let mut fed = 0usize;
     let chunk = MODEL_RATE as usize / 10;
     // Un segundo de silencio al final cierra la última frase.
-    let tail = vec![0i16; MODEL_RATE as usize];
+    let tail = vec![0.0f32; MODEL_RATE as usize * 2];
     for part in pcm.chunks(chunk).chain(tail.chunks(chunk)) {
         fed += part.len();
-        if recognizer.accept(part) {
+        for utterance in segmenter.push(part) {
+            let said = transcriber.command(&utterance)?;
             let now = start + Duration::from_secs_f64(fed as f64 / MODEL_RATE as f64);
-            heard.push(gate.feed(&recognizer.result(), now));
+            let what = gate.feed(&said.text, said.no_speech, now);
+            heard.push((said.text, what));
         }
-    }
-    let rest = recognizer.final_result();
-    if !rest.is_empty() {
-        let now = start + Duration::from_secs_f64(fed as f64 / MODEL_RATE as f64);
-        heard.push(gate.feed(&rest, now));
     }
     Ok(heard)
 }

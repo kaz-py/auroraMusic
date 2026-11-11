@@ -65,22 +65,14 @@ class _Counts {
 
 void main() {
   group('reglas puras', () {
-    test(
-      'visible solo con pista, fuera de la sección 4 y de YouTube Music',
-      () {
-        bool v(bool track, int section, [bool official = false]) =>
-            MiniPlayerHost.isVisible(
-              hasTrack: track,
-              section: section,
-              officialMusicPage: official,
-            );
-        expect(v(true, 0), isTrue);
-        expect(v(false, 0), isFalse);
-        expect(v(true, 4), isFalse);
-        expect(v(true, 6), isFalse); // Letras (modo artista): controles propios
-        expect(v(true, 10, true), isFalse);
-      },
-    );
+    test('visible solo con pista y fuera de las secciones 4 y 6', () {
+      bool v(bool track, int section) =>
+          MiniPlayerHost.isVisible(hasTrack: track, section: section);
+      expect(v(true, 0), isTrue);
+      expect(v(false, 0), isFalse);
+      expect(v(true, 4), isFalse);
+      expect(v(true, 6), isFalse); // Letras (modo artista): controles propios
+    });
 
     test('Slush móvil lleva el mini en su barra, también con Jam', () {
       MiniPlayerPlacement p(bool slush, bool rail) =>

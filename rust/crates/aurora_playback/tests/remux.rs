@@ -82,7 +82,7 @@ fn other_codecs_cancellation_and_junk_are_rejected() {
         run(media("tone.m4a"), false),
         Err(OpenError::Unsupported(_))
     ));
-    assert!(matches!(run(media("tone.mp3"), false), Err(_)));
+    assert!(run(media("tone.mp3"), false).is_err());
     assert!(run(media("tone-opus.webm"), true).is_err());
     let junk = dir.path().join("junk.webm");
     fs::write(&junk, vec![7u8; 3000]).unwrap();

@@ -10,7 +10,7 @@ Aurora is a Flutter/Dart music player for Windows and Android. Shared models and
 - `flutter run -d windows`: start the desktop application.
 - `flutter run -d <device-id>`: start on an Android device listed by `flutter devices`.
 - `flutter analyze`: check Dart types and configured Flutter lints.
-- `cargo build --release --manifest-path rust/Cargo.toml`: build the Rust engine (`rust/`); required before `flutter test`, which loads `rust/target/release/rust_lib_aurora_music.dll` (`.so` on Linux). Re-run `flutter_rust_bridge_codegen generate` after changing `rust/src/api/`.
+- `cargo build --release --manifest-path rust/Cargo.toml`: build the Rust engine (`rust/`; compiles whisper.cpp, so it needs CMake and LLVM/libclang: on Windows `winget install LLVM.LLVM`, set `LIBCLANG_PATH` to LLVM's `bin` and put CMake on `PATH` (Visual Studio's bundled one works); `.cargo/config.toml` sets the ggml flags); required before `flutter test`, which loads `rust/target/release/rust_lib_aurora_music.dll` (`.so` on Linux). Re-run `flutter_rust_bridge_codegen generate` after changing `rust/src/api/`.
 - `cargo test --manifest-path rust/Cargo.toml --workspace`: run the Rust engine tests.
 - `flutter test`: run unit and widget tests (build the Rust engine first).
 - `dart format lib test`: format Dart sources with the Flutter SDK's Dart executable.

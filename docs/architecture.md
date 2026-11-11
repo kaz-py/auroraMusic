@@ -12,7 +12,6 @@ lib/
   core/                             Track, playlists, contratos y controles de ventana
   audio/                            motor Rust (Symphonia + CPAL), EQ/FFT y controles multimedia
   sources/                          InnerTube (búsqueda), yt-dlp (descargas)
-  audio_web/                        reproductor oficial de YouTube Music en WebView oculto
   library/
     library_database.dart           SQLite: biblioteca, favoritos, listas e historial
     local_file_metadata.dart        Tamaño y formato de archivos conocidos
@@ -98,7 +97,7 @@ Las sesiones Jam, sus participantes, tokens y cola común permanecen en memoria.
 
 ## Motor de audio v1.1.0
 
-`InnertubeSource` busca en YouTube Music (canciones, álbumes, artistas, vídeos; continuación y recientes) y resuelve cada canción a su página oficial `music.youtube.com/watch?v=<id>`. `RoutedMusicAudio` envía esas páginas a `WebMusicAudio` (WebView oculto, ver [youtube_music_audio_engine.md](youtube_music_audio_engine.md)) y los archivos locales a `AndroidMusicAudio`/Media3 o `MusicAudio`/SoLoud + FFmpeg; yt-dlp solo descarga. El DJ (`lib/dj/ai_dj.dart`) guarda `track_vectors` y `taste_profile` en SQLite (drift) y no usa recomendaciones de YouTube; detalles en [dj.md](dj.md).
+`InnerTubeSource` busca en YouTube Music (canciones, álbumes, artistas, vídeos; continuación y recientes) y resuelve cada canción con `StreamOrchestrator` (endpoint `player`, cliente VISIONOS) a una URL de un proxy de bucle local (`AudioProxy`) que reproducen `AndroidMusicAudio`/Media3 o `RustMusicAudio` (Symphonia + CPAL); los archivos locales van directos al mismo motor. No hay reproductor web ni respaldo: si la resolución falla, se muestra el error de reproducción. yt-dlp solo descarga. Detalle en [youtube_music_audio_engine.md](youtube_music_audio_engine.md). El DJ (`lib/dj/ai_dj.dart`) guarda `track_vectors` y `taste_profile` en SQLite y no usa recomendaciones de YouTube; detalles en [dj.md](dj.md).
 
 Consulta [diseño implementado](design_idea_implementation.md),
 [DJ y sus señales](dj.md), [metadatos Spotify](spotify_metadata.md),

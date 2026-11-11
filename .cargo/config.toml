@@ -1,0 +1,15 @@
+# Flags de whisper.cpp (comandos de voz y letras): la compilación nativa de ggml
+# no detecta la CPU con MSVC y queda sin AVX2 (12 s por frase en vez de <1 s), y
+# `GGML_NATIVE` en GCC/Clang ataría el binario a la CPU de quien lo compila.
+# AVX2+FMA es el mínimo de cualquier equipo de escritorio desde 2013; el motor
+# de voz comprueba la CPU antes de cargar el modelo.
+[env]
+GGML_NATIVE = "OFF"
+GGML_AVX = "ON"
+GGML_AVX2 = "ON"
+GGML_FMA = "ON"
+GGML_F16C = "ON"
+# cmake-rs con el generador de Visual Studio por defecto pisa los flags de
+# Release de CMake con los suyos sin optimización (/Od): la inferencia iba ~30×
+# más lenta. Indicar el generador explícitamente (solo en MSVC) lo evita.
+CMAKE_GENERATOR_x86_64_pc_windows_msvc = "Visual Studio 17 2022"

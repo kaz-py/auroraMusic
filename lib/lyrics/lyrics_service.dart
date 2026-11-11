@@ -19,6 +19,47 @@ class LyricLine {
   final String text;
 }
 
+/// Corrección de tiempos de la letra de una pista.
+class LyricsAdjust {
+  const LyricsAdjust({
+    required this.source,
+    this.shiftMs,
+    this.startsMs,
+    this.tried = false,
+  });
+
+  /// `duration` (diferencia de duración) o `audio` (medido con Whisper).
+  final String source;
+
+  /// Desplazamiento constante (ms) que se suma a los tiempos de la letra.
+  final int? shiftMs;
+
+  /// Hora (ms) de cada línea; sustituye a los tiempos de la letra.
+  final List<int>? startsMs;
+
+  /// Ya se intentó medir en el audio sin un resultado fiable: no se repite.
+  final bool tried;
+
+  /// Medido en el audio: no hace falta volver a analizar.
+  bool get settled => source == 'audio' || tried;
+
+  factory LyricsAdjust.fromJson(Map<dynamic, dynamic> json) => LyricsAdjust(
+    source: '${json['source']}',
+    shiftMs: (json['shiftMs'] as num?)?.toInt(),
+    startsMs: (json['startsMs'] as List?)
+        ?.map((e) => (e as num).toInt())
+        .toList(),
+    tried: json['tried'] == true,
+  );
+
+  Map<String, Object?> toJson() => {
+    'source': source,
+    if (shiftMs != null) 'shiftMs': shiftMs,
+    if (startsMs != null) 'startsMs': startsMs,
+    if (tried) 'tried': true,
+  };
+}
+
 class LyricsResult {
   const LyricsResult(
     this.kind, {
@@ -640,7 +681,7 @@ class LyricsService {
         dir: dir.path,
         maxFiles: maxCacheFiles,
         nameSuffix: '.json',
-        excludeNames: const ['offsets.json', 'offsets_auto.json'],
+        excludeNames: const ['adjust.json'],
       );
     } catch (_) {
       // la caché es opcional
@@ -692,103 +733,109 @@ class LyricsService {
     if (result.kind != LyricsKind.synced) return null;
     // La letra es de otra versión más corta (el vídeo suele traer una intro):
     // sus tiempos van adelantados por esa diferencia. Se parte de ese desfase
-    // para que no empiece mal; el usuario lo afina con los botones de la letra.
-    // shortcut: supone que la diferencia es intro y no final; sin forma de
-    // saberlo desde aquí, se corrige a mano con el ajuste de la letra.
+    // hasta que el análisis del audio lo mida de verdad.
+    // shortcut: supone que la diferencia es intro y no final.
     final gap = total - fits.first.seconds;
-    if (gap > syncToleranceSeconds &&
-        await readOffset(track, root) == 0 &&
-        await readAutoOffset(track, root) == null) {
-      await writeAutoOffset(track, root, -gap * 1000, 'duration');
+    if (gap > syncToleranceSeconds && await readAdjust(track, root) == null) {
+      await writeAdjust(
+        track,
+        root,
+        LyricsAdjust(source: 'duration', shiftMs: gap * 1000),
+      );
     }
     return result;
   }
 
-  // ---- desfase por pista ------------------------------------------------
+  // ---- ajuste de tiempos por pista ---------------------------------------
 
-  File _offsetsFile(Directory root) =>
-      File(p.join(root.path, 'lyrics', 'offsets.json'));
+  File _adjustFile(Directory root) =>
+      File(p.join(root.path, 'lyrics', 'adjust.json'));
 
-  /// Desfase efectivo: el que fijó el usuario (aunque sea 0) y, si no, el
-  /// calculado solo (por duración o por el audio).
-  Future<int> readOffset(Track track, Directory root) async {
-    final user = await _readUserOffset(track, root);
-    if (user != null) return user;
-    return (await readAutoOffset(track, root))?.ms ?? 0;
-  }
-
-  Future<int?> _readUserOffset(Track track, Directory root) async {
+  /// Ajuste guardado para [track] (por duración o medido en el audio).
+  Future<LyricsAdjust?> readAdjust(Track track, Directory root) async {
     try {
-      final j = jsonDecode(await _offsetsFile(root).readAsString());
-      return j is Map ? (j[_hash(track.id)] as num?)?.toInt() : null;
+      // Síncrono: el archivo es pequeño y así no depende de E/S asíncrona.
+      final j = jsonDecode(_adjustFile(root).readAsStringSync());
+      final e = j is Map ? j[_hash(track.id)] : null;
+      return e is Map ? LyricsAdjust.fromJson(e) : null;
     } catch (_) {
       return null;
     }
   }
 
-  /// ¿Ajustó el usuario esta pista a mano?
-  Future<bool> hasUserOffset(Track track, Directory root) async =>
-      await _readUserOffset(track, root) != null;
-
-  File _autoOffsetsFile(Directory root) =>
-      File(p.join(root.path, 'lyrics', 'offsets_auto.json'));
-
-  /// Desfase calculado solo, con su origen: `duration` (diferencia de
-  /// duración), `audio` (medido en el audio) o `tried` (se intentó medir y no
-  /// hubo resultado fiable; no se reintenta).
-  Future<({int ms, String source})?> readAutoOffset(
+  Future<void> writeAdjust(
     Track track,
     Directory root,
+    LyricsAdjust adjust,
   ) async {
-    try {
-      final j = jsonDecode(await _autoOffsetsFile(root).readAsString());
-      final e = j is Map ? j[_hash(track.id)] : null;
-      if (e is Map && e['ms'] is num) {
-        return (ms: (e['ms'] as num).toInt(), source: '${e['source']}');
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> writeAutoOffset(
-    Track track,
-    Directory root,
-    int ms,
-    String source,
-  ) async {
-    final file = _autoOffsetsFile(root);
+    final file = _adjustFile(root);
     Map<String, dynamic> all = {};
     try {
       final j = jsonDecode(await file.readAsString());
       if (j is Map<String, dynamic>) all = j;
     } catch (_) {}
-    all[_hash(track.id)] = {
-      'ms': ms.clamp(-maxOffsetMs, maxOffsetMs),
-      'source': source,
-    };
+    all[_hash(track.id)] = adjust.toJson();
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(jsonEncode(all), flush: true);
     await temporary.rename(file.path);
   }
 
-  static const maxOffsetMs = 60000;
+  /// [raw] (tal como llegó de la red o de la caché) con el ajuste de la pista
+  /// aplicado. Idempotente: siempre se parte de la letra sin ajustar.
+  Future<LyricsResult> adjusted(
+    Track track,
+    Directory root,
+    LyricsResult raw,
+  ) async {
+    if (raw.kind != LyricsKind.synced && raw.kind != LyricsKind.plain) {
+      return raw;
+    }
+    final adjust = await readAdjust(track, root);
+    return adjust == null ? raw : applyAdjust(raw, adjust);
+  }
 
-  /// Desfase (ms) que el usuario fija para la letra de [track]: se suma a la
-  /// posición al buscar la línea activa; negativo = la letra sale más tarde.
-  /// 0 también cuenta: «sin ajuste» elegido a mano gana a los automáticos.
-  Future<void> writeOffset(Track track, Directory root, int ms) async {
-    final file = _offsetsFile(root);
-    Map<String, dynamic> all = {};
-    try {
-      final j = jsonDecode(await file.readAsString());
-      if (j is Map<String, dynamic>) all = j;
-    } catch (_) {}
-    all[_hash(track.id)] = ms.clamp(-maxOffsetMs, maxOffsetMs);
-    await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
-    await temporary.writeAsString(jsonEncode(all), flush: true);
-    await temporary.rename(file.path);
+  /// Líneas no vacías de una letra sin tiempos (las mismas que se alinean).
+  static List<String> plainRows(String text) => [
+    for (final row in text.split(RegExp(r'\r?\n')))
+      if (row.trim().isNotEmpty) row.trim(),
+  ];
+
+  static LyricsResult applyAdjust(LyricsResult raw, LyricsAdjust adjust) {
+    final starts = adjust.startsMs;
+    LyricsResult build(List<LyricLine> lines) => LyricsResult(
+      LyricsKind.synced,
+      lines: lines,
+      text: raw.text,
+      source: raw.source,
+      confidence: raw.confidence,
+      fromCache: raw.fromCache,
+    );
+    if (raw.kind == LyricsKind.plain) {
+      final rows = plainRows(raw.text);
+      if (starts == null || starts.length != rows.length) return raw;
+      return build([
+        for (var i = 0; i < rows.length; i++)
+          LyricLine(Duration(milliseconds: starts[i]), rows[i]),
+      ]);
+    }
+    if (starts != null && starts.length == raw.lines.length) {
+      return build([
+        for (var i = 0; i < starts.length; i++)
+          LyricLine(Duration(milliseconds: starts[i]), raw.lines[i].text),
+      ]);
+    }
+    final shift = adjust.shiftMs ?? 0;
+    if (shift == 0) return raw;
+    return build([
+      for (final line in raw.lines)
+        LyricLine(
+          Duration(
+            milliseconds: (line.at.inMilliseconds + shift).clamp(0, 1 << 30),
+          ),
+          line.text,
+        ),
+    ]);
   }
 
   // ---- importación manual -------------------------------------------------

@@ -19,8 +19,10 @@ use rustfft::FftPlanner;
 use crate::decode::{OpenError, PcmStream};
 use crate::http::HttpSource;
 
-/// Segundos de audio ya decodificado que espera en el anillo.
-const RING_SECONDS: f64 = 1.0;
+/// Segundos de audio ya decodificado que espera en el anillo. Es el margen
+/// contra cortes: una reconexión de red o un tropiezo del decodificador de
+/// menos de este tiempo no se oye (8 s ≈ 3 MB a 48 kHz estéreo).
+const RING_SECONDS: f64 = 8.0;
 const SPECTRUM_WINDOW: usize = 512;
 const SPECTRUM_RING: usize = 2048;
 

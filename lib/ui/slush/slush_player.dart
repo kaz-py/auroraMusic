@@ -13,7 +13,6 @@ import '../../theme/accent_transition.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
 import '../mini_player/mini_player_model.dart';
-import '../lyrics_offset_controls.dart';
 import '../mini_player/song_card.dart';
 import '../studio/studio_transport.dart' show transportJamAudio;
 
@@ -343,11 +342,12 @@ class SlushLyricsCard extends StatefulWidget {
 
 class _SlushLyricsCardState extends State<SlushLyricsCard> {
   late final LyricsService _service = widget.service ?? LyricsService();
+  // La letra tal como llegó (`_raw`) y la mostrada con su ajuste aplicado.
+  LyricsResult? _raw;
   LyricsResult? _result;
   String? _id;
   int _request = 0;
   bool _loading = false;
-  int _offsetMs = 0;
   double _lastVolume = .75;
 
   @override
@@ -368,80 +368,67 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
     final track = widget.controller.nowTrack;
     if (track?.id == _id) return;
     _id = track?.id;
+    _raw = null;
     _result = null;
-    _offsetMs = 0;
     final request = ++_request;
     if (track == null) return;
     _loading = true;
-    unawaited(_readOffset(track, request));
-    unawaited(
-      _service
-          .load(track, widget.controller.supportDirectory)
-          .then((r) {
-            if (!mounted || request != _request) return;
-            setState(() => _result = r);
-            if (r.kind == LyricsKind.plain) {
-              unawaited(_upgrade(track, request));
-            } else if (r.kind == LyricsKind.synced) {
-              unawaited(_autoSync(track, r, request));
-            }
-          })
-          .catchError((Object _) {})
-          .whenComplete(() {
-            if (mounted && request == _request) {
-              setState(() => _loading = false);
-            }
-          }),
-    );
+    unawaited(_load(track, request));
   }
 
-  /// Mide la desviación real de la letra con el audio (una vez por pista).
-  Future<void> _autoSync(Track track, LyricsResult result, int request) async {
-    final offset = await widget.controller.lyricsAutoSync?.run(
-      track,
-      result,
-      widget.controller.audio.currentSource,
-      widget.controller.supportDirectory,
-    );
-    if (offset != null && mounted && request == _request) {
-      setState(() => _offsetMs = offset);
+  Future<void> _load(Track track, int request) async {
+    final root = widget.controller.supportDirectory;
+    try {
+      final raw = await _service.load(track, root);
+      if (!mounted || request != _request) return;
+      _raw = raw;
+      final shown = await _service.adjusted(track, root, raw);
+      if (!mounted || request != _request) return;
+      setState(() => _result = shown);
+      if (raw.kind == LyricsKind.plain) {
+        unawaited(_upgrade(track, request));
+      } else if (raw.kind == LyricsKind.synced) {
+        unawaited(_autoSync(track, raw, request));
+      }
+    } catch (_) {
+      // Sin letra: se muestra el aviso de siempre.
+    } finally {
+      if (mounted && request == _request) setState(() => _loading = false);
     }
   }
 
-  Future<void> _readOffset(Track track, int request) async {
-    final value = await _service.readOffset(
+  /// Mide cuándo suena cada línea en el audio real (una vez por pista, en
+  /// segundo plano) y, si saca una corrección, la aplica.
+  Future<void> _autoSync(Track track, LyricsResult raw, int request) async {
+    final root = widget.controller.supportDirectory;
+    final changed = await widget.controller.lyricsAutoSync?.run(
       track,
-      widget.controller.supportDirectory,
+      raw,
+      widget.controller.audio.currentSource,
+      root,
     );
-    if (mounted && request == _request) setState(() => _offsetMs = value);
+    if (changed != true || !mounted || request != _request) return;
+    final shown = await _service.adjusted(track, root, raw);
+    if (mounted && request == _request) setState(() => _result = shown);
   }
 
-  void _setOffset(int ms) {
-    final track = widget.controller.nowTrack;
-    if (track == null) return;
-    final value = ms.clamp(
-      -LyricsService.maxOffsetMs,
-      LyricsService.maxOffsetMs,
-    );
-    setState(() => _offsetMs = value);
-    unawaited(
-      _service.writeOffset(track, widget.controller.supportDirectory, value),
-    );
-  }
-
-  /// Letra sin tiempos: se busca una versión sincronizada que case.
+  /// Letra sin tiempos: se busca una versión sincronizada que case; si no la
+  /// hay, se le pone hora con el audio.
   Future<void> _upgrade(Track track, int request) async {
+    final root = widget.controller.supportDirectory;
+    final plain = _raw;
     try {
-      final up = await _service.upgradeToSynced(
-        track,
-        widget.controller.supportDirectory,
-      );
-      if (up != null && mounted && request == _request) {
-        setState(() => _result = up);
-        // `upgradeToSynced` puede haber fijado un desfase inicial.
-        await _readOffset(track, request);
-        unawaited(_autoSync(track, up, request));
+      final up = await _service.upgradeToSynced(track, root);
+      if (!mounted || request != _request) return;
+      if (up == null) {
+        if (plain != null) unawaited(_autoSync(track, plain, request));
+        return;
       }
+      _raw = up;
+      final shown = await _service.adjusted(track, root, up);
+      if (!mounted || request != _request) return;
+      setState(() => _result = shown);
+      unawaited(_autoSync(track, up, request));
     } catch (_) {
       // Se queda la letra aproximada.
     }
@@ -457,6 +444,7 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
         widget.controller.supportDirectory,
       );
       if (mounted && request == _request && r != null) {
+        _raw = r;
         setState(() => _result = r);
       }
     } catch (_) {}
@@ -467,12 +455,7 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
     if (_loading) return 'Buscando…';
     if (r == null || r.kind == LyricsKind.notFound) return 'Sin letra';
     if (r.kind == LyricsKind.instrumental) return 'Instrumental';
-    final kind = r.kind == LyricsKind.synced
-        ? 'Sincronizada'
-        : widget.controller.audio.duration > Duration.zero
-        ? 'Sincronización aproximada'
-        : 'Texto plano';
-    return r.source.isEmpty ? kind : '$kind · ${r.source}';
+    return r.source.isEmpty ? 'Letra' : r.source;
   }
 
   @override
@@ -511,7 +494,7 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
                         active: r.lines.lastIndexWhere(
                           (l) =>
                               l.at.inMilliseconds <=
-                              c.audio.position.inMilliseconds + _offsetMs,
+                              c.audio.position.inMilliseconds,
                         ),
                       ),
                     )
@@ -572,11 +555,6 @@ class _SlushLyricsCardState extends State<SlushLyricsCard> {
                         ).textTheme.titleLarge?.copyWith(fontSize: 24),
                       ),
                       SlushPill(_chip),
-                      if (synced)
-                        LyricsOffsetControls(
-                          offsetMs: _offsetMs,
-                          onChanged: _setOffset,
-                        ),
                     ],
                   ),
                   const SizedBox(height: SlushSpacing.s12),
@@ -938,11 +916,10 @@ class _Round extends StatelessWidget {
 }
 
 /// Línea del artista de los reproductores completos: misma prioridad que
-/// `miniSubtitle` (anuncio, Jam, artista) pero con la pista que pinta la
-/// pantalla. Con audio de Jam manda la Jam, no el anuncio del sitio.
+/// `miniSubtitle` (Jam, artista) pero con la pista que pinta la pantalla.
 String playerArtistLine(AppController c, JamController? jam, Track track) {
   if (transportJamAudio(c, jam)) return '${track.artist} \u00b7 Jam';
-  return c.adPlaying ? miniAdNotice : track.artist;
+  return track.artist;
 }
 
 class _Controls extends StatelessWidget {

@@ -10,7 +10,6 @@ import '../core/window_controls.dart';
 import '../jam/jam_controller.dart';
 import '../lyrics/lyrics_service.dart';
 import 'artwork.dart';
-import 'lyrics_offset_controls.dart';
 import 'mini_player/blurred_cover_backdrop.dart';
 import 'mini_player/mini_player_model.dart';
 import 'undo_snackbar.dart';
@@ -53,6 +52,9 @@ class ArtistModePage extends StatefulWidget {
 
 class _ArtistModePageState extends State<ArtistModePage> {
   late final LyricsService _service = widget.service ?? LyricsService();
+  // La letra tal como llegó (`_raw`) y la que se muestra con su ajuste de
+  // tiempos aplicado (`_result`).
+  LyricsResult? _raw;
   LyricsResult? _result;
   bool _loading = false;
   String? _trackId;
@@ -67,7 +69,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
   int _lineCount = 0;
   double? _drag;
   bool _fullscreen = false;
-  int _offsetMs = 0;
   final Map<int, GlobalKey> _lineKeys = {};
   final _lineScroll = ScrollController();
   final _plainScroll = ScrollController();
@@ -98,35 +99,33 @@ class _ArtistModePageState extends State<ArtistModePage> {
     _revealing = false;
     _revealGen++;
     _lineKeys.clear();
-    _offsetMs = 0;
+    _raw = null;
     _result = null;
     _loading = false;
-    if (track != null) {
-      unawaited(_load(track));
-      unawaited(
-        _service.readOffset(track, widget.controller.supportDirectory).then((
-          v,
-        ) {
-          if (mounted && _trackId == track.id) setState(() => _offsetMs = v);
-        }),
-      );
-    }
+    if (track != null) unawaited(_load(track));
   }
 
   Future<void> _load(Track track) async {
     final request = _request;
     setState(() => _loading = true);
     try {
-      final result = await _service.load(
+      final raw = await _service.load(
         track,
         widget.controller.supportDirectory,
       );
       if (!mounted || request != _request) return;
-      setState(() => _result = result);
-      if (result.kind == LyricsKind.plain) {
+      _raw = raw;
+      final shown = await _service.adjusted(
+        track,
+        widget.controller.supportDirectory,
+        raw,
+      );
+      if (!mounted || request != _request) return;
+      setState(() => _result = shown);
+      if (raw.kind == LyricsKind.plain) {
         unawaited(_upgrade(track, request));
-      } else if (result.kind == LyricsKind.synced) {
-        unawaited(_autoSync(track, result, request));
+      } else if (raw.kind == LyricsKind.synced) {
+        unawaited(_autoSync(track, raw, request));
       }
     } catch (_) {
       // Sin letra: se muestra el aviso de siempre.
@@ -135,56 +134,52 @@ class _ArtistModePageState extends State<ArtistModePage> {
     }
   }
 
-  /// Mide la desviación real de la letra con el audio (una vez por pista).
-  Future<void> _autoSync(Track track, LyricsResult result, int request) async {
-    final offset = await widget.controller.lyricsAutoSync?.run(
+  /// Muestra [result] desde el principio de la lista.
+  void _show(LyricsResult result) => setState(() {
+    _result = result;
+    _lastActive = -1;
+    _placed = false;
+    _revealing = false;
+    _revealGen++;
+    _lineKeys.clear();
+  });
+
+  /// Mide cuándo suena cada línea en el audio real (una vez por pista, en
+  /// segundo plano) y, si saca una corrección, la aplica.
+  Future<void> _autoSync(Track track, LyricsResult raw, int request) async {
+    final changed = await widget.controller.lyricsAutoSync?.run(
       track,
-      result,
+      raw,
       widget.controller.audio.currentSource,
       widget.controller.supportDirectory,
     );
-    if (offset != null && mounted && request == _request) {
-      setState(() => _offsetMs = offset);
-    }
-  }
-
-  void _setOffset(int ms) {
-    final track = widget.controller.nowTrack;
-    if (track == null) return;
-    final value = ms.clamp(
-      -LyricsService.maxOffsetMs,
-      LyricsService.maxOffsetMs,
+    if (changed != true || !mounted || request != _request) return;
+    final shown = await _service.adjusted(
+      track,
+      widget.controller.supportDirectory,
+      raw,
     );
-    setState(() => _offsetMs = value);
-    unawaited(
-      _service.writeOffset(track, widget.controller.supportDirectory, value),
-    );
+    if (mounted && request == _request) _show(shown);
   }
 
   /// La letra llegó sin sincronizar: se busca una versión sincronizada que
-  /// case (ver [LyricsService.upgradeToSynced]) y, si hay, se usa.
+  /// case (ver [LyricsService.upgradeToSynced]); si no la hay, se le pone hora
+  /// con el audio.
   Future<void> _upgrade(Track track, int request) async {
+    final root = widget.controller.supportDirectory;
+    final plain = _raw;
     try {
-      final result = await _service.upgradeToSynced(
-        track,
-        widget.controller.supportDirectory,
-      );
-      if (result == null || !mounted || request != _request) return;
-      setState(() {
-        _result = result;
-        _lastActive = -1;
-        _placed = false;
-        _revealing = false;
-        _revealGen++;
-        _lineKeys.clear();
-      });
-      // `upgradeToSynced` puede haber fijado un desfase inicial.
-      final offset = await _service.readOffset(
-        track,
-        widget.controller.supportDirectory,
-      );
-      if (mounted && request == _request) setState(() => _offsetMs = offset);
-      unawaited(_autoSync(track, result, request));
+      final synced = await _service.upgradeToSynced(track, root);
+      if (!mounted || request != _request) return;
+      if (synced == null) {
+        if (plain != null) unawaited(_autoSync(track, plain, request));
+        return;
+      }
+      _raw = synced;
+      final shown = await _service.adjusted(track, root, synced);
+      if (!mounted || request != _request) return;
+      _show(shown);
+      unawaited(_autoSync(track, synced, request));
     } catch (_) {
       // Se queda la letra aproximada.
     }
@@ -306,21 +301,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
             onDoubleTap: () => _fullscreen
                 ? _setFullscreen(false)
                 : WindowControls.invoke('maximize'),
-            // Se encoge antes que desbordar: ocupa el hueco de arrastre.
-            child: SizedBox(
-              height: 44,
-              child: _result?.kind == LyricsKind.synced
-                  ? Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: LyricsOffsetControls(
-                          offsetMs: _offsetMs,
-                          onChanged: _setOffset,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
+            child: const SizedBox(height: 44),
           ),
         ),
         if (WindowControls.fullscreenSupported)
@@ -779,7 +760,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
     final lines = isApprox ? approx : result.lines;
     final position = widget.controller.audio.position;
     final active = lines.lastIndexWhere(
-      (line) => line.at.inMilliseconds <= position.inMilliseconds + _offsetMs,
+      (line) => line.at.inMilliseconds <= position.inMilliseconds,
     );
     _lineCount = lines.length;
     // Antes de la primera línea no hay nada que centrar: el inicio es correcto.
@@ -856,22 +837,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
         ),
       ),
     );
-    if (!isApprox) return list;
-    return Stack(
-      children: [
-        list,
-        Positioned(
-          top: 0,
-          left: 0,
-          child: Text(
-            'Sincronización aproximada',
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: tone.secondary),
-          ),
-        ),
-      ],
-    );
+    return list;
   }
 
   Widget _controls(

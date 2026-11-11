@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 abstract final class WindowControls {
   static bool get supported => Platform.isWindows;
   static const _channel = MethodChannel('aurora/window');
-  static Future<bool> Function()? _confirm;
 
   /// Se ejecuta tras confirmar un cierre real (Alt+F4 / Salir): detener audio.
   static Future<void> Function()? onRealExit;
@@ -21,15 +20,15 @@ abstract final class WindowControls {
 
   static bool _installed = false;
 
-  static void _install() {
+  /// Instala el canal nativo (cierre real, bandeja y segunda instancia).
+  static void install() {
     if (_installed || !Platform.isWindows) return;
     _installed = true;
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'confirmClose':
-          final ok = await (_confirm?.call() ?? Future.value(true));
-          if (ok && call.arguments == true) await onRealExit?.call();
-          return ok;
+          if (call.arguments == true) await onRealExit?.call();
+          return true;
         case 'trayAction':
           onTrayAction?.call(call.arguments as String);
           return null;
@@ -40,13 +39,6 @@ abstract final class WindowControls {
       throw MissingPluginException();
     });
   }
-
-  static void setCloseConfirmation(Future<bool> Function()? confirm) {
-    _confirm = confirm;
-    _install();
-  }
-
-  static Future<bool> guardClose(bool enabled) => invoke('guardClose', enabled);
 
   /// Tamaño lógico de la ventana del modo mini.
   static const miniWindowSize = Size(380, 150);
@@ -78,7 +70,7 @@ abstract final class WindowControls {
 
   static Future<bool> invoke(String operation, [Object? arguments]) async {
     if (!Platform.isWindows) return false;
-    _install();
+    install();
     try {
       await _channel.invokeMethod<void>(operation, arguments);
       return true;

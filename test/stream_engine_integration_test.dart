@@ -128,7 +128,6 @@ void main() {
 
   test('resolve to loopback: full read, range read, completion', () async {
     final audio = await source.resolve(_track);
-    expect(audio.engine, AudioEngine.native);
     expect(audio.headers, isEmpty);
     expect(Uri.parse(audio.input).host, '127.0.0.1');
 

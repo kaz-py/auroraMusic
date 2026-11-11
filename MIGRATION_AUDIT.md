@@ -178,6 +178,14 @@ Punto de retorno: etiqueta git `rust-antes-de-quitar-soloud` (`71ecfe2`).
 - **Android no cambia:** sigue con Media3 y `youtubedl-android` (que trae su FFmpeg y entrega MP3).
 - **Verificación.** Pruebas Rust nuevas: reconexión con `Range` tras un corte (y fallo si cada conexión se corta), duraciones de las ocho muestras, archivos `.audio` por contenido, validación (truncado, cancelación, basura) y remux (idéntico al original, entrada Ogg, rechazo de otros códecs). `flutter test`, `flutter analyze` y clippy limpios.
 
+### Voz con Whisper (comandos y letras)
+
+- **Por qué no Vosk.** La primera versión usaba Vosk (modelo pequeño español, `libvosk` cargada en tiempo de ejecución). Con voz sintética limpia acertaba, pero en una canción real (*Berry Dreams*, 195 s) el modelo pequeño devolvió 9 palabras sueltas y, con gramática cerrada con las 57 líneas de la letra, 2: inútil para letras. Whisper `base` q5_1 recuperó el canto casi entero y entiende órdenes a 40 dB por debajo de lo normal.
+- **Qué hay.** `rust/crates/aurora_voice`: captura (cpal) → detector de voz por energía con umbral adaptativo → Whisper (whisper.cpp vía `whisper-rs`, enlazado estáticamente, sin DLL aparte) → órdenes («Aurora, …») con comparación tolerante a una letra por palabra. Alineación de letras: transcripción con hora por palabra (DTW) alineada por programación dinámica con el texto; anclas por línea, interpolación entre ellas (letra sin tiempos) o corrección de desplazamiento (letra sincronizada).
+- **Medido.** Comandos: 42/42 con dos voces a ganancia 1, 0,03 y 0,01; 14 frases de control y silencio/ruido sin falsas activaciones. Coste: ~0,9 s por frase; alineación de una canción completa ~14 s de CPU (3 hilos). La compilación de whisper.cpp con MSVC y el generador de VS por defecto salía **sin optimización** (cmake-rs pisa `CMAKE_CXX_FLAGS_RELEASE`): 12 s por frase; con el generador explícito en `.cargo/config.toml` baja a 0,9 s.
+- **Requisitos.** CMake y LLVM/libclang al compilar; CPU con AVX2/FMA/F16C (ggml se compila con ellas y Aurora lo comprueba antes de cargar el modelo). El modelo (60 MB) se descarga al activar.
+- **Sin verificar.** Linux (compilación y micrófono), el micrófono real del usuario, y la precisión de las letras: solo se evaluó cualitativamente con una canción real (sin letra sincronizada de referencia).
+
 ### Fase 4.1 (hecha): caché de audio en `aurora_cache`
 
 - `playbackCacheInfo`, `clearPlaybackCache` y `_pruneAudioCache` de `YtDlpSource` delegan en `aurora_cache::{audio_cache_info, clear_audio_cache, prune_audio_cache}`. Solo cuentan archivos regulares `^[A-Za-z0-9_-]{11}\.audio$`; enlaces simbólicos y el resto se ignoran; un archivo en uso se salta; la poda respeta la reserva (`max - reserve`, que puede ser negativa) y los archivos protegidos (el pedido y el progresivo activo) e informa `no_space` para que Dart lance el mismo `StateError`.
@@ -210,3 +218,7 @@ Cambios de comportamiento y divergencias deliberadas:
 - `analysis_options.yaml` excluye `rust_builder/**` (herramienta de Cargokit con su propio pubspec) y `lib/bridge/**` (generado).
 - Prerrequisito de pruebas: `flutter test` carga `rust/target/release/rust_lib_aurora_music.dll` (`.so` en Linux); hay que ejecutar antes `cargo build --release --manifest-path rust/Cargo.toml` (`test/flutter_test_config.dart`).
 - `flutter pub get` tras añadir el complemento `rust_lib_aurora_music` falla la primera vez en Windows sin Modo de desarrollador al crear el enlace simbólico del complemento; la segunda ejecución pasa (los archivos de resolución ya están escritos).
+
+## Retirada del respaldo WebView (2026-11-09)
+
+Se eliminó por completo el reproductor oficial en WebView oculto (`lib/audio_web/`, `lib/youtube_music/`, `RoutedMusicAudio`, `AudioEngine.web`, `WebMusicSource`, la lista negra del orquestador que solo servía al respaldo y el espejo `external` de Media3), junto con `flutter_inappwebview` y `adblocker_webview`. Las menciones anteriores de esta auditoría a ese motor, a `RoutedMusicAudio` y a `nuget.exe` describen la base 1.5.2 y ya no se aplican: ahora `main.dart` usa `AndroidMusicAudio` o `RustMusicAudio` directamente y, si la resolución nativa falla, el usuario ve el error de reproducción normal.

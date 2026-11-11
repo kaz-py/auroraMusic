@@ -55,6 +55,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 
 ## Sin verificar
 
+| Voz con Whisper en Linux, micrófono real y letras contra una referencia sincronizada | La compilación en Linux y la precisión de la alineación no se midieron (ver `MIGRATION_AUDIT.md`, «Voz con Whisper»). |
 | Qué | Motivo |
 |---|---|
 | Arranque de la versión de Windows (`aurora_music.exe`) con `rust_lib_aurora_music.dll` | La instancia instalada de Aurora estaba abierta y la nueva cede el control y sale. Pendiente de lanzarla con la otra cerrada. |
@@ -75,3 +76,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 
 - **Modelo asíncrono en Rust.** Todas las funciones del puente son `sync` porque las pruebas de widgets corren bajo `FakeAsync` y las llamadas asíncronas de FRB no avanzan allí. Las fases 3.2, 4, 5 y 6 (red, procesos, WebSocket) necesitan un tiempo de ejecución asíncrono y una forma de probarlo (pruebas en Rust con `tokio` y simulación en el puente).
 - **Dónde probar audio real (2b):** hace falta un equipo con dispositivo de audio y sesiones de escucha; el arnés actual solo mide RSS y deriva de reloj.
+
+## Retirado: respaldo WebView
+
+El respaldo de reproducción en WebView oculto (sitio oficial de YouTube Music) se eliminó entero, con su dependencia `flutter_inappwebview`; no queda nada pendiente ni aplazado sobre él. Si YouTube bloquea una canción, el usuario ve el error de reproducción normal (detalle en `docs/youtube_music_audio_engine.md`).

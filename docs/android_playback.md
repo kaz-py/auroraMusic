@@ -1,4 +1,4 @@
-> **Actualización.** Las canciones de YouTube ya no se resuelven ni pasan por Media3: suenan en el reproductor oficial de music.youtube.com dentro de un WebView oculto ([youtube_music_audio_engine.md](youtube_music_audio_engine.md)). Media3 reproduce los archivos locales y además refleja el estado del WebView en su sesión/notificación (servicio en primer plano, bloqueos de CPU y Wi-Fi mientras suena) para que Android no congele la app en segundo plano. yt-dlp queda para descargas. Lo que sigue describe descargas y reproducción local. Pendiente en dispositivo real: segundo plano/pantalla apagada y Bluetooth.
+> **Actualización.** Las canciones de YouTube se resuelven por InnerTube y suenan en Media3 a través de un proxy local en `127.0.0.1` ([youtube_music_audio_engine.md](youtube_music_audio_engine.md)). Media3 reproduce además los archivos locales. yt-dlp queda para descargas. Lo que sigue describe descargas y reproducción local.
 
 # Reproducción Android, streaming y música sin conexión
 

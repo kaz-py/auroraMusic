@@ -988,7 +988,6 @@ class SlushEqBoard extends StatefulWidget {
   const SlushEqBoard({
     super.key,
     required this.eq,
-    required this.webPlayback,
     required this.selected,
     required this.onSelect,
     required this.onEngage,
@@ -998,7 +997,6 @@ class SlushEqBoard extends StatefulWidget {
     this.message,
   });
   final EqualizerController eq;
-  final bool webPlayback;
   final int selected;
   final ValueChanged<int> onSelect;
   final VoidCallback onEngage, onSave, onImport, onExport;
@@ -1034,11 +1032,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
     final eq = widget.eq;
     final ok = eq.supported;
     final sel = widget.selected.clamp(0, eq.bands.length - 1);
-    final note = widget.webPlayback
-        ? 'En canciones de YouTube el EQ se desactiva'
-        : !ok
-        ? 'Este dispositivo no ofrece EQ'
-        : null;
+    final note = !ok ? 'Este dispositivo no ofrece EQ' : null;
     final band = eq.bands[sel];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

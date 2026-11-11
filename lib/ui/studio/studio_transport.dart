@@ -153,9 +153,7 @@ class _StudioTransportState extends State<StudioTransport> {
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                c.adPlaying && !jamAudio
-                                    ? 'Anuncio · tu canción sigue después'
-                                    : jamAudio
+                                jamAudio
                                     ? '${track.artist} · Jam'
                                     : track.artist,
                                 maxLines: 1,
@@ -787,9 +785,7 @@ class TransportPreviousButton extends StatelessWidget {
 /// Mensaje común del botón y del menú de desbordamiento.
 String _eqTooltip(AppController c, String? shortcut) {
   if (!c.eq.supported) {
-    return c.webPlayback
-        ? 'Ecualizador no disponible: el reproductor oficial de YouTube Music no lo admite'
-        : 'Ecualizador no disponible: este dispositivo no lo admite';
+    return 'Ecualizador no disponible: este dispositivo no lo admite';
   }
   return 'Ecualizador${c.eq.active ? ' (activo)' : ''}${_hint(shortcut)}';
 }

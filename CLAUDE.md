@@ -4,7 +4,7 @@ Lee también `AGENTS.md` (estilo, comandos) y `DESIGN.md` (estética). Este arch
 manda sobre `RETOMAR_AURORA.md` cuando se contradicen. Decisión del usuario
 (15/10/2026, revisada): el audio de YouTube se resuelve por InnerTube `player`
 (cliente VISIONOS, como LIMusic) y suena en el motor nativo a través de un proxy
-local; el reproductor oficial en WebView queda como respaldo automático.
+local. No hay reproductor web ni respaldo: si falla, se muestra el error real.
 
 ## Qué es
 
@@ -20,19 +20,13 @@ cola nativa), pero con la interfaz de Aurora. **No cambiar la estética.**
 - Resolución YouTube: `lib/sources/stream/` — `StreamOrchestrator` pide `player`
   con la tabla de clientes de `player_clients.dart` (VISIONOS: URLs directas sin
   cifrado ni PO), elige audio, valida con una petición al final del archivo,
-  marca clientes/vídeos fallidos con TTL y re-resuelve ante 403/expiración.
+  marca clientes fallidos con TTL y re-resuelve ante 403/expiración.
   `AudioProxy` sirve `http://127.0.0.1:<puerto>/…` y pide al CDN trozos acotados
-  de 4 MiB. `InnerTubeSource.resolve()` devuelve esa URL con `engine: native`.
-- Respaldo: si el resultado es bloqueo/acceso («not a bot», login) o el proxy no
-  arranca, `resolve()` devuelve `music.youtube.com/watch?v=<id>` con
-  `engine: web` → `lib/audio_web/` (`WebMusicAudio`): WebView siempre montado en
-  `aurora_shell.dart`, 1×1 y tapado; solo se muestra como hoja cuando el sitio
-  pide consentimiento/acceso («Revisar sitio»). Solo Windows: en Android el WebView
-  oculto no carga (hoja en blanco), así que allí `resolve()` reintenta una vez el
-  camino nativo y si falla muestra el error real.
+  de 4 MiB. `InnerTubeSource.resolve()` devuelve esa URL; ante un fallo reintenta
+  una vez la resolución nativa y, si vuelve a fallar, lanza el error real.
 - Motores: Android `AndroidMusicAudio` (Media3, servicio), escritorio `RustMusicAudio`
-  (`rust/crates/aurora_playback`: Symphonia + CPAL) con EQ/espectro. `RoutedMusicAudio` elige por
-  `ResolvedAudio.engine`, nunca por host. `lib/audio/stream_guard.dart` impide que
+  (`rust/crates/aurora_playback`: Symphonia + CPAL) con EQ/espectro, elegidos en
+  `main.dart`. `lib/audio/stream_guard.dart` impide que
   una URL de YouTube/googlevideo llegue al decodificador/Media3 sin pasar por el proxy.
 - Android: `network_security_config.xml` permite texto claro solo a `127.0.0.1`.
 - Comprobación manual del cliente: `dart run tool/probe_innertube_clients.dart <id>`.
@@ -78,13 +72,12 @@ $flutter = 'C:/flutter/flutter/bin/flutter.bat'
 & $flutter test
 C:/flutter/flutter/bin/cache/dart-sdk/bin/dart.exe format lib test
 & $flutter build apk --release
-$env:PATH = "$PWD/build/build-tools/nuget;$env:PATH"; & $flutter build windows --release
+& $flutter build windows --release
 ```
 
 Linux (en Ubuntu/WSL, con Flutter 3.38.8 para Linux y las dependencias de apt
 del README): `flutter build linux --release` → `build/linux/x64/release/bundle`.
-En Linux no hay WebView (sin respaldo web: `resolve()` reintenta nativo como en
-Android), ni audio_service/MPRIS, bandeja ni actualizador; yt-dlp sale
+En Linux no hay audio_service/MPRIS, bandeja ni actualizador; yt-dlp sale
 del `PATH` o de la carpeta de Ajustes; Discord y Duvet usan socket Unix.
 
 ## Reglas

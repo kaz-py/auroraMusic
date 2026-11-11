@@ -9,18 +9,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `map_intent`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`
 
-/// ¿Hay un modelo de voz utilizable en `dir`?
-bool voiceModelInstalled({required String dir}) =>
-    RustLib.instance.api.crateApiVoiceVoiceModelInstalled(dir: dir);
-
-/// Descomprime el ZIP del modelo en `dest` (reemplaza lo que hubiera).
-Future<void> voiceInstallModel({
-  required String archive,
-  required String dest,
-}) => RustLib.instance.api.crateApiVoiceVoiceInstallModel(
-  archive: archive,
-  dest: dest,
-);
+/// ¿Este procesador puede ejecutar el reconocimiento de voz (AVX2/FMA)?
+bool voiceCpuSupported() =>
+    RustLib.instance.api.crateApiVoiceVoiceCpuSupported();
 
 /// La palabra de activación y las frases que se entienden, para mostrarlas.
 String voiceWakeWord() => RustLib.instance.api.crateApiVoiceVoiceWakeWord();
@@ -38,21 +29,18 @@ abstract class VoiceListener implements RustOpaqueInterface {
   /// Eventos desde la última consulta.
   List<VoiceEvent> poll();
 
-  /// Carga `libvosk` (`lib_path`) y el modelo (`model_dir`) y empieza a escuchar.
-  static Future<VoiceListener> start({
-    required String libPath,
-    required String modelDir,
-  }) => RustLib.instance.api.crateApiVoiceVoiceListenerStart(
-    libPath: libPath,
-    modelDir: modelDir,
-  );
+  /// Carga el modelo de Whisper (`model_path`, archivo `.bin`) y empieza a escuchar.
+  static Future<VoiceListener> start({required String modelPath}) => RustLib
+      .instance
+      .api
+      .crateApiVoiceVoiceListenerStart(modelPath: modelPath);
 
   /// Deja de escuchar y libera el micrófono.
   void stop();
 }
 
 class VoiceEvent {
-  /// `None` si no es una orden (aviso de «aurora» o parada).
+  /// `None` si no es una orden (aviso de «aurora», frase suelta o parada).
   final VoiceIntent? intent;
 
   /// Se dijo «aurora» y se espera la orden.
@@ -61,10 +49,14 @@ class VoiceEvent {
   /// La escucha se detuvo: motivo.
   final String? stopped;
 
-  const VoiceEvent({this.intent, required this.wake, this.stopped});
+  /// Lo que se entendió en una frase (haya sido orden o no), para diagnosticar.
+  final String? heard;
+
+  const VoiceEvent({this.intent, required this.wake, this.stopped, this.heard});
 
   @override
-  int get hashCode => intent.hashCode ^ wake.hashCode ^ stopped.hashCode;
+  int get hashCode =>
+      intent.hashCode ^ wake.hashCode ^ stopped.hashCode ^ heard.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -73,7 +65,8 @@ class VoiceEvent {
           runtimeType == other.runtimeType &&
           intent == other.intent &&
           wake == other.wake &&
-          stopped == other.stopped;
+          stopped == other.stopped &&
+          heard == other.heard;
 }
 
 /// Qué se oyó.

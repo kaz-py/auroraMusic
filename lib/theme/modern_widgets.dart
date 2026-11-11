@@ -191,16 +191,8 @@ class ModernHeadline extends StatelessWidget {
 
 /// Banner superior amarillo mantequilla (avisos temporales).
 class ModernBanner extends StatelessWidget {
-  const ModernBanner({
-    super.key,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-    this.onClose,
-  });
+  const ModernBanner({super.key, required this.message, this.onClose});
   final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
   final VoidCallback? onClose;
 
   @override
@@ -224,21 +216,6 @@ class ModernBanner extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (actionLabel != null)
-                    GestureDetector(
-                      onTap: onAction,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Text(
-                          actionLabel!,
-                          style: const TextStyle(
-                            color: Tracky.coral,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../app_controller.dart';
 import '../core/models.dart';
-import '../sources/web_music_source.dart';
 import 'jam_models.dart';
 import 'jam_service.dart';
 
@@ -113,7 +112,7 @@ class JamPlaybackBridge extends ChangeNotifier {
     final available =
         original != null && app.queue.any((track) => track.id == original.id);
     // Do not resurrect removed entries or overwrite queue edits made during the Jam.
-    if (_originalPlaying && available && !app.youtubeMusicActive) {
+    if (_originalPlaying && available) {
       final context = List<Track>.from(app.queue);
       await app.playTrack(original, context: context);
       await app.seek(_originalPosition);
@@ -140,16 +139,6 @@ class JamPlaybackBridge extends ChangeNotifier {
     while (_pending != null && enabled && !_disposed) {
       final state = _pending!;
       _pending = null;
-      if (app.youtubeMusicActive) {
-        loading = false;
-        currentEntryId = null;
-        app.setJamNowPlaying(null);
-        warning =
-            'La escucha sincronizada está suspendida mientras '
-            'YouTube Music usa su reproductor oficial. La cola de Jam se conserva.';
-        _notify();
-        continue;
-      }
       final generation = _generation;
       final entry = service.queue
           .where((entry) => entry.id == state.entryId)
@@ -169,33 +158,11 @@ class JamPlaybackBridge extends ChangeNotifier {
           _notify();
           await app.audio.pause();
           final track = await _resolveTrack(entry.track);
-          if (!enabled ||
-              generation != _generation ||
-              _disposed ||
-              app.youtubeMusicActive) {
-            continue;
-          }
-          if (app.requiresOfficialYouTubeMusic(track)) {
-            app.openYouTubeMusic(WebMusicSource.uriForTrack(track));
-            _failedEntryId = entry.id;
-            currentEntryId = null;
-            app.setJamNowPlaying(null);
-            loading = false;
-            warning =
-                'YouTube Music se abre en el reproductor oficial. '
-                'Su cola y reproducción no se sincronizan con Jam.';
-            _notify();
-            continue;
-          }
+          if (!enabled || generation != _generation || _disposed) continue;
           _resolvingVideoId = jamYouTubeId(track);
           final resolved = await app.source.resolve(track);
           _resolvingVideoId = null;
-          if (!enabled ||
-              generation != _generation ||
-              _disposed ||
-              app.youtubeMusicActive) {
-            continue;
-          }
+          if (!enabled || generation != _generation || _disposed) continue;
           final latest = _pending?.entryId == entry.id ? _pending! : state;
           final start = jamTargetPosition(
             latest,
@@ -204,10 +171,7 @@ class JamPlaybackBridge extends ChangeNotifier {
             durationMs: resolved.duration.inMilliseconds,
           );
           await app.audio.load(resolved, start: Duration(milliseconds: start));
-          if (!enabled ||
-              generation != _generation ||
-              _disposed ||
-              app.youtubeMusicActive) {
+          if (!enabled || generation != _generation || _disposed) {
             await app.audio.pause();
             continue;
           }
@@ -244,18 +208,9 @@ class JamPlaybackBridge extends ChangeNotifier {
             _lastSeekMs = now;
           }
         }
-        if (!enabled ||
-            generation != _generation ||
-            _disposed ||
-            app.youtubeMusicActive) {
-          continue;
-        }
+        if (!enabled || generation != _generation || _disposed) continue;
         final latest = _pending?.entryId == entry.id ? _pending! : state;
         if (latest.isPlaying && !app.audio.isPlaying) await app.audio.play();
-        if (app.youtubeMusicActive) {
-          await app.audio.pause();
-          continue;
-        }
         if (!latest.isPlaying && app.audio.isPlaying) await app.audio.pause();
         _lastPlaying = latest.isPlaying;
         loading = false;
@@ -276,19 +231,6 @@ class JamPlaybackBridge extends ChangeNotifier {
 
   Future<Track> _resolveTrack(JamTrack metadata) async {
     // Prefer real library files over an online entry with the same origin.
-    if (app.usesOfficialYouTubeMusic) {
-      for (final track in [
-        _ownTracks[metadata.key],
-        ...app.tracks,
-        ...app.queue,
-      ].whereType<Track>()) {
-        if (track.isLocal &&
-            await File(track.localPath!).exists() &&
-            JamTrack.fromTrack(track).keys.any(metadata.keys.contains)) {
-          return track;
-        }
-      }
-    }
     final own = _ownTracks[metadata.key];
     if (own != null && (!own.isLocal || await File(own.localPath!).exists())) {
       return own;
@@ -315,17 +257,6 @@ class JamPlaybackBridge extends ChangeNotifier {
         spotifyUri: metadata.spotifyUri,
         duration: Duration(milliseconds: metadata.durationMs),
         artworkUrl: metadata.artworkUrl,
-      );
-    }
-    if (app.usesOfficialYouTubeMusic) {
-      // Metadata without an available native source is an official search,
-      // never a provider extraction or a synchronization promise.
-      return Track(
-        id: 'jam:${metadata.key}',
-        title: metadata.title,
-        artist: metadata.artist,
-        spotifyUri: metadata.spotifyUri,
-        spotifyMatchPending: true,
       );
     }
     final matches = await app.source.search(

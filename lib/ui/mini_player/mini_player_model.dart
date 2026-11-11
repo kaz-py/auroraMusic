@@ -27,7 +27,6 @@ class MiniPlayerState {
     required this.hasNext,
     required this.hasPrevious,
     required this.jamActive,
-    this.adPlaying = false,
     this.jamAudio = false,
     required this.canTogglePlay,
     this.jamHostName,
@@ -67,9 +66,6 @@ class MiniPlayerState {
   final bool liked;
   final bool hasNext, hasPrevious;
   final bool jamActive;
-
-  /// El sitio web muestra un anuncio (`AppController.adPlaying`).
-  final bool adPlaying;
 
   /// Suena audio de Jam con controlador activo (`transportJamAudio`): la pista
   /// es la de la sesión. Distinto de [jamActive], que ya vale mientras la Jam
@@ -116,9 +112,6 @@ class MiniPlayerState {
 
   /// Por qué no hay ecualizador (motor web o dispositivo); `null` si lo hay.
   final String? equalizerUnavailableReason;
-
-  /// Hay que avisar del anuncio; con audio de Jam manda la Jam.
-  bool get adShowing => adPlaying && !jamAudio;
 
   bool get muted => volume <= 0;
   bool get hasQueue => queueLength > 0;
@@ -173,7 +166,6 @@ class MiniPlayerState {
       hasNext: hasNext,
       hasPrevious: track != null && !jamOwns,
       jamActive: jamOwns,
-      adPlaying: c.adPlaying,
       jamAudio: jamAudio,
       canTogglePlay: jamAudio ? jam!.canPause : track != null && !jamOwns,
       jamHostName: jamAudio && !jam!.canPause ? jam.hostName : null,
@@ -192,8 +184,6 @@ class MiniPlayerState {
       duration: duration,
       equalizerUnavailableReason: c.eq.supported
           ? null
-          : c.webPlayback
-          ? 'el reproductor oficial de YouTube Music no lo admite'
           : 'este dispositivo no lo admite',
       lyricsAvailable: track != null,
     );
@@ -208,18 +198,14 @@ String miniClock(Duration d) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$tail' : '$m:$tail';
 }
 
-const miniAdNotice = 'Anuncio · tu canción sigue después';
 const miniErrorNotice = 'No se pudo reproducir';
 
 /// El subtítulo es un fallo del motor (los temas le ponen su icono/color).
-bool miniSubtitleIsError(MiniPlayerState s) =>
-    s.hasError && !s.adShowing && !s.jamAudio;
+bool miniSubtitleIsError(MiniPlayerState s) => s.hasError && !s.jamAudio;
 
-/// Línea secundaria única de los cuatro temas. Prioridad: anuncio, Jam,
-/// fallo, artista.
+/// Línea secundaria única de los cuatro temas. Prioridad: Jam, fallo, artista.
 String miniSubtitle(MiniPlayerState s) {
   final artist = s.track!.artist;
-  if (s.adShowing) return miniAdNotice;
   if (s.jamAudio) return '$artist · Jam';
   if (s.hasError) return miniErrorNotice;
   return artist;

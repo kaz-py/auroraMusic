@@ -101,8 +101,6 @@ para Linux.
 
 En Linux no están disponibles:
 
-- El reproductor de respaldo en WebView y la hoja «Revisar sitio». Si YouTube bloquea
-  una canción, se muestra el error real.
 - Los controles multimedia del sistema (MPRIS) y las teclas multimedia.
 - La bandeja del sistema, cerrar a la bandeja y el inicio automático.
 - Los enlaces `aurora://`. Para unirte a una Jam, escribe su código.

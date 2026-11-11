@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1243347538;
+  int get rustContentHash => -1060788676;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -356,8 +356,7 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<VoiceListener> crateApiVoiceVoiceListenerStart({
-    required String libPath,
-    required String modelDir,
+    required String modelPath,
   });
 
   void crateApiVoiceVoiceListenerStop({required VoiceListener that});
@@ -420,11 +419,12 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<LyricsAlignment> crateApiLyricsAlignLyricsAlign({
-    required String libPath,
-    required String modelDir,
+    required String modelPath,
     required String input,
     required List<AlignHeader> headers,
     required List<AlignLine> lines,
+    required PlatformInt64 scanSecs,
+    String? language,
   });
 
   Future<MediaResult> crateApiMediaMediaProbeDuration({required String path});
@@ -444,12 +444,7 @@ abstract class RustLibApi extends BaseApi {
     required List<String> excludeNames,
   });
 
-  Future<void> crateApiVoiceVoiceInstallModel({
-    required String archive,
-    required String dest,
-  });
-
-  bool crateApiVoiceVoiceModelInstalled({required String dir});
+  bool crateApiVoiceVoiceCpuSupported();
 
   List<VoicePhrases> crateApiVoiceVoicePhrases();
 
@@ -2433,15 +2428,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<VoiceListener> crateApiVoiceVoiceListenerStart({
-    required String libPath,
-    required String modelDir,
+    required String modelPath,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(libPath, serializer);
-          sse_encode_String(modelDir, serializer);
+          sse_encode_String(modelPath, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2455,7 +2448,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiVoiceVoiceListenerStartConstMeta,
-        argValues: [libPath, modelDir],
+        argValues: [modelPath],
         apiImpl: this,
       ),
     );
@@ -2464,7 +2457,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiVoiceVoiceListenerStartConstMeta =>
       const TaskConstMeta(
         debugName: "VoiceListener_start",
-        argNames: ["libPath", "modelDir"],
+        argNames: ["modelPath"],
       );
 
   @override
@@ -2914,21 +2907,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<LyricsAlignment> crateApiLyricsAlignLyricsAlign({
-    required String libPath,
-    required String modelDir,
+    required String modelPath,
     required String input,
     required List<AlignHeader> headers,
     required List<AlignLine> lines,
+    required PlatformInt64 scanSecs,
+    String? language,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(libPath, serializer);
-          sse_encode_String(modelDir, serializer);
+          sse_encode_String(modelPath, serializer);
           sse_encode_String(input, serializer);
           sse_encode_list_align_header(headers, serializer);
           sse_encode_list_align_line(lines, serializer);
+          sse_encode_i_64(scanSecs, serializer);
+          sse_encode_opt_String(language, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2941,7 +2936,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiLyricsAlignLyricsAlignConstMeta,
-        argValues: [libPath, modelDir, input, headers, lines],
+        argValues: [modelPath, input, headers, lines, scanSecs, language],
         apiImpl: this,
       ),
     );
@@ -2950,7 +2945,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiLyricsAlignLyricsAlignConstMeta =>
       const TaskConstMeta(
         debugName: "lyrics_align",
-        argNames: ["libPath", "modelDir", "input", "headers", "lines"],
+        argNames: [
+          "modelPath",
+          "input",
+          "headers",
+          "lines",
+          "scanSecs",
+          "language",
+        ],
       );
 
   @override
@@ -3055,65 +3057,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiVoiceVoiceInstallModel({
-    required String archive,
-    required String dest,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(archive, serializer);
-          sse_encode_String(dest, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 81,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiVoiceVoiceInstallModelConstMeta,
-        argValues: [archive, dest],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiVoiceVoiceInstallModelConstMeta =>
-      const TaskConstMeta(
-        debugName: "voice_install_model",
-        argNames: ["archive", "dest"],
-      );
-
-  @override
-  bool crateApiVoiceVoiceModelInstalled({required String dir}) {
+  bool crateApiVoiceVoiceCpuSupported() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(dir, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiVoiceVoiceModelInstalledConstMeta,
-        argValues: [dir],
+        constMeta: kCrateApiVoiceVoiceCpuSupportedConstMeta,
+        argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiVoiceVoiceModelInstalledConstMeta =>
-      const TaskConstMeta(
-        debugName: "voice_model_installed",
-        argNames: ["dir"],
-      );
+  TaskConstMeta get kCrateApiVoiceVoiceCpuSupportedConstMeta =>
+      const TaskConstMeta(debugName: "voice_cpu_supported", argNames: []);
 
   @override
   List<VoicePhrases> crateApiVoiceVoicePhrases() {
@@ -3121,7 +3084,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_voice_phrases,
@@ -3143,7 +3106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3331,7 +3294,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return AlignLine(
       text: dco_decode_String(arr[0]),
-      atMs: dco_decode_i_64(arr[1]),
+      atMs: dco_decode_opt_box_autoadd_i_64(arr[1]),
     );
   }
 
@@ -3696,6 +3659,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeInt64List(raw);
+  }
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as List<int>;
@@ -3761,12 +3730,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   LyricsAlignment dco_decode_lyrics_alignment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return LyricsAlignment(
       found: dco_decode_bool(arr[0]),
-      shiftMs: dco_decode_i_64(arr[1]),
-      anchors: dco_decode_u_32(arr[2]),
+      startsMs: dco_decode_list_prim_i_64_strict(arr[1]),
+      anchored: dco_decode_u_32(arr[2]),
+      shiftMs: dco_decode_opt_box_autoadd_i_64(arr[3]),
     );
   }
 
@@ -4101,12 +4071,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   VoiceEvent dco_decode_voice_event(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return VoiceEvent(
       intent: dco_decode_opt_box_autoadd_voice_intent(arr[0]),
       wake: dco_decode_bool(arr[1]),
       stopped: dco_decode_opt_String(arr[2]),
+      heard: dco_decode_opt_String(arr[3]),
     );
   }
 
@@ -4298,7 +4269,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AlignLine sse_decode_align_line(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_text = sse_decode_String(deserializer);
-    var var_atMs = sse_decode_i_64(deserializer);
+    var var_atMs = sse_decode_opt_box_autoadd_i_64(deserializer);
     return AlignLine(text: var_text, atMs: var_atMs);
   }
 
@@ -4759,6 +4730,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt64List(len_);
+  }
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -4880,12 +4858,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   LyricsAlignment sse_decode_lyrics_alignment(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_found = sse_decode_bool(deserializer);
-    var var_shiftMs = sse_decode_i_64(deserializer);
-    var var_anchors = sse_decode_u_32(deserializer);
+    var var_startsMs = sse_decode_list_prim_i_64_strict(deserializer);
+    var var_anchored = sse_decode_u_32(deserializer);
+    var var_shiftMs = sse_decode_opt_box_autoadd_i_64(deserializer);
     return LyricsAlignment(
       found: var_found,
+      startsMs: var_startsMs,
+      anchored: var_anchored,
       shiftMs: var_shiftMs,
-      anchors: var_anchors,
     );
   }
 
@@ -5278,7 +5258,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_intent = sse_decode_opt_box_autoadd_voice_intent(deserializer);
     var var_wake = sse_decode_bool(deserializer);
     var var_stopped = sse_decode_opt_String(deserializer);
-    return VoiceEvent(intent: var_intent, wake: var_wake, stopped: var_stopped);
+    var var_heard = sse_decode_opt_String(deserializer);
+    return VoiceEvent(
+      intent: var_intent,
+      wake: var_wake,
+      stopped: var_stopped,
+      heard: var_heard,
+    );
   }
 
   @protected
@@ -5478,7 +5464,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_align_line(AlignLine self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.text, serializer);
-    sse_encode_i_64(self.atMs, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.atMs, serializer);
   }
 
   @protected
@@ -5901,6 +5887,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt64List(self);
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_loose(
     List<int> self,
     SseSerializer serializer,
@@ -6025,8 +6021,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.found, serializer);
-    sse_encode_i_64(self.shiftMs, serializer);
-    sse_encode_u_32(self.anchors, serializer);
+    sse_encode_list_prim_i_64_strict(self.startsMs, serializer);
+    sse_encode_u_32(self.anchored, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.shiftMs, serializer);
   }
 
   @protected
@@ -6355,6 +6352,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_voice_intent(self.intent, serializer);
     sse_encode_bool(self.wake, serializer);
     sse_encode_opt_String(self.stopped, serializer);
+    sse_encode_opt_String(self.heard, serializer);
   }
 
   @protected

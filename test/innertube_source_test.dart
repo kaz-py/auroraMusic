@@ -136,7 +136,6 @@ class _FakeOrch implements StreamOrchestrator {
   final resolved = <String>[];
   final failures = <String>[];
   final forced = <int?>[];
-  final blacklisted = <String>{};
   Duration? lastDuration;
   Object? error;
   Object? failOnce;
@@ -166,8 +165,6 @@ class _FakeOrch implements StreamOrchestrator {
   @override
   void reportFailure(String videoId, {int? httpStatus, String? reason}) =>
       failures.add('$videoId:$httpStatus');
-  @override
-  bool isBlacklisted(String videoId) => blacklisted.contains(videoId);
 }
 
 class _FakeProxy implements AudioProxy {
@@ -295,7 +292,6 @@ void main() {
     final audio = await source.resolve(_song);
     expect(audio.input, 'http://127.0.0.1:1/tok/a/19y35jAcG6k');
     expect(audio.headers, isEmpty);
-    expect(audio.engine, AudioEngine.native);
     expect(audio.duration, _song.duration);
     expect(orch.resolved, ['19y35jAcG6k']);
     expect(orch.lastDuration, _song.duration);
@@ -357,73 +353,44 @@ void main() {
     },
   );
 
-  test('blocked videos fall back to the web engine, others rethrow', () async {
+  test('a failure retries natively once, then surfaces', () async {
     final orch = _FakeOrch();
     final source = InnerTubeSource(
       FakeSource(),
       proxyFactory: () async => _FakeProxy(),
       orchestratorFactory: () => orch,
-      webFallback: true,
     );
-    orch.blacklisted.add('19y35jAcG6k');
-    var audio = await source.resolve(_song);
-    expect(audio.engine, AudioEngine.web);
-    expect(audio.input, 'https://music.youtube.com/watch?v=19y35jAcG6k');
-    orch.blacklisted.clear();
-    for (final kind in [
-      YouTubeFailure.blocked,
-      YouTubeFailure.accessDenied,
-      YouTubeFailure.other,
-    ]) {
-      orch.error = StreamResolveException(kind, 'x');
-      audio = await source.resolve(_song);
-      expect(audio.engine, AudioEngine.web);
-    }
+    orch.failOnce = const StreamResolveException(YouTubeFailure.blocked, 'x');
+    await source.resolve(_song);
+    expect(orch.forced, [null]);
+    orch.error = const StreamResolveException(YouTubeFailure.other, 'boom');
+    await expectLater(
+      source.resolve(_song),
+      throwsA(isA<StreamResolveException>()),
+    );
     for (final kind in [YouTubeFailure.transient, YouTubeFailure.unavailable]) {
       orch.error = StreamResolveException(kind, 'x');
+      orch.forced.clear();
       await expectLater(
         source.resolve(_song),
         throwsA(isA<StreamResolveException>()),
       );
+      expect(orch.forced, isEmpty);
     }
     // Prefetch warms the orchestrator only and swallows errors.
     orch.resolved.clear();
     await source.prefetch(_song);
     expect(orch.resolved, ['19y35jAcG6k']);
+    orch.error = null;
+    final failing = InnerTubeSource(
+      FakeSource(),
+      proxyFactory: () async => throw StateError('bind'),
+      orchestratorFactory: () => orch,
+    );
+    await expectLater(failing.resolve(_song), throwsStateError);
+    source.dispose();
+    failing.dispose();
   });
-
-  test(
-    'without web fallback a failure retries natively, then surfaces',
-    () async {
-      final orch = _FakeOrch();
-      final source = InnerTubeSource(
-        FakeSource(),
-        proxyFactory: () async => _FakeProxy(),
-        orchestratorFactory: () => orch,
-        webFallback: false,
-      );
-      orch.blacklisted.add('19y35jAcG6k'); // ignored: no official player
-      orch.failOnce = const StreamResolveException(YouTubeFailure.blocked, 'x');
-      var audio = await source.resolve(_song);
-      expect(audio.engine, AudioEngine.native);
-      expect(orch.forced, [null]);
-      orch.error = const StreamResolveException(YouTubeFailure.other, 'boom');
-      await expectLater(
-        source.resolve(_song),
-        throwsA(isA<StreamResolveException>()),
-      );
-      orch.error = null;
-      final failing = InnerTubeSource(
-        FakeSource(),
-        proxyFactory: () async => throw StateError('bind'),
-        orchestratorFactory: () => orch,
-        webFallback: false,
-      );
-      await expectLater(failing.resolve(_song), throwsStateError);
-      source.dispose();
-      failing.dispose();
-    },
-  );
 
   test('resolve rejects non-YouTube tracks', () async {
     final delegate = FakeSource();
@@ -464,7 +431,7 @@ void main() {
     },
   );
 
-  test('proxy start failure falls back to web and is retried', () async {
+  test('proxy start failure surfaces and is retried', () async {
     var calls = 0;
     final proxy = _FakeProxy();
     final source = InnerTubeSource(
@@ -474,10 +441,9 @@ void main() {
         return proxy;
       },
       orchestratorFactory: () => _FakeOrch(),
-      webFallback: true,
     );
-    expect((await source.resolve(_song)).engine, AudioEngine.web);
-    expect((await source.resolve(_song)).engine, AudioEngine.native);
+    await expectLater(source.resolve(_song), throwsStateError);
+    expect((await source.resolve(_song)).input, startsWith('http://'));
   });
 
   test('prefetch never sets the failure target nor registers', () async {

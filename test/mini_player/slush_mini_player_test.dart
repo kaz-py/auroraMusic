@@ -31,7 +31,6 @@ MiniPlayerState _state({
   bool hasPrevious = true,
   bool canTogglePlay = true,
   String? jamHostName,
-  bool ad = false,
   bool jam = false,
   bool canSeek = false,
   double volume = .75,
@@ -53,7 +52,6 @@ MiniPlayerState _state({
   jamActive: false,
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
-  adPlaying: ad,
   jamAudio: jam,
   canSeek: canSeek,
   volume: volume,
@@ -809,18 +807,11 @@ void main() {
     }
   });
 
-  group('anuncio y Jam en el subtítulo', () {
+  group('Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
       final tag = '360 · ×${scale.toInt()}';
       Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
           mount(tester, size: const Size(360, 640), scale: scale, state: state);
-
-      testWidgets('anuncio · $tag', (tester) async {
-        await pump(tester, _state(ad: true, isPlaying: true));
-        expect(tester.takeException(), isNull);
-        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
-        expect(find.text('Mare Sol'), findsNothing);
-      });
 
       testWidgets('Jam · $tag', (tester) async {
         await pump(tester, _state(jam: true, isPlaying: true));

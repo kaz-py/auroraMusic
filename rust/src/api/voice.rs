@@ -1,6 +1,6 @@
-//! Puente de los comandos de voz (`aurora_voice`).
+//! Puente de los comandos de voz (`aurora_voice`, Whisper local).
 //!
-//! `start` carga el modelo y abre el micrófono (tarda unos segundos), así que
+//! `start` carga el modelo y abre el micrófono (tarda un instante), así que
 //! corre en el grupo de hilos de FRB y Dart lo espera con `await`; el resto es
 //! `sync`. En Android no existe: allí `start` devuelve un error.
 
@@ -23,12 +23,14 @@ pub enum VoiceIntent {
 }
 
 pub struct VoiceEvent {
-    /// `None` si no es una orden (aviso de «aurora» o parada).
+    /// `None` si no es una orden (aviso de «aurora», frase suelta o parada).
     pub intent: Option<VoiceIntent>,
     /// Se dijo «aurora» y se espera la orden.
     pub wake: bool,
     /// La escucha se detuvo: motivo.
     pub stopped: Option<String>,
+    /// Lo que se entendió en una frase (haya sido orden o no), para diagnosticar.
+    pub heard: Option<String>,
 }
 
 pub struct VoicePhrases {
@@ -52,15 +54,12 @@ fn map_intent(intent: aurora_voice::Intent) -> VoiceIntent {
 }
 
 impl VoiceListener {
-    /// Carga `libvosk` (`lib_path`) y el modelo (`model_dir`) y empieza a escuchar.
-    pub fn start(lib_path: String, model_dir: String) -> Result<VoiceListener> {
+    /// Carga el modelo de Whisper (`model_path`, archivo `.bin`) y empieza a escuchar.
+    pub fn start(model_path: String) -> Result<VoiceListener> {
         #[cfg(not(target_os = "android"))]
         {
-            let listener = aurora_voice::Listener::start(
-                std::path::Path::new(&lib_path),
-                std::path::Path::new(&model_dir),
-            )
-            .map_err(|e| anyhow!("{e}"))?;
+            let listener = aurora_voice::Listener::start(std::path::Path::new(&model_path))
+                .map_err(|e| anyhow!("{e}"))?;
             Ok(VoiceListener(std::sync::Mutex::new(listener)))
         }
         #[cfg(target_os = "android")]
@@ -88,16 +87,25 @@ impl VoiceListener {
                         intent: Some(map_intent(intent)),
                         wake: false,
                         stopped: None,
+                        heard: None,
                     },
                     Event::Wake => VoiceEvent {
                         intent: None,
                         wake: true,
                         stopped: None,
+                        heard: None,
+                    },
+                    Event::Heard(text) => VoiceEvent {
+                        intent: None,
+                        wake: false,
+                        stopped: None,
+                        heard: Some(text),
                     },
                     Event::Stopped(reason) => VoiceEvent {
                         intent: None,
                         wake: false,
                         stopped: Some(reason),
+                        heard: None,
                     },
                 })
                 .collect()
@@ -143,33 +151,16 @@ impl VoiceListener {
     }
 }
 
-/// ¿Hay un modelo de voz utilizable en `dir`?
+/// ¿Este procesador puede ejecutar el reconocimiento de voz (AVX2/FMA)?
 #[frb(sync)]
-pub fn voice_model_installed(dir: String) -> bool {
+pub fn voice_cpu_supported() -> bool {
     #[cfg(not(target_os = "android"))]
     {
-        aurora_voice::model_is_installed(std::path::Path::new(&dir))
+        aurora_voice::cpu_supported()
     }
     #[cfg(target_os = "android")]
     {
-        let _ = dir;
         false
-    }
-}
-
-/// Descomprime el ZIP del modelo en `dest` (reemplaza lo que hubiera).
-pub fn voice_install_model(archive: String, dest: String) -> Result<()> {
-    #[cfg(not(target_os = "android"))]
-    {
-        aurora_voice::install_model(std::path::Path::new(&archive), std::path::Path::new(&dest))
-            .map_err(|e| anyhow!("{e}"))
-    }
-    #[cfg(target_os = "android")]
-    {
-        let _ = (archive, dest);
-        Err(anyhow!(
-            "Los comandos de voz no están disponibles en Android."
-        ))
     }
 }
 

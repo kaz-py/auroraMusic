@@ -1,21 +1,18 @@
-//! Comandos de voz de Aurora: escucha el micrófono y reconoce, sin red, órdenes
-//! que empiezan por «Aurora» (pausa, siguiente, continúa, reproduce…).
-//!
-//! Reconocimiento con Vosk (modelo español pequeño, gramática cerrada).
-//! `libvosk` se carga al activar la función; el audio no se guarda ni sale
-//! del equipo.
+//! Voz de Aurora con Whisper (whisper.cpp, modelo `ggml` local, sin red):
+//! comandos hablados que empiezan por «Aurora» y alineación de letras con el
+//! audio. El audio no se guarda ni sale del equipo.
 
 pub mod align;
 mod capture;
 pub mod command;
 mod listener;
-mod model;
-pub mod vosk;
+mod vad;
+mod whisper;
 
-pub use align::{align_lyrics, Alignment, LyricLine};
-pub use command::{grammar_json, phrases, vocabulary, Gate, Heard, Intent, Word};
-pub use listener::{analyze_pcm, Event, Listener};
-pub use model::{install_model, model_is_installed};
+pub use align::{align_lyrics, align_words, Alignment, LyricLine};
+pub use command::{phrases, Gate, Heard, Intent};
+pub use listener::{listen_offline, Event, Listener};
+pub use whisper::{cpu_supported, TimedWord, Transcriber};
 
 use std::fmt;
 

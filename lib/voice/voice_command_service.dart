@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../bridge/api/voice.dart' as rust;
@@ -30,18 +29,11 @@ class _RustListener implements VoiceListenerPort {
   void stop() => _inner.stop();
 }
 
-/// Ruta de `libvosk`, junto a las herramientas de Aurora.
-String? voskLibraryPath() {
-  final exeDir = p.dirname(Platform.resolvedExecutable);
-  final name = Platform.isWindows ? 'libvosk.dll' : 'libvosk.so';
-  for (final candidate in [
-    p.join(exeDir, 'tools', 'vosk', name),
-    p.join(exeDir, 'lib', name),
-  ]) {
-    if (File(candidate).existsSync()) return candidate;
-  }
-  // Linux: biblioteca del sistema (LD_LIBRARY_PATH / ld.so.cache).
-  return Platform.isLinux ? name : null;
+/// Modelo listo: existe con el tamaño exacto (el SHA-256 se comprobó al
+/// descargarlo, y solo entonces se renombra desde `.part`).
+bool _modelFileComplete(String path) {
+  final file = File(path);
+  return file.existsSync() && file.lengthSync() == VoiceModel.bytes;
 }
 
 enum VoiceState { off, downloading, starting, listening, error }
@@ -56,22 +48,19 @@ class VoiceCommandService extends ChangeNotifier {
     this._actions, {
     required this.supportDirectory,
     bool? supported,
-    String? Function()? libraryPath,
-    Future<VoiceListenerPort> Function(String library, String modelDir)?
-    startListener,
-    Future<void> Function(File archive, VoiceDownloadProgress onProgress)?
+    bool Function()? cpuSupported,
+    Future<VoiceListenerPort> Function(String modelPath)? startListener,
+    Future<void> Function(File target, VoiceDownloadProgress onProgress)?
     download,
-    Future<void> Function(String archive, String dest)? installModel,
-    bool Function(String dir)? modelInstalled,
+    bool Function(String modelPath)? modelReady,
     this.pollEvery = const Duration(milliseconds: 150),
     this.silentAfter = const Duration(seconds: 8),
   }) : supported = supported ?? (Platform.isWindows || Platform.isLinux),
-       _libraryPath = libraryPath ?? _defaultLibraryPath,
+       _cpuSupported = cpuSupported ?? rust.voiceCpuSupported,
        _startListener =
            startListener ??
-           ((lib, dir) async => _RustListener(
-             await rust.VoiceListener.start(libPath: lib, modelDir: dir),
-           )),
+           ((path) async =>
+               _RustListener(await rust.VoiceListener.start(modelPath: path))),
        _download =
            download ??
            ((file, onProgress) => downloadVerified(
@@ -81,12 +70,7 @@ class VoiceCommandService extends ChangeNotifier {
              expectedSha256: VoiceModel.sha256Hex,
              onProgress: onProgress,
            )),
-       _install =
-           installModel ??
-           ((archive, dest) =>
-               rust.voiceInstallModel(archive: archive, dest: dest)),
-       _modelInstalled =
-           modelInstalled ?? ((dir) => rust.voiceModelInstalled(dir: dir));
+       _modelReady = modelReady ?? _modelFileComplete;
 
   static const enabledKey = 'voiceCommandsEnabled';
   static const lyricsSyncKey = 'lyricsAutoSync';
@@ -96,11 +80,10 @@ class VoiceCommandService extends ChangeNotifier {
   final Directory supportDirectory;
   final bool supported;
   final Duration pollEvery;
-  final String? Function() _libraryPath;
-  final Future<VoiceListenerPort> Function(String, String) _startListener;
-  final Future<void> Function(File, VoiceDownloadProgress) _download;
-  final Future<void> Function(String, String) _install;
-  final bool Function(String) _modelInstalled;
+  final bool Function() _cpuSupported;
+  final Future<VoiceListenerPort> Function(String modelPath) _startListener;
+  final Future<void> Function(File target, VoiceDownloadProgress) _download;
+  final bool Function(String modelPath) _modelReady;
 
   VoiceListenerPort? _listener;
   Timer? _timer;
@@ -114,6 +97,11 @@ class VoiceCommandService extends ChangeNotifier {
   /// Última orden ejecutada (texto para Ajustes) y cuándo.
   String? lastCommand;
   DateTime? lastCommandAt;
+
+  /// Lo último que Whisper entendió (sea orden o no): sirve para ver por qué
+  /// una orden no se reconoció.
+  String? lastHeard;
+  DateTime? lastHeardAt;
   bool awaitingCommand = false;
   double level = 0;
 
@@ -134,22 +122,19 @@ class VoiceCommandService extends ChangeNotifier {
   bool modelBusy = false;
   String? modelError;
 
-  /// El modelo y `libvosk` están listos para analizar audio.
-  bool get analysisReady {
-    final library = _libraryPath();
-    return supported && library != null && _modelInstalled(_modelDir.path);
-  }
+  /// El procesador y el modelo permiten analizar audio.
+  bool get analysisReady =>
+      supported && _cpuSupported() && _modelReady(_modelFile.path);
 
-  String? get libraryPath => _libraryPath();
-  String get modelPath => _modelDir.path;
+  String get modelPath => _modelFile.path;
 
   Future<void> setLyricsSync(bool value) => _enqueue(() async {
     if (!supported) return;
     await _prefs.setBool(lyricsSyncKey, value);
     modelError = null;
-    if (value && !_modelInstalled(_modelDir.path)) {
-      if (_libraryPath() == null) {
-        modelError = 'Falta la biblioteca de voz (libvosk). Reinstala Aurora.';
+    if (value && !_modelReady(_modelFile.path)) {
+      if (!_cpuSupported()) {
+        modelError = _noAvx2;
       } else {
         modelBusy = true;
         progress = 0;
@@ -168,7 +153,8 @@ class VoiceCommandService extends ChangeNotifier {
     _notify();
   });
 
-  static String? _defaultLibraryPath() => voskLibraryPath();
+  static const _noAvx2 =
+      'Este procesador no admite AVX2, necesario para el reconocimiento de voz.';
 
   static const _labels = {
     rust.VoiceIntent.pause: 'Pausa',
@@ -202,22 +188,17 @@ class VoiceCommandService extends ChangeNotifier {
     return result;
   }
 
-  Directory get _modelDir => VoiceModel.directory(supportDirectory);
+  File get _modelFile => VoiceModel.file(supportDirectory);
 
   Future<void> _begin() async {
     if (_listener != null) return;
     error = null;
     try {
-      final library = _libraryPath();
-      if (library == null) {
-        throw const VoiceModelException(
-          'Falta la biblioteca de voz (libvosk). Reinstala Aurora.',
-        );
-      }
-      if (!_modelInstalled(_modelDir.path)) await _fetchModel();
+      if (!_cpuSupported()) throw const VoiceModelException(_noAvx2);
+      if (!_modelReady(_modelFile.path)) await _fetchModel();
       state = VoiceState.starting;
       _notify();
-      _listener = await _startListener(library, _modelDir.path);
+      _listener = await _startListener(_modelFile.path);
       state = VoiceState.listening;
       _timer = Timer.periodic(pollEvery, (_) => _poll());
     } catch (failure) {
@@ -235,21 +216,14 @@ class VoiceCommandService extends ChangeNotifier {
       progress = 0;
       _notify();
     }
-    final archive = File(
-      p.join(supportDirectory.path, 'voice', '${VoiceModel.name}.zip'),
-    );
-    try {
-      await _download(archive, (fraction) {
-        progress = fraction.clamp(0, 1);
-        _notify();
-      });
-      await _install(archive.path, _modelDir.path);
-    } finally {
-      try {
-        if (await archive.exists()) await archive.delete();
-      } on FileSystemException {
-        // Se borra en la siguiente descarga.
-      }
+    await _download(_modelFile, (fraction) {
+      progress = fraction.clamp(0, 1);
+      _notify();
+    });
+    if (!_modelReady(_modelFile.path)) {
+      throw const VoiceModelException(
+        'El modelo de voz no quedó bien descargado. Inténtalo de nuevo.',
+      );
     }
   }
 
@@ -262,6 +236,8 @@ class VoiceCommandService extends ChangeNotifier {
     level = 0;
     microphoneSilent = false;
     _quietSince = null;
+    lastHeard = null;
+    lastHeardAt = null;
   }
 
   void _poll() {
@@ -276,6 +252,11 @@ class VoiceCommandService extends ChangeNotifier {
       microphoneSilent = DateTime.now().difference(_quietSince!) >= silentAfter;
     }
     for (final event in listener.poll()) {
+      final heard = event.heard?.trim();
+      if (heard != null && heard.isNotEmpty) {
+        lastHeard = heard;
+        lastHeardAt = DateTime.now();
+      }
       if (event.stopped != null) {
         _end();
         state = VoiceState.error;

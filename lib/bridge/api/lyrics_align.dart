@@ -8,19 +8,23 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `decode_head`
 
-/// Mide la desviación entre `lines` (letra sincronizada) y el audio de `input`.
+/// Mide cuándo suena cada línea de `lines` en el audio de `input`, analizando
+/// sus primeros `scan_secs` segundos. `language`: código de dos letras o `None`
+/// (se deduce de la letra).
 Future<LyricsAlignment> lyricsAlign({
-  required String libPath,
-  required String modelDir,
+  required String modelPath,
   required String input,
   required List<AlignHeader> headers,
   required List<AlignLine> lines,
+  required PlatformInt64 scanSecs,
+  String? language,
 }) => RustLib.instance.api.crateApiLyricsAlignLyricsAlign(
-  libPath: libPath,
-  modelDir: modelDir,
+  modelPath: modelPath,
   input: input,
   headers: headers,
   lines: lines,
+  scanSecs: scanSecs,
+  language: language,
 );
 
 class AlignHeader {
@@ -43,9 +47,11 @@ class AlignHeader {
 
 class AlignLine {
   final String text;
-  final PlatformInt64 atMs;
 
-  const AlignLine({required this.text, required this.atMs});
+  /// Hora de la línea en la letra sincronizada; `None` si la letra no tiene tiempos.
+  final PlatformInt64? atMs;
+
+  const AlignLine({required this.text, this.atMs});
 
   @override
   int get hashCode => text.hashCode ^ atMs.hashCode;
@@ -60,23 +66,29 @@ class AlignLine {
 }
 
 class LyricsAlignment {
-  /// `true` si se midió un desfase fiable.
+  /// `true` si se midió algo fiable.
   final bool found;
 
-  /// Milisegundos que el audio va por detrás (+) o por delante (−) de la letra.
-  final PlatformInt64 shiftMs;
+  /// Hora (ms) a la que empieza cada línea según el audio; misma longitud que
+  /// la letra. Con letra sincronizada son sus tiempos ya corregidos.
+  final Int64List startsMs;
 
-  /// Líneas reconocidas que coinciden con ese desfase.
-  final int anchors;
+  /// Líneas ancladas directamente al audio.
+  final int anchored;
+
+  /// Con letra sincronizada: desplazamiento mediano (audio − letra) en ms.
+  final PlatformInt64? shiftMs;
 
   const LyricsAlignment({
     required this.found,
-    required this.shiftMs,
-    required this.anchors,
+    required this.startsMs,
+    required this.anchored,
+    this.shiftMs,
   });
 
   @override
-  int get hashCode => found.hashCode ^ shiftMs.hashCode ^ anchors.hashCode;
+  int get hashCode =>
+      found.hashCode ^ startsMs.hashCode ^ anchored.hashCode ^ shiftMs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -84,6 +96,7 @@ class LyricsAlignment {
       other is LyricsAlignment &&
           runtimeType == other.runtimeType &&
           found == other.found &&
-          shiftMs == other.shiftMs &&
-          anchors == other.anchors;
+          startsMs == other.startsMs &&
+          anchored == other.anchored &&
+          shiftMs == other.shiftMs;
 }

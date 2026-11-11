@@ -157,38 +157,29 @@ void main() {
   });
 
   group('miniSubtitle', () {
-    MiniPlayerState state({
-      bool ad = false,
-      bool jam = false,
-      bool error = false,
-    }) => MiniPlayerState(
-      track: _a,
-      isPlaying: true,
-      progress: 0,
-      buffering: false,
-      hasError: error,
-      liked: false,
-      hasNext: false,
-      hasPrevious: false,
-      jamActive: jam,
-      adPlaying: ad,
-      jamAudio: jam,
-      canTogglePlay: true,
-    );
+    MiniPlayerState state({bool jam = false, bool error = false}) =>
+        MiniPlayerState(
+          track: _a,
+          isPlaying: true,
+          progress: 0,
+          buffering: false,
+          hasError: error,
+          liked: false,
+          hasNext: false,
+          hasPrevious: false,
+          jamActive: jam,
+          jamAudio: jam,
+          canTogglePlay: true,
+        );
 
     test('el subtítulo es el artista', () {
       expect(miniSubtitle(state()), 'Aurora');
     });
 
-    test('anuncio, Jam y fallo con su prioridad', () {
-      expect(miniSubtitle(state(ad: true, error: true)), miniAdNotice);
-      expect(miniSubtitle(state(ad: true)), miniAdNotice);
-      // El anuncio no cuenta con audio de Jam.
-      expect(miniSubtitle(state(ad: true, jam: true)), 'Aurora · Jam');
+    test('Jam y fallo con su prioridad', () {
       expect(miniSubtitle(state(jam: true)), 'Aurora · Jam');
       expect(miniSubtitle(state(error: true)), miniErrorNotice);
       expect(miniSubtitleIsError(state(error: true)), isTrue);
-      expect(miniSubtitleIsError(state(ad: true, error: true)), isFalse);
       expect(miniSubtitleIsError(state(jam: true, error: true)), isFalse);
     });
   });

@@ -406,7 +406,6 @@ void main() {
     expect(await h.firstClient('x'), 'B');
     h.now = h.now.add(const Duration(minutes: 3));
     expect(await h.firstClient('y'), 'A');
-    expect(h.orch.isBlacklisted('v'), isFalse);
   });
 
   group('cache', () {
@@ -494,22 +493,16 @@ void main() {
   });
 
   group('all clients fail', () {
-    test('bot check: blocked, blacklisted for 30 min', () async {
+    test('bot check: blocked', () async {
       final h = _Harness()
         ..respond = (_, _) =>
             _status('LOGIN_REQUIRED', "Sign in to confirm you're not a bot");
       final e = await _failure(h.orch.resolve('v'));
       expect(e.kind, YouTubeFailure.blocked);
       expect(YouTubeRequestPolicy.classify(e.message), YouTubeFailure.blocked);
-      expect(h.orch.isBlacklisted('v'), isTrue);
-      expect(h.orch.isBlacklisted('other'), isFalse);
-      h.now = h.now.add(const Duration(minutes: 29));
-      expect(h.orch.isBlacklisted('v'), isTrue);
-      h.now = h.now.add(const Duration(minutes: 2));
-      expect(h.orch.isBlacklisted('v'), isFalse);
     });
 
-    test('probe 403 everywhere: accessDenied, blacklisted', () async {
+    test('probe 403 everywhere: accessDenied', () async {
       final h = _Harness()..probe = (_) => 403;
       final e = await _failure(h.orch.resolve('v'));
       expect(e.kind, YouTubeFailure.accessDenied);
@@ -517,7 +510,6 @@ void main() {
         YouTubeRequestPolicy.classify(e.message),
         YouTubeFailure.accessDenied,
       );
-      expect(h.orch.isBlacklisted('v'), isTrue);
     });
 
     test('player 429 and 403 map to blocked / accessDenied', () async {
@@ -533,7 +525,7 @@ void main() {
       }
     });
 
-    test('network errors: transient, not blacklisted', () async {
+    test('network errors: transient', () async {
       for (final error in [
         const SocketException('x'),
         TimeoutException('x'),
@@ -546,11 +538,10 @@ void main() {
           YouTubeRequestPolicy.classify(e.message),
           YouTubeFailure.transient,
         );
-        expect(h.orch.isBlacklisted('v'), isFalse);
       }
     });
 
-    test('UNPLAYABLE: unavailable, stops early, not blacklisted', () async {
+    test('UNPLAYABLE: unavailable, stops early', () async {
       final h = _Harness()..respond = (_, _) => _status('UNPLAYABLE', 'x');
       final e = await _failure(h.orch.resolve('v'));
       expect(e.kind, YouTubeFailure.unavailable);
@@ -559,14 +550,12 @@ void main() {
         YouTubeFailure.unavailable,
       );
       expect(h.posts, hasLength(1));
-      expect(h.orch.isBlacklisted('v'), isFalse);
     });
 
-    test('other failures are not blacklisted', () async {
+    test('other failures', () async {
       final h = _Harness()..respond = (_, _) => {'weird': true};
       final e = await _failure(h.orch.resolve('v'));
       expect(e.kind, YouTubeFailure.other);
-      expect(h.orch.isBlacklisted('v'), isFalse);
     });
   });
 }

@@ -4,17 +4,21 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
-/// Modelo de voz en español (Vosk, Apache 2.0). Se descarga una vez, al activar
-/// los comandos de voz, y se verifica por tamaño y SHA-256 antes de usarlo.
+/// Modelo de voz: Whisper «base» multilingüe cuantizado a 5 bits (ggml,
+/// MIT, OpenAI Whisper / whisper.cpp). Es un único archivo que se descarga
+/// una vez, al activar los comandos de voz, y se verifica por tamaño y SHA-256
+/// antes de usarlo.
 abstract final class VoiceModel {
-  static const name = 'vosk-model-small-es-0.42';
-  static final url = Uri.parse('https://alphacephei.com/vosk/models/$name.zip');
-  static const bytes = 39817833;
+  static const name = 'ggml-base-q5_1.bin';
+  static final url = Uri.parse(
+    'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$name',
+  );
+  static const bytes = 59707625;
   static const sha256Hex =
-      '09b239888f633ef2f0b4e09736e3d9936acfd810bc65d53fad45261762c6511f';
+      '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898';
 
-  static Directory directory(Directory supportDirectory) =>
-      Directory(p.join(supportDirectory.path, 'voice', name));
+  static File file(Directory supportDirectory) =>
+      File(p.join(supportDirectory.path, 'voice', name));
 }
 
 class VoiceModelException implements Exception {
@@ -27,7 +31,8 @@ class VoiceModelException implements Exception {
 typedef VoiceDownloadProgress = void Function(double fraction);
 
 /// Descarga [url] a [target] por HTTPS con certificados verificados, sin pasar
-/// de [expectedBytes] y comprobando su SHA-256. Borra el archivo si algo falla.
+/// de [expectedBytes] y comprobando su SHA-256. Escribe en `<target>.part` y
+/// solo lo renombra a [target] tras verificarlo; si algo falla lo borra.
 Future<void> downloadVerified(
   Uri url,
   File target, {
@@ -43,17 +48,26 @@ Future<void> downloadVerified(
     ..connectionTimeout = const Duration(seconds: 15);
   IOSink? sink;
   var complete = false;
+  final part = File('${target.path}.part');
   try {
     await target.parent.create(recursive: true);
     final request = await client.getUrl(url);
     final response = await request.close();
+    if (response.redirects.any(
+      (r) => r.location.hasScheme && r.location.scheme != 'https',
+    )) {
+      await response.drain<void>();
+      throw const VoiceModelException(
+        'El servidor redirigió la descarga fuera de HTTPS.',
+      );
+    }
     if (response.statusCode != HttpStatus.ok) {
       await response.drain<void>();
       throw VoiceModelException(
         'No se pudo descargar el modelo (HTTP ${response.statusCode}).',
       );
     }
-    sink = target.openWrite();
+    sink = part.openWrite();
     final digest = _DigestSink();
     final hash = sha256.startChunkedConversion(digest);
     var received = 0;
@@ -79,6 +93,7 @@ Future<void> downloadVerified(
         'El modelo descargado no coincide con el esperado (SHA-256). No se usará.',
       );
     }
+    await part.rename(target.path);
     complete = true;
   } on TimeoutException {
     throw const VoiceModelException(
@@ -97,7 +112,7 @@ Future<void> downloadVerified(
     try {
       await sink?.close();
     } catch (_) {}
-    if (!complete && await target.exists()) await target.delete();
+    if (!complete && await part.exists()) await part.delete();
   }
 }
 

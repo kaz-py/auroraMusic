@@ -58,7 +58,6 @@ MiniPlayerState _state({
   bool hasNext = true,
   bool hasPrevious = true,
   String? jamHost,
-  bool ad = false,
   bool jam = false,
   int queueLength = 3,
   bool eqAvailable = true,
@@ -78,7 +77,6 @@ MiniPlayerState _state({
   canTogglePlay: canTogglePlay,
   canSeek: canSeek,
   jamHostName: jamHost,
-  adPlaying: ad,
   jamAudio: jam,
   queueLength: queueLength,
   equalizerAvailable: eqAvailable,
@@ -665,18 +663,11 @@ void main() {
     });
   });
 
-  group('anuncio y Jam en el subtítulo', () {
+  group('Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
       final tag = '360 · ×${scale.toInt()}';
       Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
           mount(tester, width: 360, scale: scale, state: state);
-
-      testWidgets('anuncio · $tag', (tester) async {
-        await pump(tester, _state(ad: true, playing: true));
-        expect(tester.takeException(), isNull);
-        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
-        expect(find.text('Aurora Boreal'), findsNothing);
-      });
 
       testWidgets('Jam · $tag', (tester) async {
         await pump(tester, _state(jam: true, playing: true));

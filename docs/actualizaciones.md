@@ -7,14 +7,15 @@ Cadena verificada leyendo el código (no reproducida: había una instancia del u
 1. `UpdateController.install()` lanzaba el instalador (`/VERYSILENT … /CLOSEAPPLICATIONS`, desacoplado) y
    llamaba a `requestHardExit()` → método nativo `hardExit`.
 2. `hardExit` solo ponía `real_exit_ = true` y enviaba `WM_CLOSE`. `WM_CLOSE` entra en
-   `RequestClose()`, que invoca `confirmClose` en Dart. **El temporizador de seguridad de 3 s
-   solo se arma si `!close_guard_enabled_`**, y `aurora_shell.dart` activa la guardia siempre
-   que el reproductor web está montado (`guardClose(_section == 10 || _webAudio != null)`).
-   Es decir, justo el caso normal: sin vigilante.
-3. `_confirmWindowClose` espera `confirmExit()` y `_webAudio.shutdown()`. Si algo no responde,
-   el proceso nunca llega a destruir la ventana; si Dart devuelve `false`, el runner hace
-   `real_exit_ = false` y el siguiente cierre oculta a la bandeja. Además, aunque la ventana
-   se destruya, el proceso puede seguir vivo (WebView2/audio) sin ventana.
+   `RequestClose()`, que invoca `confirmClose` en Dart. El temporizador de seguridad de 3 s
+   solo se armaba con la guardia de cierre desactivada, y el shell la activaba siempre que
+   el reproductor web (ya retirado) estaba montado. Es decir, justo el caso normal: sin
+   vigilante. La guardia (`guardClose`) desapareció con el reproductor web y el temporizador
+   es ahora incondicional.
+3. El cierre esperaba la confirmación de Dart. Si algo no respondía, el proceso nunca llegaba
+   a destruir la ventana; si Dart devolvía `false`, el runner hace `real_exit_ = false` y el
+   siguiente cierre oculta a la bandeja. Además, aunque la ventana se destruyera, el proceso
+   podía seguir vivo (motor de audio) sin ventana.
 4. El instalador Inno con `/CLOSEAPPLICATIONS` no consigue cerrar un `aurora_music.exe`
    vivo y escondido; con `/VERYSILENT /SUPPRESSMSGBOXES` aborta sin mostrar nada ni escribir
    log. Resultado: sin ventana, proceso vivo, versión vieja, ningún error.
@@ -27,7 +28,7 @@ el defecto de diseño (cierre sin vigilante y sin feedback) es común a todos.
 - **Runner** (`flutter_window.cpp`): `hardExit` además arma `ArmExitWatchdog()`, un hilo nativo
   que a los 3 s guarda la geometría, quita el icono de bandeja, libera el mutex de instancia
   única y llama a `ExitProcess(0)` (con otro hilo que hace `TerminateProcess` a los 2 s más).
-  Independiente de Dart y de `close_guard_enabled_`. La X (siempre a la bandeja), Alt+F4,
+  Independiente de Dart. La X (siempre a la bandeja), Alt+F4,
   `SC_CLOSE` y «Salir» de la bandeja **no** lo arman.
 - **Dart**: `requestHardExit()` va con `.timeout(3 s)` y cae a `exit(0)`.
 - **Instalador**: `/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS

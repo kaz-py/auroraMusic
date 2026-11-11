@@ -158,7 +158,7 @@ void main() {
     final old = hardExitHandler;
     hardExitHandler = () async => forced++;
     addTearDown(() => hardExitHandler = old);
-    WindowControls.setCloseConfirmation(() async => true);
+    WindowControls.install();
     final codec = const StandardMethodCodec();
     await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .handlePlatformMessage(
@@ -172,7 +172,7 @@ void main() {
     final calls = RegExp(r'ArmExitWatchdog\(\);').allMatches(cpp).toList();
     expect(calls, hasLength(1));
     final hardBlock = cpp.indexOf('name == "hardExit"');
-    final guardBlock = cpp.indexOf('name == "guardClose"');
-    expect(calls.single.start, inInclusiveRange(hardBlock, guardBlock));
+    final nextBlock = cpp.indexOf('name == "setBackground"');
+    expect(calls.single.start, inInclusiveRange(hardBlock, nextBlock));
   });
 }

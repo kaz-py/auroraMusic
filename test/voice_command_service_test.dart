@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:aurora_music/bridge/api/voice.dart' as rust;
 import 'package:aurora_music/remote/remote_control_server.dart';
 import 'package:aurora_music/voice/voice_command_service.dart';
 import 'package:aurora_music/voice/voice_model.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Actions implements RemoteControlActions {
@@ -64,9 +67,9 @@ void main() {
 
   Future<VoiceCommandService> create({
     Map<String, Object> prefs = const {},
-    String? Function()? library,
     Future<void> Function(File, VoiceDownloadProgress)? download,
     bool supported = true,
+    bool cpu = true,
   }) async {
     SharedPreferences.setMockInitialValues(prefs);
     return VoiceCommandService(
@@ -74,25 +77,20 @@ void main() {
       actions,
       supportDirectory: dir,
       supported: supported,
+      cpuSupported: () => cpu,
       pollEvery: const Duration(milliseconds: 10),
       silentAfter: const Duration(milliseconds: 150),
-      libraryPath: library ?? () => 'libvosk.fake',
-      modelInstalled: (_) => installed,
+      modelReady: (_) => installed,
       download:
           download ??
           (file, progress) async {
             log.add('descarga');
             progress(0.5);
-            await file.parent.create(recursive: true);
-            await file.writeAsString('zip');
+            installed = true;
             progress(1);
           },
-      installModel: (archive, dest) async {
-        log.add('instala');
-        installed = true;
-      },
-      startListener: (lib, model) async {
-        log.add('escucha:$lib');
+      startListener: (model) async {
+        log.add('escucha:${p.basename(model)}');
         return listener;
       },
     );
@@ -123,17 +121,21 @@ void main() {
     final service = await create();
     await service.setEnabled(true);
     expect(service.state, VoiceState.listening);
-    expect(log, ['descarga', 'instala', 'escucha:libvosk.fake']);
-    expect(
-      File('${dir.path}/voice/${VoiceModel.name}.zip').existsSync(),
-      isFalse,
-      reason: 'el ZIP se borra tras instalar',
-    );
-    // Con el modelo ya instalado no vuelve a descargar.
+    expect(log, ['descarga', 'escucha:${VoiceModel.name}']);
+    // Con el modelo ya descargado no vuelve a descargar.
     await service.setEnabled(false);
     log.clear();
     await service.setEnabled(true);
-    expect(log, ['escucha:libvosk.fake']);
+    expect(log, ['escucha:${VoiceModel.name}']);
+    service.dispose();
+  });
+
+  test('a download that leaves no valid model is an error', () async {
+    final service = await create(download: (_, _) async {});
+    await service.setEnabled(true);
+    expect(service.state, VoiceState.error);
+    expect(service.error, contains('modelo'));
+    expect(log, isEmpty);
     service.dispose();
   });
 
@@ -156,6 +158,31 @@ void main() {
     expect(actions.calls, ['pause', 'play', 'play', 'next', 'previous']);
     expect(service.awaitingCommand, isFalse);
     expect(service.lastCommand, 'Anterior');
+    service.dispose();
+  });
+
+  test('what Whisper heard is exposed, command or not', () async {
+    installed = true;
+    final service = await create();
+    await service.setEnabled(true);
+    expect(service.lastHeard, isNull);
+    listener.queue.add(const rust.VoiceEvent(wake: false, heard: ' hola '));
+    await settle();
+    expect(service.lastHeard, 'hola');
+    expect(service.lastHeardAt, isNotNull);
+    expect(actions.calls, isEmpty);
+    listener.queue.add(
+      const rust.VoiceEvent(
+        intent: rust.VoiceIntent.next,
+        wake: false,
+        heard: 'aurora siguiente',
+      ),
+    );
+    await settle();
+    expect(service.lastHeard, 'aurora siguiente');
+    expect(actions.calls, ['next']);
+    await service.setEnabled(false);
+    expect(service.lastHeard, isNull);
     service.dispose();
   });
 
@@ -217,7 +244,7 @@ void main() {
     service.dispose();
   });
 
-  test('download and library failures become readable errors', () async {
+  test('download failures become readable errors', () async {
     final failing = await create(
       download: (_, _) async =>
           throw const VoiceModelException('Sin conexión.'),
@@ -225,14 +252,34 @@ void main() {
     await failing.setEnabled(true);
     expect(failing.state, VoiceState.error);
     expect(failing.error, 'Sin conexión.');
-    expect(log, isNot(contains(startsWith('escucha'))));
+    expect(log, isEmpty);
     failing.dispose();
+  });
 
-    final noLibrary = await create(library: () => null);
-    await noLibrary.setEnabled(true);
-    expect(noLibrary.state, VoiceState.error);
-    expect(noLibrary.error, contains('libvosk'));
-    noLibrary.dispose();
+  test('a CPU without AVX2 refuses to listen, download or analyse', () async {
+    final service = await create(cpu: false);
+    await service.setEnabled(true);
+    expect(service.state, VoiceState.error);
+    expect(service.error, contains('AVX2'));
+    expect(log, isEmpty);
+    expect(service.analysisReady, isFalse);
+
+    await service.setLyricsSync(true);
+    expect(service.modelError, contains('AVX2'));
+    expect(log, isEmpty);
+    service.dispose();
+  });
+
+  test('lyrics sync downloads the model without listening', () async {
+    final service = await create();
+    expect(service.analysisReady, isFalse);
+    await service.setLyricsSync(true);
+    expect(log, ['descarga']);
+    expect(service.modelBusy, isFalse);
+    expect(service.modelError, isNull);
+    expect(service.analysisReady, isTrue);
+    expect(service.modelPath, endsWith(VoiceModel.name));
+    service.dispose();
   });
 
   test(
@@ -258,4 +305,118 @@ void main() {
       unsupported.dispose();
     },
   );
+
+  group('downloadVerified', () {
+    final payload = List<int>.generate(1000, (i) => i % 251);
+    final good = sha256.convert(payload).toString();
+
+    Future<void> run(
+      Uri url,
+      File target, {
+      String? sha,
+      List<int>? body,
+      int status = 200,
+    }) => downloadVerified(
+      url,
+      target,
+      expectedBytes: payload.length,
+      expectedSha256: sha ?? good,
+      clientFactory: () => _FakeClient(body ?? payload, status),
+    );
+
+    test('refuses plain http without touching the disk', () async {
+      final target = File('${dir.path}/voice/m.bin');
+      await expectLater(
+        run(Uri.parse('http://example.com/m.bin'), target),
+        throwsA(
+          isA<VoiceModelException>().having(
+            (e) => e.message,
+            'message',
+            contains('HTTPS'),
+          ),
+        ),
+      );
+      expect(target.existsSync(), isFalse);
+      expect(File('${target.path}.part').existsSync(), isFalse);
+      expect(target.parent.existsSync(), isFalse);
+    });
+
+    test('writes .part and renames to the final name once verified', () async {
+      final target = File('${dir.path}/voice/m.bin');
+      await run(Uri.parse('https://example.com/m.bin'), target);
+      expect(target.readAsBytesSync(), payload);
+      expect(File('${target.path}.part').existsSync(), isFalse);
+    });
+
+    test(
+      'a corrupt, short or oversized body never becomes the model',
+      () async {
+        final target = File('${dir.path}/voice/m.bin');
+        final url = Uri.parse('https://example.com/m.bin');
+        // Uno tras otro: comparten el mismo archivo de destino.
+        for (final bad in <Future<void> Function()>[
+          () => run(url, target, sha: '0' * 64),
+          () => run(url, target, body: payload.sublist(0, 10)),
+          () => run(url, target, body: [...payload, 1]),
+          () => run(url, target, status: 404),
+        ]) {
+          await expectLater(bad(), throwsA(isA<VoiceModelException>()));
+          expect(target.existsSync(), isFalse);
+          expect(File('${target.path}.part').existsSync(), isFalse);
+        }
+      },
+    );
+  });
+}
+
+class _FakeClient implements HttpClient {
+  _FakeClient(this.body, this.status);
+  final List<int> body;
+  final int status;
+
+  @override
+  Duration? connectionTimeout;
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) async =>
+      _FakeRequest(_FakeResponse(body, status));
+  @override
+  void close({bool force = false}) {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeRequest implements HttpClientRequest {
+  _FakeRequest(this.response);
+  final HttpClientResponse response;
+  @override
+  Future<HttpClientResponse> close() async => response;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeResponse extends Stream<List<int>> implements HttpClientResponse {
+  _FakeResponse(this.body, this.statusCode);
+  final List<int> body;
+  @override
+  final int statusCode;
+  @override
+  List<RedirectInfo> get redirects => const [];
+  @override
+  StreamSubscription<List<int>> listen(
+    void Function(List<int>)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) =>
+      Stream<List<int>>.fromIterable([
+        body.sublist(0, body.length ~/ 2),
+        body.sublist(body.length ~/ 2),
+      ]).listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+        cancelOnError: cancelOnError,
+      );
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

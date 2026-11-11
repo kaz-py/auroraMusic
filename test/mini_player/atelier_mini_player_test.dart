@@ -49,7 +49,6 @@ MiniPlayerState _state({
   bool eq = false,
   bool lyrics = false,
   String? jamHost,
-  bool ad = false,
   bool jam = false,
   bool shuffle = false,
   bool canShuffle = false,
@@ -71,7 +70,6 @@ MiniPlayerState _state({
   shuffle: shuffle,
   canShuffle: canShuffle,
   jamHostName: jamHost,
-  adPlaying: ad,
   jamAudio: jam,
 );
 
@@ -614,19 +612,12 @@ void main() {
     });
   });
 
-  group('anuncio y Jam en el subtítulo', () {
+  group('Jam en el subtítulo', () {
     const plain = Track(id: 's', title: 'Luz de luna', artist: 'Mare Sol');
     for (final scale in const [1.0, 2.0]) {
       final tag = '360 · ×${scale.toInt()}';
       Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
           mount(tester, width: 360, scale: scale, state: state);
-
-      testWidgets('anuncio · $tag', (tester) async {
-        await pump(tester, _state(track: plain, ad: true, playing: true));
-        expect(tester.takeException(), isNull);
-        expect(text('Anuncio · tu canción sigue después'), findsOneWidget);
-        expect(text('Mare Sol'), findsNothing);
-      });
 
       testWidgets('Jam · $tag', (tester) async {
         await pump(tester, _state(track: plain, jam: true, playing: true));

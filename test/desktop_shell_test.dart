@@ -46,7 +46,7 @@ void main() {
       // Cierre real (Alt+F4 / Salir): Dart pausa el audio; la X a la bandeja no.
       var stopped = 0;
       WindowControls.onRealExit = () async => stopped++;
-      WindowControls.setCloseConfirmation(() async => true);
+      WindowControls.install();
       Future<Object?> native(Object? arg) async {
         final done = Completer<Object?>();
         await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

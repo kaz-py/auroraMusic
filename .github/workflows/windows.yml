@@ -31,11 +31,6 @@ jobs:
       - name: Instalar dependencias
         run: flutter pub get
 
-      - name: Configurar NuGet para WebView2
-        uses: NuGet/setup-nuget@v3
-        with:
-          nuget-version: '6.12.1'
-
       - name: Analizar código Dart
         run: flutter analyze
 

@@ -318,7 +318,7 @@ class _Info extends StatelessWidget {
   Widget build(BuildContext context) {
     final track = state.track!;
     final artist = track.artist.trim().isEmpty ? '—' : track.artist;
-    // Anuncio: el aviso reemplaza a la pista; Jam: «ARTISTA · JAM» arriba.
+    // Jam: «ARTISTA · JAM» arriba.
     final head = state.jamAudio ? '$artist · Jam' : artist;
     return Row(
       children: [
@@ -360,7 +360,7 @@ class _Info extends StatelessWidget {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  state.adShowing ? miniAdNotice : track.title,
+                  track.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
