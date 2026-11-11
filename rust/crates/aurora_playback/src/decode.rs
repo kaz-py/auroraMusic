@@ -2,7 +2,7 @@
 //!
 //! Symphonia aporta los contenedores (MP3, FLAC, WAV, OGG, MP4/M4A, MKV/WebM) y
 //! los códecs (MP3, FLAC, Vorbis, AAC-LC, ALAC, PCM). Opus, que Symphonia no
-//! decodifica, va por `opus-decoder` (Rust puro) con la sincronización de
+//! decodifica, va por libopus (`crate::opus`) con la sincronización de
 //! `OpusHead` (pre-skip y ganancia). Lo que no se reconoce devuelve
 //! [`OpenError::Unsupported`] para que el llamador use el motor anterior.
 
@@ -10,7 +10,7 @@ use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use opus_decoder::OpusDecoder;
+use crate::opus::{OpusDec, MAX_FRAME};
 use rubato::{FftFixedIn, Resampler};
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::{
@@ -49,7 +49,7 @@ impl std::error::Error for OpenError {}
 enum Codec {
     Symphonia(Box<dyn Decoder>),
     Opus {
-        decoder: Box<OpusDecoder>,
+        decoder: Box<OpusDec>,
         channels: usize,
         /// Muestras (a 48 kHz) que hay que descartar al principio.
         pre_skip: usize,
@@ -284,7 +284,7 @@ impl PcmStream {
                 .ok_or_else(|| OpenError::Unsupported("Opus sin OpusHead".into()))?;
             let (channels, pre_skip, gain) = opus_head(extra)
                 .ok_or_else(|| OpenError::Unsupported("OpusHead no admitido".into()))?;
-            let decoder = OpusDecoder::new(48_000, channels.clamp(1, 2))
+            let decoder = OpusDec::new(channels.clamp(1, 2))
                 .map_err(|e| OpenError::Unsupported(format!("Opus: {e:?}")))?;
             (
                 Codec::Opus {
@@ -467,8 +467,8 @@ impl PcmStream {
                     pre_skip,
                     gain,
                 } => {
-                    let mut pcm = vec![0f32; decoder.max_frame_size_per_channel() * *channels];
-                    let frames = match decoder.decode_float(&packet.data, &mut pcm, false) {
+                    let mut pcm = vec![0f32; MAX_FRAME * *channels];
+                    let frames = match decoder.decode_float(&packet.data, &mut pcm) {
                         Ok(n) => n,
                         Err(e) => {
                             if strict {

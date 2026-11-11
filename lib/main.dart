@@ -41,6 +41,11 @@ Future<void> main(List<String> args) async {
 Future<void> _main(List<String> args) async {
   WindowControls.launchArguments = args;
   WidgetsFlutterBinding.ensureInitialized();
+  // Por defecto Flutter retiene hasta 100 MB de imágenes decodificadas; las
+  // portadas se vuelven a decodificar rápido, así que 32 MB bastan.
+  PaintingBinding.instance.imageCache
+    ..maximumSizeBytes = 32 << 20
+    ..maximumSize = 300;
   await RustLib.init();
   FlutterError.onError = (d) =>
       debugPrint('FlutterError: ${d.exceptionAsString()}');

@@ -492,6 +492,29 @@ fn buffering_flag_clears_after_a_seek_and_stays_clear() {
     }
 }
 
+/// El audio de YouTube es Opus: si decodificarlo no va muy por delante del
+/// tiempo real, un equipo lento suena entrecortado (el decodificador de Rust
+/// puro anterior tardaba ~1 s en 2 s de audio; libopus, milisegundos).
+#[test]
+fn opus_decodes_far_faster_than_real_time() {
+    let engine = engine();
+    let info = engine.load(&spec("tone-opus.webm", 0.0)).unwrap();
+    let audio_secs = info.duration_secs.unwrap();
+    engine.play();
+    let mut buffer = vec![0f32; 9600];
+    let started = Instant::now();
+    while !engine.state().ended && started.elapsed() < Duration::from_secs(5) {
+        engine.pull(&mut buffer);
+        thread::yield_now();
+    }
+    let took = started.elapsed().as_secs_f64();
+    assert!(engine.state().ended, "no llegó al final");
+    assert!(
+        took < audio_secs / 4.0,
+        "decodificar {audio_secs:.1} s de Opus tardó {took:.2} s"
+    );
+}
+
 #[test]
 fn a_lost_device_is_reported_in_the_state() {
     let engine = engine();

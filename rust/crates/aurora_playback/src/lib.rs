@@ -1,5 +1,5 @@
-//! Reproductor de escritorio de Aurora: decodifica con Symphonia (y Opus en
-//! Rust puro), remuestrea y entrega PCM al dispositivo de salida.
+//! Reproductor de escritorio de Aurora: decodifica con Symphonia (y Opus con
+//! libopus), remuestrea y entrega PCM al dispositivo de salida.
 //!
 //! En construcción: ver `MIGRATION_PENDIENTES.md` (fase 2b).
 
@@ -7,6 +7,7 @@ mod decode;
 mod device;
 mod engine;
 mod http;
+mod opus;
 mod probe;
 mod remux;
 

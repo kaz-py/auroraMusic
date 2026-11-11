@@ -6,7 +6,8 @@ Reproductor de música en Flutter y Dart para **Windows x64, Linux x64 y Android
 
 - **Búsqueda** en YouTube Music vía InnerTube, sin clave de API ([`innertube_source.dart`](lib/sources/innertube_source.dart)): canciones, álbumes, artistas y vídeos, con paginación y navegación de álbum/artista.
 - **Reproducción nativa**: el audio de YouTube se resuelve por InnerTube y suena en el motor nativo (Android Media3; Windows y Linux, el motor Rust `aurora_playback` con Symphonia + CPAL) a través de un proxy local en `127.0.0.1` que pide trozos acotados al CDN ([`lib/sources/stream/`](lib/sources/stream/)). Sin tokens PO ni descifrado de firmas. Si YouTube bloquea una canción, se muestra el error de reproducción normal.
-- **Ecualizador y espectro** en el motor nativo; un único motor activo a la vez ([`routed_music_audio.dart`](lib/audio/routed_music_audio.dart)).
+- **Ecualizador y espectro** en el motor nativo.
+- **Avisos de amigos**: canciones, listas e invitaciones a una Jam llegan como notificación del sistema (Windows, Android, Linux) cuando Aurora está abierta pero no a la vista; con la app cerrada no llega nada (haría falta un servicio push).
 - **Controles del sistema** (notificación Media3 en Android, SMTC en Windows).
 - **yt-dlp** solo para descargas explícitas e importación de listas.
 - **La cola nunca termina**: cuando empieza la última canción, el DJ añade canciones según tus gustos (perfil local con vectores, MMR y enfriamiento por artista), con la radio de YouTube y Last.fm como fuentes de candidatos y tu biblioteca como respaldo ([docs/dj.md](docs/dj.md)).
@@ -17,7 +18,7 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 
 - Inicio, búsqueda, importación de enlaces/listas de YouTube y archivos locales.
 - Favoritos, playlists editables, historial y cola reordenable; aleatorio, repetición, volumen, avance y temporizador.
-- Importación gratuita de playlists de Spotify desde JSON/CSV local, con vista previa y elección explícita de la versión en YouTube; sin configurar claves de API.
+- Importación gratuita de playlists de Spotify desde JSON/CSV local o pegando el enlace de una playlist, álbum, artista o canción públicos (sin iniciar sesión; hasta 100 canciones por lista sin cuenta), con vista previa y elección explícita de la versión en YouTube; sin configurar claves de API. Lee la página pública de incrustación de Spotify, que no es una API estable: si cambia, la importación por enlace avisa y las demás vías siguen funcionando.
 - Búsqueda de canciones, artistas, álbumes y playlists de Spotify mediante el proveedor de metadatos adaptado de Nuclear, sin cuenta personal ni Premium.
 - Descargas locales MP3 con progreso, cancelación, reintento y eliminación; carpeta de destino configurable en Windows y biblioteca disponible sin conexión.
 - Interfaz Atelier Sonoro reconstruida en Flutter a partir de los originales de `diseñoidea/`: Newsreader normal e italic, Plus Jakarta Sans, símbolos locales y navegación adaptable.

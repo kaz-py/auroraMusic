@@ -92,6 +92,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications usa API de Java 8+ que Android antiguo no trae.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -158,6 +160,7 @@ tasks.named("preBuild").configure {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")

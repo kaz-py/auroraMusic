@@ -21,7 +21,10 @@ int jamTargetPosition(
       : target.clamp(0, 86400000);
 }
 
-/// No rate adjustment exists in AudioBackend. Seek small steps only when drift exceeds 750ms.
+/// No rate adjustment exists in AudioBackend, and a seek reloads the stream
+/// (an audible gap): correct only past 1.5 s, and in one jump, not 500 ms steps.
+const jamDriftDeadbandMs = 1500;
+
 int? jamDriftCorrection({
   required int currentMs,
   required int targetMs,
@@ -30,8 +33,8 @@ int? jamDriftCorrection({
 }) {
   if (lastSeekMs != null && nowMs - lastSeekMs < 5000) return null;
   final drift = targetMs - currentMs;
-  if (drift.abs() <= 750) return null;
-  return currentMs + drift.clamp(-500, 500);
+  if (drift.abs() <= jamDriftDeadbandMs) return null;
+  return currentMs + drift.clamp(-3000, 3000);
 }
 
 class JamPlaybackBridge extends ChangeNotifier {
@@ -196,7 +199,7 @@ class JamPlaybackBridge extends ChangeNotifier {
           final force = _forceResync || (state.isPlaying && !_lastPlaying);
           _forceResync = false;
           final correction = force
-              ? ((target - current).abs() > 750 ? target : null)
+              ? ((target - current).abs() > jamDriftDeadbandMs ? target : null)
               : jamDriftCorrection(
                   currentMs: current,
                   targetMs: target,

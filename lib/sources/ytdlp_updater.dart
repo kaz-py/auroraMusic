@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -419,14 +420,15 @@ class YtDlpUpdater {
               'Nightly update server rejected request.',
             );
           }
-          final bytes = <int>[];
+          // Uint8List: 1 byte por byte (una List<int> gastaría 8 y duplicaría al crecer).
+          final bytes = BytesBuilder(copy: false);
           await for (final chunk in response) {
             if (bytes.length + chunk.length > 100 * 1024 * 1024) {
               throw const HttpException('Nightly asset exceeds size limit.');
             }
-            bytes.addAll(chunk);
+            bytes.add(chunk);
           }
-          return bytes;
+          return bytes.takeBytes();
         }
         throw const HttpException('Nightly redirect limit exceeded.');
       })().timeout(

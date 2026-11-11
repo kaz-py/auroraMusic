@@ -86,12 +86,12 @@ void main() {
     },
   );
   test(
-    'drift correction uses 750ms deadband 500ms steps and five second cooldown',
+    'drift correction uses a 1.5 s deadband, one jump (max 3 s) and a five second cooldown',
     () {
       expect(
         jamDriftCorrection(
           currentMs: 1000,
-          targetMs: 1600,
+          targetMs: 2400,
           nowMs: 10000,
           lastSeekMs: null,
         ),
@@ -104,7 +104,7 @@ void main() {
           nowMs: 10000,
           lastSeekMs: null,
         ),
-        1500,
+        4000,
       );
       expect(
         jamDriftCorrection(
@@ -113,7 +113,7 @@ void main() {
           nowMs: 10000,
           lastSeekMs: null,
         ),
-        5500,
+        3000,
       );
       expect(
         jamDriftCorrection(
@@ -175,10 +175,10 @@ void main() {
       );
       await bridge.apply(state);
       expect(audio.loadCount, 1);
-      expect(audio.position.inMilliseconds, 2500);
+      expect(audio.position.inMilliseconds, 5000);
       now = now.add(const Duration(seconds: 1));
       await bridge.apply(state);
-      expect(audio.position.inMilliseconds, 2500);
+      expect(audio.position.inMilliseconds, 5000);
       await bridge.apply(
         JamPlayback(
           sequence: 3,

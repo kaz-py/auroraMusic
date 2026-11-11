@@ -152,6 +152,8 @@ bool FlutterWindow::OnCreate() {
         } else if (name == "drag") {
           ReleaseCapture();
           PostMessage(host, WM_NCLBUTTONDOWN, HTCAPTION, GetMessagePos());
+        } else if (name == "showWindow") {
+          RestoreFromTray();
         } else if (name == "setCloseToTray") {
           const auto* v = args ? std::get_if<bool>(args) : nullptr;
           if (v) close_to_tray_ = *v;

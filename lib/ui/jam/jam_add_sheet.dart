@@ -270,7 +270,25 @@ class _JamAddSheetState extends State<JamAddSheet> {
                     : 'No encontramos canciones para esa búsqueda.',
                 Icons.search,
               )
-            : ListView(children: [for (final t in jam.results) _trackTile(t)]),
+            : NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  if (n.metrics.extentAfter < 600 && jam.hasMoreResults) {
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => jam.loadMoreResults(),
+                    );
+                  }
+                  return false;
+                },
+                child: ListView.builder(
+                  itemCount: jam.results.length + (jam.loadingMore ? 1 : 0),
+                  itemBuilder: (_, i) => i < jam.results.length
+                      ? _trackTile(jam.results[i])
+                      : const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                ),
+              ),
       ),
     ],
   );

@@ -57,22 +57,60 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: c,
-    builder: (context, _) => ListView(
-      controller: widget.scroll,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      children: [
-        _header(context),
-        const SizedBox(height: 16),
-        _nowPlaying(context),
-        const SizedBox(height: 20),
-        _queue(context),
-        const SizedBox(height: 20),
-        _people(context),
-        if (s.isHost) ...[const SizedBox(height: 20), _hostSettings(context)],
-        const SizedBox(height: 20),
-        _leave(context),
-      ],
-    ),
+    builder: (context, _) {
+      final shown = _shownQueue();
+      // La cola es un sliver: solo se construyen las filas visibles y, al
+      // reordenar, el arrastre se desplaza con el scroll de toda la hoja.
+      return CustomScrollView(
+        controller: widget.scroll,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _header(context),
+                const SizedBox(height: 16),
+                _nowPlaying(context),
+                const SizedBox(height: 20),
+                _queueHead(context, shown),
+              ]),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: c.canReorder
+                ? SliverReorderableList(
+                    itemCount: shown.length,
+                    onReorder: (from, to) {
+                      if (to > from) to--;
+                      c.reorder(shown[from], s.queue.indexOf(shown[to]));
+                    },
+                    itemBuilder: (context, i) =>
+                        _entry(context, shown[i], i, shown),
+                  )
+                : SliverList.builder(
+                    itemCount: shown.length,
+                    itemBuilder: (context, i) =>
+                        _entry(context, shown[i], i, shown),
+                  ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _people(context),
+                if (s.isHost) ...[
+                  const SizedBox(height: 20),
+                  _hostSettings(context),
+                ],
+                const SizedBox(height: 20),
+                _leave(context),
+              ]),
+            ),
+          ),
+        ],
+      );
+    },
   );
 
   Widget _title(BuildContext context, String text, {Widget? trailing}) =>
@@ -467,12 +505,15 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
     );
   }
 
-  Widget _queue(BuildContext context) {
+  List<JamQueueEntry> _shownQueue() {
     final playingId = s.playback?.entryId;
-    final shown = [
+    return [
       for (final e in s.queue)
         if (e.id != playingId) e,
     ];
+  }
+
+  Widget _queueHead(BuildContext context, List<JamQueueEntry> shown) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -493,20 +534,6 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
                 : 'La Jam empieza en silencio. Pulsa «Añadir» para buscar canciones o usar una playlist; solo suena lo que añade la gente.',
             Icons.queue_music,
           ),
-        if (c.canReorder)
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: shown.length,
-            onReorder: (from, to) {
-              if (to > from) to--;
-              c.reorder(shown[from], s.queue.indexOf(shown[to]));
-            },
-            itemBuilder: (context, i) => _entry(context, shown[i], i, shown),
-          )
-        else
-          for (final (i, e) in shown.indexed) _entry(context, e, i, shown),
       ],
     );
   }

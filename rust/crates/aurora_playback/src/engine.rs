@@ -23,6 +23,10 @@ use crate::http::HttpSource;
 /// contra cortes: una reconexión de red o un tropiezo del decodificador de
 /// menos de este tiempo no se oye (8 s ≈ 3 MB a 48 kHz estéreo).
 const RING_SECONDS: f64 = 8.0;
+/// Tras quedarse sin audio (o al empezar) la salida espera a tener este
+/// tiempo acumulado antes de sonar: un tropiezo es una pausa limpia y no un
+/// goteo de sonidos entrecortados.
+const PREROLL_SECONDS: f64 = 1.5;
 const SPECTRUM_WINDOW: usize = 512;
 const SPECTRUM_RING: usize = 2048;
 
@@ -73,6 +77,8 @@ pub(crate) struct Shared {
     buffered_samples: AtomicUsize,
     generation: AtomicU64,
     decoder_done: AtomicBool,
+    /// La salida espera a juntar [`PREROLL_SECONDS`] (carga nueva o falta de audio).
+    starved: AtomicBool,
     eof_clean: AtomicBool,
     ended: AtomicBool,
     error: Mutex<Option<String>>,
@@ -128,8 +134,14 @@ impl OutputState {
         let mut ring_left: Option<usize> = None;
         if let Ok(mut guard) = shared.consumer.try_lock() {
             if let Some(consumer) = guard.as_mut() {
+                if shared.starved.load(Ordering::Relaxed) {
+                    let preroll = (shared.sample_rate as f64 * 2.0 * PREROLL_SECONDS) as usize;
+                    if consumer.slots() >= preroll || shared.decoder_done.load(Ordering::Acquire) {
+                        shared.starved.store(false, Ordering::Relaxed);
+                    }
+                }
                 // Mudo no es pausa: con volumen 0 la posición sigue avanzando.
-                if playing || self.gain > 0.0 {
+                if (playing || self.gain > 0.0) && !shared.starved.load(Ordering::Relaxed) {
                     let available = consumer.slots().min(out.len());
                     for slot in out.iter_mut().take(available) {
                         match consumer.pop() {
@@ -143,6 +155,9 @@ impl OutputState {
                 }
                 // Foto exacta, no un contador: no acumula errores entre cargas.
                 let left = consumer.slots();
+                if left == 0 && got < out.len() && !shared.decoder_done.load(Ordering::Acquire) {
+                    shared.starved.store(true, Ordering::Relaxed);
+                }
                 shared.buffered_samples.store(left, Ordering::Relaxed);
                 ring_left = Some(left);
             }
@@ -202,6 +217,7 @@ fn new_shared(sample_rate: u32) -> Arc<Shared> {
         buffered_samples: AtomicUsize::new(0),
         generation: AtomicU64::new(0),
         decoder_done: AtomicBool::new(true),
+        starved: AtomicBool::new(false),
         eof_clean: AtomicBool::new(false),
         ended: AtomicBool::new(false),
         error: Mutex::new(None),
@@ -333,6 +349,7 @@ impl Engine {
         let capacity = (shared.sample_rate as f64 * 2.0 * RING_SECONDS) as usize;
         let (producer, consumer) = RingBuffer::<f32>::new(capacity);
         shared.decoder_done.store(false, Ordering::SeqCst);
+        shared.starved.store(true, Ordering::SeqCst);
         *shared.consumer.lock().unwrap() = Some(consumer);
         let worker = shared.clone();
         thread::Builder::new()
@@ -399,7 +416,10 @@ impl Engine {
         let has_source = s.consumer.lock().unwrap().is_some();
         PlayerState {
             playing,
-            buffering: has_source && !done && s.buffered_samples.load(Ordering::Relaxed) == 0,
+            buffering: has_source
+                && !done
+                && (s.starved.load(Ordering::Relaxed)
+                    || s.buffered_samples.load(Ordering::Relaxed) == 0),
             ended: s.ended.load(Ordering::SeqCst),
             consumed_us: s.frames_to_us(s.consumed_frames.load(Ordering::Relaxed)),
             decoded_us: s.frames_to_us(s.decoded_frames.load(Ordering::Relaxed)),

@@ -90,6 +90,7 @@ import 'mini_player/song_card.dart';
 import 'friends_page.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
+import '../notifications/system_notifier.dart';
 import 'undo_snackbar.dart';
 import '../updater/update_controller.dart';
 import '../updater/update_ui.dart';
@@ -286,6 +287,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     equalizerSheetsOpen.addListener(_eqSheetChanged);
     _listenForJamLinks();
     _startFollow();
+    _notifier.onTap = _openFriends;
     _friendsSub = ref
         .read(friendsServiceProvider)
         .notices
@@ -300,21 +302,24 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     return f.unseenCount + f.incoming.length;
   }
 
-  void _friendsNotice(FriendsNotice n) {
+  final _notifier = SystemNotifier();
+
+  void _openFriends(String? peerId) {
+    unawaited(WindowControls.invoke('showWindow'));
+    _friendsChat.value = peerId == null || peerId.isEmpty ? null : peerId;
+    _navigate(14);
+  }
+
+  Future<void> _friendsNotice(FriendsNotice n) async {
+    if (!mounted) return;
+    // Con la app a la vista basta la barra interna; si no, notificación del sistema.
+    if (!_foreground && await _notifier.showFriend(n)) return;
     if (!mounted) return;
     showUndoSnackBar(
       ScaffoldMessenger.maybeOf(context),
-      Text(switch (n.kind) {
-        FriendsNoticeKind.share => '${n.username} te envió una canción',
-        FriendsNoticeKind.playlist => '${n.username} te envió una lista',
-        FriendsNoticeKind.jam => '${n.username} te invita a su Jam',
-        FriendsNoticeKind.request => '${n.username} quiere ser tu amigo',
-      }),
+      Text(friendsNoticeMessage(n)),
       label: 'Ver',
-      onAction: () {
-        _friendsChat.value = n.peerId;
-        _navigate(14);
-      },
+      onAction: () => _openFriends(n.peerId),
     );
   }
 
@@ -1870,42 +1875,60 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       );
     }
     final hasFooter = c.hasMoreSearchResults || c.searchError != null;
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: count + (hasFooter ? 1 : 0),
-      itemBuilder: (_, i) {
-        if (i < count) {
-          return entries
-              ? _entryTile(c, c.searchEntries[i])
-              : _trackTile(
-                  c,
-                  c.searchResults[i],
-                  c.searchResults,
-                  searchResult: true,
-                );
+    // Al acercarse al final se pide la siguiente página (el botón queda de
+    // respaldo y para reintentar tras un error).
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.metrics.axis == Axis.vertical &&
+            n.metrics.extentAfter < 600 &&
+            c.hasMoreSearchResults &&
+            c.searchError == null) {
+          // Fuera de la notificación: no se puede avisar a la interfaz en pleno layout.
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => c.loadMoreSearch(),
+          );
         }
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              if (c.searchError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'No se pudieron cargar más resultados: ${c.searchError}',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              if (c.hasMoreSearchResults)
-                OutlinedButton.icon(
-                  onPressed: c.searchLoadingMore ? null : c.loadMoreSearch,
-                  icon: const Icon(Icons.expand_more),
-                  label: Text(c.searchLoadingMore ? 'Cargando…' : 'Cargar más'),
-                ),
-            ],
-          ),
-        );
+        return false;
       },
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: count + (hasFooter ? 1 : 0),
+        itemBuilder: (_, i) {
+          if (i < count) {
+            return entries
+                ? _entryTile(c, c.searchEntries[i])
+                : _trackTile(
+                    c,
+                    c.searchResults[i],
+                    c.searchResults,
+                    searchResult: true,
+                  );
+          }
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                if (c.searchError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'No se pudieron cargar más resultados: ${c.searchError}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                if (c.hasMoreSearchResults)
+                  OutlinedButton.icon(
+                    onPressed: c.searchLoadingMore ? null : c.loadMoreSearch,
+                    icon: const Icon(Icons.expand_more),
+                    label: Text(
+                      c.searchLoadingMore ? 'Cargando…' : 'Cargar más',
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

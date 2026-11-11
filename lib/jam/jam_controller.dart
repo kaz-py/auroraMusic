@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../app_controller.dart';
 import '../core/models.dart';
 import '../core/queue_policy.dart';
+import '../core/source_backend.dart';
 import 'jam_models.dart';
 import 'jam_service.dart';
 import 'jam_suggestions.dart';
@@ -141,6 +142,10 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _broadcastTimer;
   StreamSubscription<void>? _completed;
   int _searchGeneration = 0;
+  String _resultsQuery = '';
+  String? _resultsToken;
+  bool loadingMore = false;
+  bool get hasMoreResults => _resultsToken != null;
   bool _disposed = false;
   bool _hostLoading = false;
   Future<void> _run(Future<void> Function() action) async {
@@ -741,6 +746,9 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     final generation = ++_searchGeneration;
     query = query.trim();
     results = [];
+    _resultsToken = null;
+    loadingMore = false;
+    _resultsQuery = query;
     searching = query.isNotEmpty;
     error = null;
     _notify();
@@ -752,8 +760,11 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     try {
-      final matches = await app.source.search(query, limit: 12);
-      if (!_disposed && generation == _searchGeneration) results = matches;
+      final page = await app.source.searchPage(query, SearchKind.songs);
+      if (!_disposed && generation == _searchGeneration) {
+        results = page.tracks;
+        _resultsToken = page.continuation;
+      }
     } catch (_) {
       if (!_disposed && generation == _searchGeneration) {
         error =
@@ -762,6 +773,35 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     } finally {
       if (!_disposed && generation == _searchGeneration) {
         searching = false;
+        _notify();
+      }
+    }
+  }
+
+  /// Siguiente página de la búsqueda de «Añadir» (sin repetir pistas).
+  Future<void> loadMoreResults() async {
+    final token = _resultsToken;
+    if (token == null || searching || loadingMore || _disposed) return;
+    final generation = _searchGeneration;
+    loadingMore = true;
+    _notify();
+    try {
+      final page = await app.source.searchPage(
+        _resultsQuery,
+        SearchKind.songs,
+        continuation: token,
+      );
+      if (_disposed || generation != _searchGeneration) return;
+      final seen = {for (final t in results) t.id};
+      results = [...results, ...page.tracks.where((t) => seen.add(t.id))];
+      _resultsToken = page.continuation;
+    } catch (_) {
+      if (!_disposed && generation == _searchGeneration) {
+        _resultsToken = null; // sin reintento en bucle: otra búsqueda lo rearma
+      }
+    } finally {
+      if (!_disposed && generation == _searchGeneration) {
+        loadingMore = false;
         _notify();
       }
     }
