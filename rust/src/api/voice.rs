@@ -64,7 +64,7 @@ impl VoiceListener {
         }
         #[cfg(target_os = "android")]
         {
-            let _ = (lib_path, model_dir);
+            let _ = model_path;
             Err(anyhow!(
                 "Los comandos de voz no están disponibles en Android."
             ))
