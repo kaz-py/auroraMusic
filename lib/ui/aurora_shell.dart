@@ -287,6 +287,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     equalizerSheetsOpen.addListener(_eqSheetChanged);
     _listenForJamLinks();
     _startFollow();
+    _startSpotifyMatching();
     _notifier.onTap = _openFriends;
     _friendsSub = ref
         .read(friendsServiceProvider)
@@ -303,6 +304,27 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   }
 
   final _notifier = SystemNotifier();
+
+  /// Empareja con YouTube las canciones de Spotify que sigan pendientes.
+  AppController? _spotifyMatchController;
+
+  void _startSpotifyMatching() {
+    final c = ref.read(controllerProvider);
+    _spotifyMatchController = c;
+    c.onSpotifyMatchFinished = (matched, total) {
+      if (!mounted) return;
+      showUndoSnackBar(
+        ScaffoldMessenger.maybeOf(context),
+        Text(
+          matched == total
+              ? 'Spotify: $matched canciones emparejadas con YouTube'
+              : 'Spotify: $matched de $total canciones emparejadas con '
+                    'YouTube; elige a mano las demás',
+        ),
+      );
+    };
+    unawaited(c.autoMatchSpotify());
+  }
 
   void _openFriends(String? peerId) {
     unawaited(WindowControls.invoke('showWindow'));
@@ -409,6 +431,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _spotifyMatchController?.onSpotifyMatchFinished = null;
     _friendsSub?.cancel();
     _desktop.dispose();
     _duvet.dispose();

@@ -3,7 +3,7 @@
   "SDKVersion": 2,
   "UUID": "com.aurora.music",
   "Name": "Aurora",
-  "Version": "1.0.0.0",
+  "Version": "1.0.1.0",
   "Author": "Aurora",
   "Description": "Controla Aurora desde el Stream Deck: reproducir/pausar, siguiente, anterior e iniciar una Jam.",
   "Category": "Aurora",

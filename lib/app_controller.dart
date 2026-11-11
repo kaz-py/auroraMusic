@@ -2979,6 +2979,7 @@ class AppController extends ChangeNotifier {
       tracks.insertAll(0, newTracks);
       playlists.addAll(newPlaylists);
       error = null;
+      unawaited(autoMatchSpotify());
       return true;
     } catch (exception) {
       _report(exception);
@@ -2986,6 +2987,66 @@ class AppController extends ChangeNotifier {
     } finally {
       busy = false;
       _notify();
+    }
+  }
+
+  YoutubeMatcher? _importMatcher;
+  bool _spotifyMatchRun = false;
+
+  /// Emparejamiento automático en curso de las canciones importadas de Spotify.
+  bool spotifyMatching = false;
+  int spotifyMatchDone = 0, spotifyMatchTotal = 0;
+
+  /// Al terminar un emparejamiento: cuántas se emparejaron de cuántas.
+  void Function(int matched, int total)? onSpotifyMatchFinished;
+
+  /// Busca en YouTube Music la versión de cada canción importada de Spotify
+  /// que sigue pendiente y la guarda si la coincidencia es fiable (título,
+  /// artistas y duración; ver [YoutubeMatcher]). Las dudosas quedan pendientes
+  /// para elegirlas a mano. Se ejecuta en segundo plano tras importar y al
+  /// abrir la app; no hace nada si ya está en marcha o no hay pendientes.
+  Future<void> autoMatchSpotify() async {
+    if (_spotifyMatchRun || _disposed) return;
+    final pending = [
+      for (final t in tracks)
+        if (t.isPendingSpotifyMatch) t,
+    ];
+    if (pending.isEmpty) return;
+    _spotifyMatchRun = true;
+    spotifyMatching = true;
+    spotifyMatchDone = 0;
+    spotifyMatchTotal = pending.length;
+    _notify();
+    final matcher = _importMatcher ??= YoutubeMatcher(
+      search: (q, k) => source.searchPage(q, k).then((p) => p.tracks),
+      cacheKey: 'ytImportMatchCache',
+    );
+    var matched = 0, next = 0;
+    Future<void> worker() async {
+      while (next < pending.length && !_disposed) {
+        final track = pending[next++];
+        try {
+          final match = await matcher.match(track);
+          if (match != null && !_disposed) {
+            if (await matchSpotifyTrack(track.id, match.track)) matched++;
+          }
+        } catch (_) {
+          // Sin red o fallo de la fuente: queda pendiente para otra vez.
+        }
+        spotifyMatchDone++;
+        _notify();
+      }
+    }
+
+    try {
+      await Future.wait([for (var i = 0; i < 3; i++) worker()]);
+    } finally {
+      spotifyMatching = false;
+      _spotifyMatchRun = false;
+      if (!_disposed) {
+        _notify();
+        onSpotifyMatchFinished?.call(matched, pending.length);
+      }
     }
   }
 
