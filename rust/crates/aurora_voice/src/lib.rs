@@ -5,6 +5,7 @@
 pub mod align;
 mod capture;
 pub mod command;
+mod diagnostics;
 mod listener;
 mod vad;
 mod whisper;
@@ -18,7 +19,7 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum VoiceError {
-    /// `libvosk` no se encontró o no es compatible.
+    /// La CPU o la biblioteca de voz no sirven (por ejemplo, sin AVX2).
     Library(String),
     Model(String),
     /// Sin micrófono o fallo del dispositivo.

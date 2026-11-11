@@ -20,7 +20,7 @@ class VoiceSettings extends StatelessWidget {
   String _status() => switch (service.state) {
     VoiceState.off => '',
     VoiceState.downloading =>
-      'Descargando el modelo de voz (60 MB)… ${(service.progress * 100).round()} %',
+      'Descargando el modelo de voz (180 MB)… ${(service.progress * 100).round()} %',
     VoiceState.starting => 'Iniciando el micrófono…',
     VoiceState.listening =>
       service.awaitingCommand
@@ -48,7 +48,7 @@ class VoiceSettings extends StatelessWidget {
             subtitle: const Text(
               'Aurora escucha el micrófono y solo obedece lo que empieza por '
               '«Aurora». El audio se reconoce en este equipo con Whisper: no '
-              'se guarda ni se envía. Se descarga un modelo de ≈ 60 MB.',
+              'se guarda ni se envía. Se descarga un modelo de ≈ 180 MB.',
             ),
             value: service.enabled,
             onChanged: busy ? null : service.setEnabled,
@@ -108,10 +108,22 @@ class VoiceSettings extends StatelessWidget {
               'Mide cuánto se desvía la letra respecto a la canción (por '
               'ejemplo, por una introducción larga) y la corrige sola. Analiza '
               'el audio una vez por canción, en segundo plano, con el mismo '
-              'modelo de voz (≈ 60 MB).',
+              'modelo de voz (≈ 180 MB).',
             ),
             value: service.lyricsSyncEnabled,
             onChanged: busy || service.modelBusy ? null : service.setLyricsSync,
+          ),
+          SwitchListTile(
+            key: const ValueKey('voice-diagnostics-switch'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Guardar diagnóstico de voz'),
+            subtitle: Text(
+              'Para saber por qué una orden no se reconoce: guarda en este '
+              'equipo las últimas 40 frases (audio y lo que se entendió) en '
+              '${service.diagnosticsDirectory.path}. No se envía a ningún sitio.',
+            ),
+            value: service.diagnosticsEnabled,
+            onChanged: busy ? null : service.setDiagnostics,
           ),
           if (service.modelError != null)
             Text(

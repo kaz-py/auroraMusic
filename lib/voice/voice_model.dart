@@ -4,18 +4,18 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
-/// Modelo de voz: Whisper «base» multilingüe cuantizado a 5 bits (ggml,
+/// Modelo de voz: Whisper «small» multilingüe cuantizado a 5 bits (ggml,
 /// MIT, OpenAI Whisper / whisper.cpp). Es un único archivo que se descarga
 /// una vez, al activar los comandos de voz, y se verifica por tamaño y SHA-256
 /// antes de usarlo.
 abstract final class VoiceModel {
-  static const name = 'ggml-base-q5_1.bin';
+  static const name = 'ggml-small-q5_1.bin';
   static final url = Uri.parse(
     'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$name',
   );
-  static const bytes = 59707625;
+  static const bytes = 190085487;
   static const sha256Hex =
-      '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898';
+      'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb';
 
   static File file(Directory supportDirectory) =>
       File(p.join(supportDirectory.path, 'voice', name));

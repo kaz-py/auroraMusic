@@ -357,6 +357,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<VoiceListener> crateApiVoiceVoiceListenerStart({
     required String modelPath,
+    String? diagnosticsDir,
   });
 
   void crateApiVoiceVoiceListenerStop({required VoiceListener that});
@@ -2429,12 +2430,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<VoiceListener> crateApiVoiceVoiceListenerStart({
     required String modelPath,
+    String? diagnosticsDir,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(modelPath, serializer);
+          sse_encode_opt_String(diagnosticsDir, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2448,7 +2451,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiVoiceVoiceListenerStartConstMeta,
-        argValues: [modelPath],
+        argValues: [modelPath, diagnosticsDir],
         apiImpl: this,
       ),
     );
@@ -2457,7 +2460,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiVoiceVoiceListenerStartConstMeta =>
       const TaskConstMeta(
         debugName: "VoiceListener_start",
-        argNames: ["modelPath"],
+        argNames: ["modelPath", "diagnosticsDir"],
       );
 
   @override

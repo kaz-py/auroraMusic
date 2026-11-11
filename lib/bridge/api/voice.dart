@@ -29,11 +29,16 @@ abstract class VoiceListener implements RustOpaqueInterface {
   /// Eventos desde la última consulta.
   List<VoiceEvent> poll();
 
-  /// Carga el modelo de Whisper (`model_path`, archivo `.bin`) y empieza a escuchar.
-  static Future<VoiceListener> start({required String modelPath}) => RustLib
-      .instance
-      .api
-      .crateApiVoiceVoiceListenerStart(modelPath: modelPath);
+  /// Carga el modelo de Whisper (`model_path`, archivo `.bin`) y empieza a
+  /// escuchar. `diagnostics_dir`: carpeta donde guardar las últimas frases
+  /// (audio + lo que se entendió); `None` = no se guarda nada.
+  static Future<VoiceListener> start({
+    required String modelPath,
+    String? diagnosticsDir,
+  }) => RustLib.instance.api.crateApiVoiceVoiceListenerStart(
+    modelPath: modelPath,
+    diagnosticsDir: diagnosticsDir,
+  );
 
   /// Deja de escuchar y libera el micrófono.
   void stop();

@@ -23,7 +23,7 @@ pub const WAKE_WORD: &str = "aurora";
 /// Tras oír solo «aurora», una orden suelta vale durante este tiempo.
 pub const ARMED_FOR: Duration = Duration::from_secs(4);
 /// Por encima de esta probabilidad de «no hay voz», la frase se descarta.
-pub const MAX_NO_SPEECH: f32 = 0.6;
+pub const MAX_NO_SPEECH: f32 = 0.75;
 /// Entre dos órdenes iguales seguidas (eco, repetición del reconocedor).
 pub const COOLDOWN: Duration = Duration::from_millis(1500);
 
@@ -142,7 +142,73 @@ fn lookup(heard: &[String]) -> Option<Intent> {
         .map(|(intent, _)| *intent)
 }
 
-const FILLERS_BEFORE: &[&str] = &["oye", "hey", "ey", "ok", "okay", "hola"];
+const FILLERS_BEFORE: &[&str] = &[
+    "oye", "hey", "ey", "ok", "okay", "hola", "a", "ah", "eh", "vale", "bueno", "venga",
+];
+
+/// Palabras de relleno de una orden dicha con naturalidad («pon la siguiente»,
+/// «pausa la canción», «cambia a la anterior»).
+const CARRIERS: &[&str] = &[
+    "pon", "ponme", "pasa", "ve", "vete", "cambia", "a", "ya", "ahora", "la", "el", "lo", "una",
+    "un", "de", "del", "mi", "esta", "esa", "musica", "cancion", "tema", "favor", "por", "o",
+];
+
+/// La palabra que decide la orden cuando no coincide ninguna frase entera.
+const KEYWORDS: &[(Intent, &[&str])] = &[
+    (
+        Intent::Pause,
+        &[
+            "pausa", "pausar", "pausala", "para", "detente", "detener", "deten", "alto", "stop",
+        ],
+    ),
+    (
+        Intent::Resume,
+        &[
+            "continua",
+            "continuar",
+            "sigue",
+            "seguir",
+            "reanuda",
+            "reanudar",
+        ],
+    ),
+    (Intent::Play, &["reproduce", "reproducir", "toca", "play"]),
+    (
+        Intent::Next,
+        &["siguiente", "proxima", "proximo", "salta", "saltar", "otra"],
+    ),
+    (
+        Intent::Previous,
+        &["anterior", "atras", "regresa", "regresar", "previa"],
+    ),
+];
+
+/// Orden más suelta: quita las palabras de relleno y, si queda UNA sola y es
+/// una palabra de acción, esa es la orden. Dos palabras de acción («pausa
+/// pausa») o palabras ajenas («pon pausa a todo») no cuentan.
+fn loose(heard: &[String]) -> Option<Intent> {
+    let rest: Vec<&String> = heard
+        .iter()
+        .filter(|w| !CARRIERS.contains(&w.as_str()))
+        .collect();
+    // «Aurora, música» / «una canción» (Whisper a veces se come el «pon»):
+    // solo el nombre de lo que suena y como mucho dos palabras más.
+    if rest.is_empty()
+        && heard.len() <= 3
+        && heard
+            .iter()
+            .any(|w| matches!(w.as_str(), "musica" | "cancion"))
+    {
+        return Some(Intent::Play);
+    }
+    let [word] = rest.as_slice() else {
+        return None;
+    };
+    KEYWORDS
+        .iter()
+        .find(|(_, list)| list.iter().any(|k| same_word(word, k)))
+        .map(|(intent, _)| *intent)
+}
 const FILLERS_AFTER: &[&[&str]] = &[&["por", "favor"], &["porfa"], &["gracias"]];
 
 /// Lo que se concluye de una frase.
@@ -191,6 +257,13 @@ impl Gate {
                 words.truncate(words.len() - tail.len());
             }
         }
+        // «aurorapausa»: Whisper a veces pega la palabra de activación a la orden.
+        if let Some(first) = words.first().cloned() {
+            if first.chars().count() > WAKE_WORD.len() + 2 && first.starts_with(WAKE_WORD) {
+                words[0] = first[WAKE_WORD.len()..].to_string();
+                words.insert(0, WAKE_WORD.to_string());
+            }
+        }
         let woke = words
             .first()
             .is_some_and(|w| w.chars().count() >= 5 && edit_distance(w, WAKE_WORD) <= 1);
@@ -208,7 +281,7 @@ impl Gate {
             }
             return Heard::Ignored;
         }
-        let Some(intent) = lookup(command) else {
+        let Some(intent) = lookup(command).or_else(|| loose(command)) else {
             return Heard::Ignored;
         };
         if let Some((previous, at)) = self.last {
@@ -258,6 +331,28 @@ mod tests {
             ("Aurora, siguiente canción por favor", Intent::Next),
             ("Auroras, continúa", Intent::Resume),
             ("Aurora, cancion anterior.", Intent::Previous),
+        ] {
+            t += Duration::from_secs(5);
+            assert_eq!(hear(&mut gate, text, t), Heard::Command(want), "{text}");
+        }
+    }
+
+    #[test]
+    fn natural_ways_of_saying_a_command_work() {
+        let mut gate = Gate::new();
+        let mut t = Instant::now();
+        for (text, want) in [
+            ("Aurora, pausa la canción", Intent::Pause),
+            ("Aurora, pon la siguiente", Intent::Next),
+            ("Aurora, otra", Intent::Next),
+            ("Aurora, para", Intent::Pause),
+            ("A Aurora, continúa", Intent::Resume),
+            ("Aurorapausa", Intent::Pause),
+            ("Aurora, cambia a la anterior", Intent::Previous),
+            ("Aurora, toca", Intent::Play),
+            ("Vale, Aurora, salta ya", Intent::Next),
+            ("Aurora o música", Intent::Play),
+            ("Aurora, una canción", Intent::Play),
         ] {
             t += Duration::from_secs(5);
             assert_eq!(hear(&mut gate, text, t), Heard::Command(want), "{text}");

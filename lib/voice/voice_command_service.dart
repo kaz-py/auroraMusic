@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../bridge/api/voice.dart' as rust;
@@ -57,10 +58,7 @@ class VoiceCommandService extends ChangeNotifier {
     this.silentAfter = const Duration(seconds: 8),
   }) : supported = supported ?? (Platform.isWindows || Platform.isLinux),
        _cpuSupported = cpuSupported ?? rust.voiceCpuSupported,
-       _startListener =
-           startListener ??
-           ((path) async =>
-               _RustListener(await rust.VoiceListener.start(modelPath: path))),
+       _customStart = startListener,
        _download =
            download ??
            ((file, onProgress) => downloadVerified(
@@ -74,6 +72,7 @@ class VoiceCommandService extends ChangeNotifier {
 
   static const enabledKey = 'voiceCommandsEnabled';
   static const lyricsSyncKey = 'lyricsAutoSync';
+  static const diagnosticsKey = 'voiceDiagnostics';
 
   final SharedPreferences _prefs;
   final RemoteControlActions _actions;
@@ -81,7 +80,7 @@ class VoiceCommandService extends ChangeNotifier {
   final bool supported;
   final Duration pollEvery;
   final bool Function() _cpuSupported;
-  final Future<VoiceListenerPort> Function(String modelPath) _startListener;
+  final Future<VoiceListenerPort> Function(String modelPath)? _customStart;
   final Future<void> Function(File target, VoiceDownloadProgress) _download;
   final bool Function(String modelPath) _modelReady;
 
@@ -117,6 +116,35 @@ class VoiceCommandService extends ChangeNotifier {
   /// defecto, pero solo trabaja cuando el modelo ya está descargado.
   bool get lyricsSyncEnabled =>
       supported && (_prefs.getBool(lyricsSyncKey) ?? true);
+
+  /// Diagnóstico (opcional, apagado por defecto): guarda las últimas 40 frases
+  /// con lo que Whisper entendió y lo que se hizo, en [diagnosticsDirectory].
+  bool get diagnosticsEnabled =>
+      supported && (_prefs.getBool(diagnosticsKey) ?? false);
+
+  Directory get diagnosticsDirectory =>
+      Directory(p.join(supportDirectory.path, 'voice', 'diagnostico'));
+
+  Future<void> setDiagnostics(bool value) => _enqueue(() async {
+    if (!supported) return;
+    await _prefs.setBool(diagnosticsKey, value);
+    if (_listener != null) {
+      _end();
+      await _begin(); // el motor lee la carpeta al arrancar
+    }
+    _notify();
+  });
+
+  Future<VoiceListenerPort> _openListener(String path) async {
+    final custom = _customStart;
+    if (custom != null) return custom(path);
+    return _RustListener(
+      await rust.VoiceListener.start(
+        modelPath: path,
+        diagnosticsDir: diagnosticsEnabled ? diagnosticsDirectory.path : null,
+      ),
+    );
+  }
 
   /// Descarga del modelo por la alineación de letras (sin escuchar).
   bool modelBusy = false;
@@ -198,7 +226,7 @@ class VoiceCommandService extends ChangeNotifier {
       if (!_modelReady(_modelFile.path)) await _fetchModel();
       state = VoiceState.starting;
       _notify();
-      _listener = await _startListener(_modelFile.path);
+      _listener = await _openListener(_modelFile.path);
       state = VoiceState.listening;
       _timer = Timer.periodic(pollEvery, (_) => _poll());
     } catch (failure) {

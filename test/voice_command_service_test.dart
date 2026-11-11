@@ -130,6 +130,22 @@ void main() {
     service.dispose();
   });
 
+  test('diagnostics is opt-in and restarts the listening to apply', () async {
+    installed = true;
+    final service = await create();
+    expect(service.diagnosticsEnabled, isFalse);
+    await service.setEnabled(true);
+    await service.setDiagnostics(true);
+    expect(service.diagnosticsEnabled, isTrue);
+    expect(log, ['escucha:${VoiceModel.name}', 'escucha:${VoiceModel.name}']);
+    expect(
+      p.isWithin(dir.path, service.diagnosticsDirectory.path),
+      isTrue,
+      reason: 'solo escribe dentro de su carpeta de datos',
+    );
+    service.dispose();
+  });
+
   test('a download that leaves no valid model is an error', () async {
     final service = await create(download: (_, _) async {});
     await service.setEnabled(true);

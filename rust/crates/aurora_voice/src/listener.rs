@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use crate::capture::{self, Downmix, MODEL_RATE};
 use crate::command::{Gate, Heard, Intent};
+use crate::diagnostics::Diagnostics;
 use crate::vad::Segmenter;
 use crate::whisper::Transcriber;
 use crate::VoiceError;
@@ -44,8 +45,9 @@ pub(crate) fn worker_threads() -> i32 {
 
 impl Listener {
     /// Carga el modelo y abre el micrófono; espera a que todo esté listo.
-    /// Llamar desde un hilo de trabajo.
-    pub fn start(model: &Path) -> Result<Self, VoiceError> {
+    /// Llamar desde un hilo de trabajo. `diagnostics`: carpeta donde guardar las
+    /// últimas frases con lo que se entendió (opcional, solo si el usuario lo pide).
+    pub fn start(model: &Path, diagnostics: Option<&Path>) -> Result<Self, VoiceError> {
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             events: Mutex::new(VecDeque::new()),
@@ -54,9 +56,10 @@ impl Listener {
         let (ready_tx, ready_rx) = mpsc::channel::<Result<(), VoiceError>>();
         let worker = shared.clone();
         let model = model.to_path_buf();
+        let diagnostics = diagnostics.and_then(Diagnostics::open);
         let thread = thread::Builder::new()
             .name("aurora-voice".into())
-            .spawn(move || run(worker, &model, ready_tx))
+            .spawn(move || run(worker, &model, diagnostics, ready_tx))
             .map_err(|e| VoiceError::Audio(e.to_string()))?;
         match ready_rx.recv() {
             Ok(Ok(())) => Ok(Self {
@@ -108,7 +111,12 @@ fn push(shared: &Shared, event: Event) {
     queue.push_back(event);
 }
 
-fn run(shared: Arc<Shared>, model: &Path, ready: mpsc::Sender<Result<(), VoiceError>>) {
+fn run(
+    shared: Arc<Shared>,
+    model: &Path,
+    diagnostics: Option<Diagnostics>,
+    ready: mpsc::Sender<Result<(), VoiceError>>,
+) {
     let setup = || -> Result<_, VoiceError> {
         let transcriber = Transcriber::load(model, worker_threads(), false)?;
         let mic = capture::open()?;
@@ -154,12 +162,24 @@ fn run(shared: Arc<Shared>, model: &Path, ready: mpsc::Sender<Result<(), VoiceEr
         pcm.clear();
         downmix.push(&block, &mut pcm);
         for utterance in segmenter.push(&pcm) {
+            let started = Instant::now();
             match transcriber.command(&utterance) {
                 Ok(heard) => {
+                    let decode_ms = started.elapsed().as_millis();
                     if !heard.text.is_empty() {
                         push(&shared, Event::Heard(heard.text.clone()));
                     }
-                    match gate.feed(&heard.text, heard.no_speech, Instant::now()) {
+                    let decision = gate.feed(&heard.text, heard.no_speech, Instant::now());
+                    if let Some(diagnostics) = &diagnostics {
+                        diagnostics.record(
+                            &utterance,
+                            &heard.text,
+                            heard.no_speech,
+                            &format!("{decision:?}"),
+                            decode_ms,
+                        );
+                    }
+                    match decision {
                         Heard::Command(intent) => push(&shared, Event::Command(intent)),
                         Heard::Wake => push(&shared, Event::Wake),
                         Heard::Ignored => {}

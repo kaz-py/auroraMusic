@@ -15,7 +15,12 @@ const SPEECH_RATIO: f32 = 3.0;
 /// Mínimo absoluto (−62 dBFS): por debajo no hay nada que oír aunque no haya ruido.
 const MIN_THRESHOLD: f32 = 0.0008;
 const START_FRAMES: usize = 2;
-const END_SILENCE_FRAMES: usize = 35; // 700 ms
+/// Pausa que cierra la frase. 900 ms: «Aurora … pausa» con una pausa natural
+/// en medio sigue siendo una sola frase.
+const END_SILENCE_FRAMES: usize = 45;
+/// Silencio final que se entrega a Whisper (el resto se recorta: un silencio
+/// largo amplificado invita a inventar texto).
+const KEEP_TAIL_FRAMES: usize = 12; // 240 ms
 const PRE_ROLL_FRAMES: usize = 15; // 300 ms
 const MIN_FRAMES: usize = 18; // 360 ms
 const MAX_FRAMES: usize = 300; // 6 s
@@ -52,12 +57,19 @@ fn rms(frame: &[f32]) -> f32 {
     (frame.iter().map(|s| s * s).sum::<f32>() / frame.len().max(1) as f32).sqrt()
 }
 
-/// Lleva el pico a ~0,8 con un tope de ganancia.
+/// Lleva el nivel «casi pico» (percentil 99,5) a ~0,7 con un tope de ganancia
+/// y recorta lo que sobrepase: un soplido o una «p» suelta no bajan toda la voz.
 pub fn normalize(pcm: &mut [f32]) {
-    let peak = pcm.iter().fold(0.0f32, |m, s| m.max(s.abs()));
-    if peak > 1e-4 {
-        let gain = (0.8 / peak).min(MAX_GAIN);
-        pcm.iter_mut().for_each(|s| *s *= gain);
+    if pcm.is_empty() {
+        return;
+    }
+    let mut magnitudes: Vec<f32> = pcm.iter().map(|s| s.abs()).collect();
+    let index = ((magnitudes.len() as f32 * 0.995) as usize).min(magnitudes.len() - 1);
+    let (_, level, _) = magnitudes.select_nth_unstable_by(index, |a, b| a.total_cmp(b));
+    if *level > 1e-4 {
+        let gain = (0.7 / *level).min(MAX_GAIN);
+        pcm.iter_mut()
+            .for_each(|s| *s = (*s * gain).clamp(-1.0, 1.0));
     }
 }
 
@@ -145,6 +157,10 @@ impl Segmenter {
             .frames
             .saturating_sub(END_SILENCE_FRAMES.min(self.frames));
         let mut utterance = std::mem::take(&mut self.utterance);
+        let voiced_frames = self
+            .frames
+            .saturating_sub(END_SILENCE_FRAMES.min(self.frames));
+        utterance.truncate((voiced_frames + KEEP_TAIL_FRAMES) * FRAME);
         self.frames = 0;
         if spoken < MIN_FRAMES {
             return None;
@@ -180,9 +196,10 @@ mod tests {
         let found = run(&[silence(1.0), tone(1.2, 0.02), silence(1.5)]);
         assert_eq!(found.len(), 1);
         let peak = found[0].iter().fold(0.0f32, |m, s| m.max(s.abs()));
-        assert!((peak - 0.8).abs() < 0.01, "pico {peak}");
+        assert!((peak - 0.7).abs() < 0.02, "pico {peak}");
         let secs = found[0].len() as f32 / MODEL_RATE as f32;
-        assert!(secs > 1.2 && secs < 2.6, "{secs} s");
+        // Frase + 300 ms de antes + 240 ms de silencio final (no los 900 ms enteros).
+        assert!(secs > 1.5 && secs < 2.0, "{secs} s");
     }
 
     #[test]

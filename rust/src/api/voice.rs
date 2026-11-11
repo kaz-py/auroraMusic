@@ -54,17 +54,22 @@ fn map_intent(intent: aurora_voice::Intent) -> VoiceIntent {
 }
 
 impl VoiceListener {
-    /// Carga el modelo de Whisper (`model_path`, archivo `.bin`) y empieza a escuchar.
-    pub fn start(model_path: String) -> Result<VoiceListener> {
+    /// Carga el modelo de Whisper (`model_path`, archivo `.bin`) y empieza a
+    /// escuchar. `diagnostics_dir`: carpeta donde guardar las últimas frases
+    /// (audio + lo que se entendió); `None` = no se guarda nada.
+    pub fn start(model_path: String, diagnostics_dir: Option<String>) -> Result<VoiceListener> {
         #[cfg(not(target_os = "android"))]
         {
-            let listener = aurora_voice::Listener::start(std::path::Path::new(&model_path))
-                .map_err(|e| anyhow!("{e}"))?;
+            let listener = aurora_voice::Listener::start(
+                std::path::Path::new(&model_path),
+                diagnostics_dir.as_deref().map(std::path::Path::new),
+            )
+            .map_err(|e| anyhow!("{e}"))?;
             Ok(VoiceListener(std::sync::Mutex::new(listener)))
         }
         #[cfg(target_os = "android")]
         {
-            let _ = model_path;
+            let _ = (model_path, diagnostics_dir);
             Err(anyhow!(
                 "Los comandos de voz no están disponibles en Android."
             ))
