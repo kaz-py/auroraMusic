@@ -87,13 +87,14 @@ void main() {
       expect(room.host.promoteSuggested(), 0);
     });
 
-    test('autoplay viaja en las reglas y es true por defecto', () async {
+    test('autoplay viaja en las reglas y está apagado por defecto', () async {
       final room = await newRoom();
       final (g1, _) = await guest(room, 'Beto');
       await until(room.host, () => room.host.participants.length == 2);
-      expect(room.host.rules.autoplay, isTrue);
-      await room.host.setRules(room.host.rules.copyWith(autoplay: false));
-      await until(g1, () => !g1.rules.autoplay);
+      expect(room.host.rules.autoplay, isFalse);
+      expect(g1.rules.autoplay, isFalse);
+      await room.host.setRules(room.host.rules.copyWith(autoplay: true));
+      await until(g1, () => g1.rules.autoplay);
     });
   });
 

@@ -186,6 +186,7 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
       : service.avatarOf(id);
 
   Future<void> host(String address, String? name) => _run(() async {
+    await _quietLocalPlayback();
     await bridge.disable();
     service.localAvatar = app.profileAvatar;
     await service.host(address: address, name: _nameOr(name, 'Anfitrión'));
@@ -202,6 +203,7 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> hostOnline(String? name) => _run(() async {
+    await _quietLocalPlayback();
     await bridge.disable();
     service.localAvatar = app.profileAvatar;
     await service.hostRemote(remote, name: _nameOr(name, 'Anfitrión'));
@@ -237,8 +239,9 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     return service.connected;
   }
 
-  /// Al crear la Jam: modo «Escuchando» y la pista actual pasa a ser la
-  /// primera de la cola, con su posición, para que todos la oigan igual.
+  /// Al crear la Jam: modo «Escuchando» y cola vacía. No se mete la canción
+  /// que sonaba: la música llega de lo que añada la gente o de una playlist o
+  /// los «me gusta» con los que se inició (los añade quien la inicia).
   Future<void> _beginSession() async {
     _optOut = false;
     _ended = false;
@@ -246,22 +249,18 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     _skipped.clear();
     try {
       service.setMode(JamMode.synchronized);
-      final track = app.currentTrack;
-      if (track != null && service.isHost) {
-        final position = app.audio.position.inMilliseconds;
-        bridge.remember(track);
-        final result = await service.addMany([
-          JamTrack.fromTrack(track),
-        ], mode: JamAddMode.playNow);
-        final id = result.firstEntryId;
-        final entry = service.queue.where((e) => e.id == id).firstOrNull;
-        if (entry != null) await _play(entry, startMs: position);
-      }
     } on JamException {
-      // Pista no compartible: la Jam arranca igual con la siguiente.
-    } catch (_) {}
+      // El modo ya era el correcto.
+    }
     _autoplay();
     _sessionChanged();
+  }
+
+  /// La Jam empieza en silencio: lo que sonaba en el reproductor se pausa.
+  Future<void> _quietLocalPlayback() async {
+    if (app.audio.isPlaying || app.audio.isBuffering) {
+      await app.pausePlayback();
+    }
   }
 
   Future<void> join(String code, String? name) => _run(() async {

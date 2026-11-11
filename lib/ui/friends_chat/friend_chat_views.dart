@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../app_controller.dart';
+import '../../core/models.dart';
 import '../../friends/friends_service.dart';
 import '../../jam/jam_controller.dart';
 import '../friends_page.dart' show friendsAgo;
@@ -153,6 +154,19 @@ class _FriendChatThreadState extends State<FriendChatThread> {
     );
   }
 
+  /// En una Jam suena lo de la Jam y el reproductor local ignora «Reproducir»:
+  /// lo que llega de un amigo se añade a la cola compartida. `false` si no hay
+  /// Jam sonando y se puede reproducir con normalidad.
+  bool _toJam(List<Track> tracks) {
+    final jam = widget.jam;
+    if (jam == null || !widget.controller.jamPlaybackActive) return false;
+    final added = jam.addTracks(tracks);
+    _say(
+      added ? 'Añadida a la Jam' : jam.error ?? 'No se pudo añadir a la Jam.',
+    );
+    return true;
+  }
+
   Future<void> _send(Future<String?> Function() run) async {
     setState(() => _busy = true);
     try {
@@ -217,13 +231,16 @@ class _FriendChatThreadState extends State<FriendChatThread> {
               icon: Icons.play_arrow,
               label: 'Reproducir',
               primary: true,
-              onTap: () => c.playTrack(t),
+              onTap: () {
+                if (!_toJam([t])) c.playTrack(t);
+              },
             ),
             ChatAction(
               key: ValueKey('chat-queue-${i.id}'),
               icon: Icons.queue_music,
               label: 'Añadir a la cola',
               onTap: () async {
+                if (_toJam([t])) return;
                 await c.addToQueue(t);
                 _say('Añadida a la cola');
               },
@@ -254,7 +271,11 @@ class _FriendChatThreadState extends State<FriendChatThread> {
               primary: true,
               onTap: p.tracks.isEmpty
                   ? null
-                  : () => c.playTrack(p.tracks.first, context: p.tracks),
+                  : () {
+                      if (!_toJam(p.tracks)) {
+                        c.playTrack(p.tracks.first, context: p.tracks);
+                      }
+                    },
             ),
             if (!i.mine)
               ChatAction(

@@ -490,7 +490,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
             context,
             s.rules.autoplay
                 ? 'La cola está vacía. Con el autoplay, Aurora añadirá canciones que le gusten al grupo; también puedes añadir las tuyas.'
-                : 'La cola está vacía. Pulsa «Añadir» para buscar canciones, usar una playlist o ver lo que recomienda el grupo.',
+                : 'La Jam empieza en silencio. Pulsa «Añadir» para buscar canciones o usar una playlist; solo suena lo que añade la gente.',
             Icons.queue_music,
           ),
         if (c.canReorder)
@@ -955,7 +955,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
         ),
         sw(
           'Autoplay de la Jam',
-          'Si la cola baja de 3 canciones, Aurora añade música que le guste al grupo.',
+          'Apagado: solo suena lo que añade la gente. Encendido: si la cola se queda corta, Aurora añade música que le guste al grupo.',
           r.autoplay,
           (v) => s.setRules(r.copyWith(autoplay: v)),
         ),

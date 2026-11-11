@@ -606,8 +606,8 @@ class SlushJamActive extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(SlushSpacing.s8),
               child: Text(
-                'La cola está vacía. Pulsa «Agregar» para buscar canciones'
-                '${''} o deja que el autoplay añada música al grupo.',
+                'La Jam empieza en silencio. Pulsa «Agregar» para buscar '
+                'canciones o usar una playlist; solo suena lo que añade la gente.',
                 style: TextStyle(color: p.ink2, fontSize: 14, height: 1.45),
               ),
             ),
