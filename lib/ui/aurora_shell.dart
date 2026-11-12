@@ -6,9 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'aurora_states.dart';
-import '../theme/accent_transition.dart';
 import '../theme/aurora_tokens.dart';
-import '../theme/legacy/legacy_themes.dart';
 import 'shell/shell_chrome.dart';
 import 'shell/shell_nav.dart';
 import '../theme/brasa_theme.dart';
@@ -725,23 +723,14 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               onExit: () => unawaited(_setMiniWindow(false)),
             )
           : _section == 6
-          // Tema congelado (`lib/theme/legacy`): el modo letra no sigue los
-          // rediseños del tema vivo.
-          ? Theme(
-              data: legacyThemeFor(
-                themeKindOf(context),
-                Theme.of(context).brightness,
-                AccentScope.of(context, Theme.of(context).colorScheme.primary),
-              ),
-              child: Scaffold(
-                body: ArtistModePage(
-                  controller: c,
-                  jam: _jam,
-                  onTogglePlay: () => _togglePlay(c),
-                  onClose: () {
-                    if (!_handleBack(c)) _navigate(0);
-                  },
-                ),
+          ? Scaffold(
+              body: ArtistModePage(
+                controller: c,
+                jam: _jam,
+                onTogglePlay: () => _togglePlay(c),
+                onClose: () {
+                  if (!_handleBack(c)) _navigate(0);
+                },
               ),
             )
           : guarded,
