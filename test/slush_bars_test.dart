@@ -21,6 +21,7 @@ void main() {
             onNavigate: nav.add,
             onSession: () => jam++,
             onAdd: () => add++,
+            onProfile: (_) {},
           ),
         ),
       ),

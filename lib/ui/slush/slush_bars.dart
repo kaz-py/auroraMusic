@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -38,6 +40,55 @@ Widget _round(
   ),
 );
 
+/// Foto de perfil circular; al tocarla abre el menú de perfil anclado a ella.
+class SlushProfileButton extends StatelessWidget {
+  const SlushProfileButton({
+    super.key,
+    required this.avatar,
+    required this.onProfile,
+    this.size = 34,
+  });
+  final Uint8List? avatar;
+  final void Function(BuildContext anchor) onProfile;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Builder(
+    builder: (anchor) => Tooltip(
+      message: 'Perfil y ajustes',
+      child: Material(
+        color: context.slush.paper,
+        shape: CircleBorder(side: context.slush.border),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => onProfile(anchor),
+          child: SizedBox.square(
+            dimension: size,
+            child: avatar == null
+                ? Icon(
+                    Icons.person_outline_rounded,
+                    size: size * .52,
+                    color: context.slush.ink,
+                  )
+                : Image.memory(
+                    avatar!,
+                    fit: BoxFit.cover,
+                    cacheWidth: (size * 3).round(),
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => Icon(
+                      Icons.person_outline_rounded,
+                      size: size * .52,
+                      color: context.slush.ink,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// Barra superior en píldora: logo, pestañas, búsqueda, «Iniciar Jam» y «+».
 class SlushTopBar extends StatelessWidget {
   const SlushTopBar({
@@ -46,11 +97,15 @@ class SlushTopBar extends StatelessWidget {
     required this.onNavigate,
     required this.onSession,
     required this.onAdd,
+    required this.onProfile,
+    this.avatar,
     this.sessionText = 'INICIAR JAM',
   });
   final int selected;
   final ValueChanged<int> onNavigate;
   final VoidCallback onSession, onAdd;
+  final void Function(BuildContext anchor) onProfile;
+  final Uint8List? avatar;
   final String sessionText;
 
   @override
@@ -187,6 +242,12 @@ class SlushTopBar extends StatelessWidget {
                 'Ajustes',
                 Icons.tune,
                 () => onNavigate(7),
+                size: 32,
+              ),
+              const SizedBox(width: 8),
+              SlushProfileButton(
+                avatar: avatar,
+                onProfile: onProfile,
                 size: 32,
               ),
               if (WindowControls.supported) ...[

@@ -28,6 +28,7 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 - Inicio con carruseles horizontales de datos reales; DJ de descubrimiento con gestos: izquierda omite, derecha guarda el favorito y encola.
 - **Para ti** recomienda según favoritos, listas y escuchas recientes. **DJ personal**, sin voz, continúa la cola con esas preferencias; las novedades de YouTube son opcionales y se consultan con límites visibles.
 - **Jam**: cola compartida en red local o en línea (Supabase), QR, permisos del anfitrión y reproducción sincronizada opcional con fuentes de audio propias.
+- **Servicios en línea desactivados temporalmente** (cuenta, amigos y Jam por internet, de Supabase): la Jam por red local (QR) y la transferencia de biblioteca por QR entre dispositivos de la misma red siguen funcionando. Ver [docs/servicios_en_linea.md](docs/servicios_en_linea.md).
 - Colores extraídos de la portada, ambiente reactivo a la energía y visualizador FFT del audio real.
 - Ecualizador DSP de ocho bandas, presets y reducción automática de ganancia para los refuerzos.
 - Controles multimedia del sistema, servicio de audio Android, pausa por desconexión e interrupciones de audio.

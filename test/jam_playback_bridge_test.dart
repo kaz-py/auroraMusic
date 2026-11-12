@@ -73,7 +73,7 @@ void main() {
         isPlaying: true,
       );
       expect(jamTargetPosition(state, 10500, 200), 3700);
-      expect(jamTargetPosition(state, 30000, 0), 8000);
+      expect(jamTargetPosition(state, 30000, 0), 18000);
       expect(jamTargetPosition(state, 10500, 200, durationMs: 3500), 3500);
       expect(
         jamTargetPosition(

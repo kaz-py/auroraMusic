@@ -17,6 +17,7 @@ import 'audio/equalizer_controller.dart';
 import 'audio/media_controls.dart';
 import 'core/audio_backend.dart';
 import 'core/models.dart';
+import 'core/online_status.dart';
 import 'core/queue_policy.dart';
 import 'core/source_backend.dart';
 import 'import/spotify_import.dart';
@@ -78,6 +79,14 @@ class AppController extends ChangeNotifier {
   final SourceBackend source;
   final LibraryDatabase database;
   final SharedPreferences preferences;
+
+  /// ¿Responde el servidor en línea (Supabase)? Decide si cuenta, amigos y Jam en
+  /// línea se usan o si Aurora sigue en modo local.
+  OnlineStatus get online => _online ??= OnlineStatus(preferences: preferences);
+  OnlineStatus? _online;
+
+  @visibleForTesting
+  set online(OnlineStatus value) => _online = value;
 
   /// Alinea las letras con el audio; lo conecta la interfaz de escritorio.
   LyricsAutoSync? lyricsAutoSync;
@@ -1313,8 +1322,11 @@ class AppController extends ChangeNotifier {
       downloads = await database.readDownloads();
       final legacyRoot = Directory(p.join(supportDirectory.path, 'downloads'));
       await legacyRoot.create(recursive: true);
+      // Solo se reescribe lo que no tenía carpeta (una escritura por descarga en
+      // cada arranque alargaba el inicio con bibliotecas grandes).
       for (final job in downloads) {
-        job.destinationRoot ??= await _canonicalDownloadRoot(
+        if (job.destinationRoot != null) continue;
+        job.destinationRoot = await _canonicalDownloadRoot(
           p.join(supportDirectory.path, 'downloads'),
         );
         await database.saveDownload(job);
@@ -4005,6 +4017,7 @@ class AppController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _online?.dispose();
     unawaited(_nativeActions?.cancel());
     ++_playGeneration;
     ++_searchGeneration;

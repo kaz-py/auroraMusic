@@ -5,6 +5,7 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/audio/eq_model.dart';
 import 'package:aurora_music/core/audio_backend.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/core/online_status.dart';
 import 'package:aurora_music/core/source_backend.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:flutter/material.dart';
@@ -227,6 +228,13 @@ Future<AppController> createTestController({
     database: database,
     preferences: prefs,
     supportDirectory: directory,
+  );
+  // En producción los servicios en línea están apagados (kSupabaseEnabled);
+  // las pruebas de Jam en línea, cuenta y amigos los necesitan encendidos.
+  controller.online = OnlineStatus(
+    preferences: prefs,
+    enabled: true,
+    probe: (_) async => true,
   );
   await controller.initialize(mediaControls: false);
   return controller;

@@ -77,8 +77,11 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
   /// Transporte en línea (Supabase); no está disponible sin --dart-define.
   JamTransport get remote =>
       _transport ??= SupabaseJamTransport(JamSupabaseConfig.fromEnvironment);
-  bool get remoteAvailable => remote.available;
-  String? get remoteProblem => remote.unavailableReason;
+  bool get remoteAvailable => app.online.enabled && remote.available;
+  String? get remoteProblem => app.online.enabled
+      ? remote.unavailableReason
+      : 'La Jam por internet está desactivada temporalmente. Usa la Jam por '
+            'red local (código QR).';
   Timer? _suggestTimer, _refreshLater;
   DateTime? _nextRefreshAt;
   String? _lastEntryId;
@@ -228,11 +231,18 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     final online = switch (mode) {
       JamHostMode.online => true,
       JamHostMode.lan => false,
-      JamHostMode.auto => remoteAvailable,
+      // Automático: en línea solo si hay servidor configurado Y responde; si
+      // no, red local (sin esperar a un servidor pausado ni a su cuota).
+      JamHostMode.auto => remoteAvailable && await app.online.available(),
     };
     if (online) {
       if (!remoteAvailable) {
         error = remoteProblem ?? 'La Jam en línea no está disponible.';
+        _notify();
+        return false;
+      }
+      if (!await app.online.available()) {
+        error = _offlineMessage;
         _notify();
         return false;
       }
@@ -252,6 +262,7 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     _ended = false;
     _failStreak = 0;
     _skipped.clear();
+    _lastPublished = null;
     try {
       service.setMode(JamMode.synchronized);
     } on JamException {
@@ -268,12 +279,20 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  static const _offlineMessage =
+      'La Jam en línea no responde ahora (servidor pausado o sin conexión). '
+      'Usa la Jam por red local (código QR); Aurora vuelve a probar sola.';
+
   Future<void> join(String code, String? name) => _run(() async {
     _optOut = false;
+    final remoteCode = jamRemoteCodeFrom(code) != null;
+    if (remoteCode && !await app.online.available()) {
+      throw JamException(_offlineMessage);
+    }
     await bridge.disable();
     service.localAvatar = app.profileAvatar;
     final who = _nameOr(name, 'Invitado');
-    if (jamRemoteCodeFrom(code) != null) {
+    if (remoteCode) {
       await service.joinRemote(remote, code, name: who);
       _startSuggestions();
     } else {
@@ -807,11 +826,39 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Última reproducción publicada; en línea evita repetir lo que los invitados
+  /// ya pueden calcular (cada publicación se multiplica por cada invitado en el
+  /// servidor: era lo que más cuota de Realtime gastaba).
+  ({String? entry, bool playing, int position, DateTime at})? _lastPublished;
+  static const _keyframe = Duration(seconds: 10);
+
   void _publish({String? entryId, bool? playing}) {
+    final entry = entryId ?? bridge.currentEntryId;
+    final isPlaying =
+        playing ?? (app.audio.isPlaying && !app.audio.isBuffering);
+    final position = app.audio.position.inMilliseconds;
+    final now = DateTime.now();
+    final last = _lastPublished;
+    if (service.isRemote &&
+        last != null &&
+        last.entry == entry &&
+        last.playing == isPlaying &&
+        now.difference(last.at) < _keyframe) {
+      final predicted =
+          last.position +
+          (isPlaying ? now.difference(last.at).inMilliseconds : 0);
+      if ((position - predicted).abs() < 800) return;
+    }
+    _lastPublished = (
+      entry: entry,
+      playing: isPlaying,
+      position: position,
+      at: now,
+    );
     service.publishPlayback(
-      entryId: entryId ?? bridge.currentEntryId,
-      playing: playing ?? (app.audio.isPlaying && !app.audio.isBuffering),
-      positionMs: app.audio.position.inMilliseconds,
+      entryId: entry,
+      playing: isPlaying,
+      positionMs: position,
     );
   }
 

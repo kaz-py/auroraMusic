@@ -1,3 +1,6 @@
+import '../../core/feature_flags.dart';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../app_controller.dart';
@@ -5,6 +8,7 @@ import '../../core/models.dart';
 import '../../theme/slush_theme.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
+import 'slush_bars.dart';
 import 'slush_decor.dart';
 
 const _bagel = 'Bagel Fat One';
@@ -23,18 +27,22 @@ class SlushMobileTopBar extends StatelessWidget {
   const SlushMobileTopBar({
     super.key,
     required this.onSettings,
+    required this.onProfile,
     required this.onMore,
+    this.avatar,
     this.friendsBadge = 0,
   });
   final VoidCallback onSettings;
+  final void Function(BuildContext anchor) onProfile;
   final ValueChanged<int> onMore;
+  final Uint8List? avatar;
   final int friendsBadge;
 
-  static const _more = <(int, IconData, String)>[
+  static List<(int, IconData, String)> get _more => <(int, IconData, String)>[
     (3, Icons.download_outlined, 'Descargas'),
     (12, Icons.mic_none_rounded, 'Artistas'),
     (11, Icons.video_file_outlined, 'Descargar vídeos'),
-    (14, Icons.people_outline, 'Amigos'),
+    if (supabaseServicesEnabled) (14, Icons.people_outline, 'Amigos'),
     (4, Icons.album_outlined, 'Modo Vinilo'),
     (5, Icons.queue_music, 'Cola de reproducción'),
     (6, Icons.lyrics_outlined, 'Letras'),
@@ -85,6 +93,12 @@ class SlushMobileTopBar extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+        const SizedBox(width: 8),
+        SlushProfileButton(
+          avatar: avatar,
+          onProfile: onProfile,
+          size: SlushControl.touch,
         ),
         const SizedBox(width: 8),
         SlushPressable(

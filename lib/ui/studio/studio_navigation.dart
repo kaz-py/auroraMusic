@@ -1,3 +1,4 @@
+import '../../core/feature_flags.dart';
 import 'dart:typed_data';
 
 import '../../shortcuts/shortcut_service.dart';
@@ -27,6 +28,7 @@ class StudioTitleBar extends StatelessWidget {
     this.onSearch,
     this.onSearchChanged,
     this.avatar,
+    this.onProfile,
   });
 
   /// Foto de perfil del usuario (miniatura); null = icono de persona.
@@ -42,6 +44,13 @@ class StudioTitleBar extends StatelessWidget {
 
   /// Toque en el chip de sesión; por omisión abre la página Jam.
   final VoidCallback? onSession;
+
+  /// Toque en la foto de perfil: recibe el contexto del botón para anclar el
+  /// menú; por omisión abre Ajustes.
+  final void Function(BuildContext anchor)? onProfile;
+
+  void _profile(BuildContext anchor) =>
+      onProfile == null ? onNavigate(7) : onProfile!(anchor);
   Widget _profileGlyph(double size, double iconSize) => avatar == null
       ? Icon(StudioSymbols.person, size: iconSize)
       : ClipOval(
@@ -203,18 +212,20 @@ class StudioTitleBar extends StatelessWidget {
                 ),
               ),
             const SizedBox(width: 16),
-            IconButton.filled(
-              tooltip: 'Perfil y ajustes',
-              style: IconButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: colors.onPrimary,
-                minimumSize: const Size(32, 32),
-                padding: avatar == null
-                    ? const EdgeInsets.all(6)
-                    : EdgeInsets.zero,
+            Builder(
+              builder: (ctx) => IconButton.filled(
+                tooltip: 'Perfil y ajustes',
+                style: IconButton.styleFrom(
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.onPrimary,
+                  minimumSize: const Size(32, 32),
+                  padding: avatar == null
+                      ? const EdgeInsets.all(6)
+                      : EdgeInsets.zero,
+                ),
+                onPressed: () => _profile(ctx),
+                icon: _profileGlyph(32, 18),
               ),
-              onPressed: () => onNavigate(7),
-              icon: _profileGlyph(32, 18),
             ),
             if (WindowControls.supported) ...[
               const SizedBox(width: 12),
@@ -336,16 +347,18 @@ class StudioTitleBar extends StatelessWidget {
                 ),
               ),
             ),
-          IconButton.filled(
-            tooltip: 'Perfil y ajustes',
-            style: IconButton.styleFrom(
-              backgroundColor: Brasa.graphite,
-              foregroundColor: Brasa.cream,
-              minimumSize: const Size(36, 36),
-              padding: avatar == null ? null : EdgeInsets.zero,
+          Builder(
+            builder: (ctx) => IconButton.filled(
+              tooltip: 'Perfil y ajustes',
+              style: IconButton.styleFrom(
+                backgroundColor: Brasa.graphite,
+                foregroundColor: Brasa.cream,
+                minimumSize: const Size(36, 36),
+                padding: avatar == null ? null : EdgeInsets.zero,
+              ),
+              onPressed: () => _profile(ctx),
+              icon: _profileGlyph(36, 18),
             ),
-            onPressed: () => onNavigate(7),
-            icon: _profileGlyph(36, 18),
           ),
           if (WindowControls.supported) ...[
             const SizedBox(width: 8),
@@ -534,14 +547,15 @@ class StudioSidebar extends StatelessWidget {
                     active: false,
                   ),
                   _nav(context, 9, 'Jam', 'Jam', StudioSymbols.groups, ''),
-                  _nav(
-                    context,
-                    14,
-                    'Amigos',
-                    'Amigos',
-                    Icons.people_outline,
-                    friendsBadge > 0 ? '$friendsBadge' : '',
-                  ),
+                  if (supabaseServicesEnabled)
+                    _nav(
+                      context,
+                      14,
+                      'Amigos',
+                      'Amigos',
+                      Icons.people_outline,
+                      friendsBadge > 0 ? '$friendsBadge' : '',
+                    ),
                   _nav(
                     context,
                     5,
@@ -655,12 +669,13 @@ class StudioSidebar extends StatelessWidget {
       (4, 'Modo Vinilo', 'Modo Vinilo', StudioSymbols.album),
       (6, 'Letras', 'Letras', StudioSymbols.lyrics),
       (9, 'Jam', 'Jam', StudioSymbols.groups),
-      (
-        14,
-        friendsBadge > 0 ? 'Amigos ($friendsBadge)' : 'Amigos',
-        'Amigos',
-        Icons.people_outline,
-      ),
+      if (supabaseServicesEnabled)
+        (
+          14,
+          friendsBadge > 0 ? 'Amigos ($friendsBadge)' : 'Amigos',
+          'Amigos',
+          Icons.people_outline,
+        ),
       (13, 'Ecualizador', 'Ecualizador', StudioSymbols.equalizer),
       (
         5,

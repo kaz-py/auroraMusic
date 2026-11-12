@@ -75,8 +75,14 @@ class SyncService extends ChangeNotifier {
     required this.preferences,
     required this.onPulled,
     SyncRemote? remote,
-    this.debounce = const Duration(seconds: 3),
-  }) : _remote = remote ?? SupabaseSyncRemote(accounts);
+    // Cada cambio local espera 30 s (agrupa ráfagas: favoritos, reproducciones…)
+    // antes de subir; así no hay una escritura al servidor por cada acción.
+    this.debounce = const Duration(seconds: 30),
+    this.pullEvery = const Duration(minutes: 10),
+    this.slowKindsEvery = const Duration(minutes: 10),
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now,
+       _remote = remote ?? SupabaseSyncRemote(accounts);
 
   final AccountService accounts;
   final LibraryDatabase database;
@@ -84,8 +90,11 @@ class SyncService extends ChangeNotifier {
 
   /// Se llama cuando la sincronización cambió datos locales (recargar memoria).
   final Future<void> Function() onPulled;
-  final Duration debounce;
+  final Duration debounce, pullEvery, slowKindsEvery;
+  final DateTime Function() _clock;
   final SyncRemote _remote;
+  DateTime? _lastPull;
+  final _lastPush = <String, DateTime>{};
 
   bool syncing = false;
   DateTime? lastSync;
@@ -119,7 +128,9 @@ class SyncService extends ChangeNotifier {
     _timer = Timer(debounce, () => unawaited(syncNow()));
   }
 
-  Future<void> syncNow() async {
+  /// Sincroniza. Sin [pull] explícito, baja lo nuevo del servidor como mucho
+  /// cada [pullEvery]: tras un cambio local solo se sube lo pendiente.
+  Future<void> syncNow({bool? pull}) async {
     final uid = accounts.profile?.id;
     if (uid == null) return;
     if (syncing) {
@@ -130,7 +141,10 @@ class SyncService extends ChangeNotifier {
     lastError = null;
     notifyListeners();
     try {
-      await runSync(uid);
+      final last = _lastPull;
+      final doPull =
+          pull ?? (last == null || _clock().difference(last) >= pullEvery);
+      await runSync(uid, pull: doPull);
       lastSync = DateTime.now();
     } catch (e) {
       lastError = mapAccountError(e).message;
@@ -146,18 +160,21 @@ class SyncService extends ChangeNotifier {
 
   /// Un ciclo completo: bajar lo nuevo, resolver, subir lo pendiente.
   @visibleForTesting
-  Future<void> runSync(String uid) async {
+  Future<void> runSync(String uid, {bool pull = true}) async {
     if (preferences.getString('sync.lastUser') != uid) {
       // Otra cuenta en este dispositivo: se une lo local con lo de esa cuenta.
       await database.markAllSyncDirty();
     }
     await database.seedSyncMeta();
     var changed = false;
-    for (final kind in syncKinds) {
-      changed |= await _pull(uid, kind);
+    if (pull) {
+      for (final kind in syncKinds) {
+        changed |= await _pull(uid, kind);
+      }
+      _lastPull = _clock();
     }
     for (final kind in syncKinds) {
-      await _push(kind);
+      await _push(kind, force: pull);
     }
     await preferences.setString('sync.lastUser', uid);
     if (changed) await onPulled();
@@ -203,8 +220,20 @@ class SyncService extends ChangeNotifier {
   String _keyOf(_Kind def, String uid, Map<String, dynamic> r) =>
       def.key == 'user_id' ? '1' : r[def.key] as String;
 
-  Future<void> _push(String kind) async {
+  /// El historial y el gusto del DJ cambian con cada reproducción y no urgen:
+  /// salvo en una sincronización completa, se suben como mucho cada
+  /// [slowKindsEvery].
+  static const _slowKinds = {'history', 'taste'};
+
+  Future<void> _push(String kind, {bool force = false}) async {
     final def = _kindDefs[kind]!;
+    final lastPush = _lastPush[kind];
+    if (!force &&
+        _slowKinds.contains(kind) &&
+        lastPush != null &&
+        _clock().difference(lastPush) < slowKindsEvery) {
+      return;
+    }
     final meta = await database.readSyncMeta(kind);
     final keys = await database.dirtySyncKeys(kind);
     for (var i = 0; i < keys.length; i += 100) {
@@ -220,6 +249,7 @@ class SyncService extends ChangeNotifier {
       }
       if (rows.isEmpty) continue;
       final back = await _remote.push(def.table, def.conflict, rows);
+      _lastPush[kind] = _clock();
       for (final r in back) {
         final key = _keyOf(def, '', r);
         final ts = sent[key];

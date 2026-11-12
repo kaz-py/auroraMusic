@@ -1,3 +1,4 @@
+import '../../core/feature_flags.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -29,6 +30,9 @@ import '../jam/jam_protocol.dart';
 import '../account/account_settings.dart';
 import '../profile/profile_settings.dart';
 import 'desktop_settings_tiles.dart';
+import 'profile_menu.dart';
+import 'about_settings.dart';
+import '../online/online_settings.dart';
 import 'playlist_views/playlist_view_mode_tile.dart';
 import 'lastfm_settings_panel.dart';
 import '../jam/jam_controller.dart';
@@ -75,6 +79,7 @@ import '../metadata/youtube_match.dart';
 import '../sources/innertube_source.dart';
 import '../sources/stream/stream_orchestrator.dart' show AudioQuality;
 export 'artwork.dart';
+import 'lan_sync_panel.dart';
 import 'spotify_import_dialog.dart';
 import 'spotify_match_dialog.dart';
 import 'vinyl_player.dart';
@@ -660,6 +665,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         SlushTopBar(
                           selected: _section,
                           onNavigate: _navigate,
+                          onProfile: (ctx) => _showProfileMenu(ctx, c),
+                          avatar: c.profileAvatar,
                           sessionText: jamOn ? 'JAM ACTIVA' : 'INICIAR JAM',
                           onSession: jamOn ? _openJamPanel : _startJam,
                           onAdd: () => _createPlaylist(c),
@@ -667,6 +674,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                       else if (rail || WindowControls.supported)
                         StudioTitleBar(
                           onNavigate: _navigate,
+                          onProfile: (ctx) => _showProfileMenu(ctx, c),
                           avatar: c.profileAvatar,
                           searchController: brasa && rail ? _search : null,
                           searchFocus: _searchFocus,
@@ -1068,6 +1076,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             ((_section == 0 && _playlist == null) || _slushOwned)
         ? SlushMobileTopBar(
             onSettings: () => _navigate(7),
+            onProfile: (ctx) => _showProfileMenu(ctx, c),
+            avatar: c.profileAvatar,
             onMore: _navigate,
             friendsBadge: _friendsBadge,
           )
@@ -1270,18 +1280,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                   title: Text('Jam'),
                 ),
               ),
-              PopupMenuItem(
-                value: 14,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Badge(
-                    isLabelVisible: _friendsBadge > 0,
-                    label: Text('$_friendsBadge'),
-                    child: const Icon(Icons.people_outline),
+              if (supabaseServicesEnabled)
+                PopupMenuItem(
+                  value: 14,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Badge(
+                      isLabelVisible: _friendsBadge > 0,
+                      label: Text('$_friendsBadge'),
+                      child: const Icon(Icons.people_outline),
+                    ),
+                    title: const Text('Amigos'),
                   ),
-                  title: const Text('Amigos'),
                 ),
-              ),
               PopupMenuItem(
                 value: 4,
                 child: ListTile(
@@ -2453,15 +2464,70 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     'Biblioteca',
     'Cuenta y servicios',
     'Avanzado',
+    'Acerca de',
   ];
   int _settingsTab = 0;
 
+  /// Plegado/desplegado de cada sección de Ajustes por título; vive aquí para
+  /// que se recuerde al salir y volver a Ajustes.
+  final _settingsExpanded = <String, bool>{};
+  int _settingsOpenSerial = 0;
+
+  /// Abre Ajustes. [tab] null conserva la categoría en la que se quedó; con
+  /// [section] esa sección llega desplegada.
+  void _openSettings(int? tab, [String? section]) {
+    if (tab != null) {
+      setState(() {
+        _settingsTab = tab;
+        if (section != null) _settingsExpanded[section] = true;
+        _settingsOpenSerial++;
+      });
+    }
+    _navigate(7);
+  }
+
+  void _showProfileMenu(BuildContext anchor, AppController c) {
+    final account = c.accounts?.profile;
+    showProfileMenu(
+      anchor,
+      name:
+          account?.username ??
+          (c.profileName.isEmpty ? 'Invitado' : c.profileName),
+      status: account != null ? 'Sesión iniciada' : 'Sin sesión',
+      avatar: c.profileAvatar,
+      onSelected: (e) => _openSettings(e.tab, e.section),
+    );
+  }
+
+  // Palabras extra para el buscador de Ajustes, por título de sección.
+  static const _settingsKeywords = <String, String>{
+    'Perfil': 'foto avatar nombre estadísticas',
+    'Cuenta': 'sesión correo sincronizar usuario',
+    'Comandos de voz': 'micrófono voz habla aurora',
+    'Identidad y tema': 'tema modo oscuro claro',
+    'Color de acento': 'color',
+    'Almacenamiento y biblioteca': 'carpeta descargas música caché',
+    'Actualizaciones': 'versión actualizar release',
+    'Atajos': 'teclado combinaciones',
+    'Herramientas, sesión y diagnóstico':
+        'youtube yt-dlp ffmpeg sesión cookies',
+    'Control remoto (Stream Deck)': 'stream deck api',
+    'Discord': 'presencia',
+    'Ecualizador': 'eq bandas presets',
+    'Sueño': 'temporizador dormir',
+    'Reproducción': 'autoplay cola',
+    'Música sin conexión': 'offline descargas',
+    'Last.fm': 'scrobble historial',
+    'Movimiento': 'animaciones reducir',
+    'Acerca de': 'versión información licencia',
+    'Servicios en línea': 'servicios en línea supabase jam modo local',
+    'Transferir por QR':
+        'qr red local lan pasar biblioteca dispositivo sincronizar',
+  };
+
   // Por título; lo no listado (herramientas y diagnóstico) cae en Avanzado.
   int _settingsTabOf(String title) => switch (title) {
-    'Identidad y tema' ||
-    'Color de acento' ||
-    'Fondo de portada' ||
-    'Movimiento' => 0,
+    'Identidad y tema' || 'Color de acento' || 'Movimiento' => 0,
     'Reproducción' ||
     'Reproducción experimental' ||
     'Ecualizador' ||
@@ -2469,16 +2535,22 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     'Almacenamiento y biblioteca' ||
     'Vista de playlists' ||
     'Música sin conexión' => 2,
-    'Cuenta' || 'Perfil' || 'Actualizaciones' || 'Last.fm' => 3,
+    'Cuenta' ||
+    'Servicios en línea' ||
+    'Transferir por QR' ||
+    'Perfil' ||
+    'Actualizaciones' ||
+    'Last.fm' => 3,
+    'Acerca de' => 5,
     _ => 4,
   };
 
   Widget _settings(AppController c) {
-    final allSections = <({String title, String subtitle, List<Widget> children})>[
+    final allSections = <({String title, String subtitle, List<Widget> Function() children})>[
       (
         title: 'Perfil',
         subtitle: 'Tu foto y nombre en la Jam',
-        children: [
+        children: () => [
           ProfileSettings(controller: c),
           ListTile(
             leading: const Icon(Icons.query_stats_rounded),
@@ -2495,20 +2567,31 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         ],
       ),
+      if (supabaseServicesEnabled)
+        (
+          title: 'Cuenta',
+          subtitle: 'Sincroniza tu biblioteca entre dispositivos',
+          children: () => [AccountSettings(controller: c)],
+        ),
       (
-        title: 'Cuenta',
-        subtitle: 'Sincroniza tu biblioteca entre dispositivos',
-        children: [AccountSettings(controller: c)],
+        title: 'Servicios en línea',
+        subtitle: 'Jam, cuentas y modo local',
+        children: () => [OnlineSettings(status: c.online)],
+      ),
+      (
+        title: 'Transferir por QR',
+        subtitle: 'Pasa tu biblioteca a otro dispositivo de tu red',
+        children: () => [LanSyncPanel(controller: c)],
       ),
       (
         title: 'Vista de playlists',
         subtitle: 'Cómo se muestran tus listas',
-        children: [PlaylistViewModeTile(controller: c)],
+        children: () => [PlaylistViewModeTile(controller: c)],
       ),
       (
         title: 'Almacenamiento y biblioteca',
         subtitle: 'Tu música y descargas en este dispositivo',
-        children: [
+        children: () => [
           const Text('Carpeta de descargas'),
           const SizedBox(height: 8),
           SelectableText(c.downloadsDirectoryPath),
@@ -2577,18 +2660,18 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       (
         title: 'Actualizaciones',
         subtitle: 'Nuevas versiones desde GitHub Releases',
-        children: [UpdateSettings(controller: _updates)],
+        children: () => [UpdateSettings(controller: _updates)],
       ),
       if (c.lastfm != null)
         (
           title: 'Last.fm',
           subtitle: 'Opcional: historial y recomendaciones',
-          children: [LastfmSettingsPanel(service: c.lastfm!)],
+          children: () => [LastfmSettingsPanel(service: c.lastfm!)],
         ),
       (
         title: 'Música sin conexión',
         subtitle: 'Descargas explícitas y archivos locales',
-        children: [
+        children: () => [
           OfflineSettingsPanel(
             controller: c,
             onManage: () => _navigate(3),
@@ -2600,7 +2683,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         (
           title: 'Reproducción experimental',
           subtitle: 'Descarga mientras se reproduce',
-          children: [
+          children: () => [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Descargar mientras se reproduce'),
@@ -2619,7 +2702,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       (
         title: 'Reproducción',
         subtitle: 'Cola y reproducción automática',
-        children: [
+        children: () => [
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Autoplay: rellenar la cola automáticamente'),
@@ -2656,7 +2739,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       (
         title: 'Identidad y tema',
         subtitle: 'Tema y modo de Aurora',
-        children: [
+        children: () => [
           Text('Temas', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
           const Text(
@@ -2707,7 +2790,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       (
         title: 'Color de acento',
         subtitle: 'Automático toma el color de la portada actual',
-        children: [
+        children: () => [
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -2734,7 +2817,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         (
           title: 'Discord',
           subtitle: 'Presencia enriquecida',
-          children: [
+          children: () => [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Mostrar en Discord'),
@@ -2750,18 +2833,18 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         (
           title: 'Comandos de voz',
           subtitle: 'Di «Aurora, pausa», «Aurora, siguiente»…',
-          children: [VoiceSettings(service: _voice)],
+          children: () => [VoiceSettings(service: _voice)],
         ),
       if (_remote.supported)
         (
           title: 'Control remoto (Stream Deck)',
           subtitle: 'API local para pausar, saltar e iniciar la Jam',
-          children: [RemoteControlSettings(service: _remote)],
+          children: () => [RemoteControlSettings(service: _remote)],
         ),
       (
         title: 'Movimiento',
         subtitle: 'Animaciones de la interfaz',
-        children: [
+        children: () => [
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Reducir movimiento'),
@@ -2775,7 +2858,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         (
           title: 'Mini reproductor',
           subtitle: 'Ventana compacta siempre visible',
-          children: [
+          children: () => [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Mini reproductor'),
@@ -2793,17 +2876,19 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           subtitle: WindowControls.supported
               ? 'Cierre, bandeja del sistema e inicio'
               : 'Lo que escuchas, en tu perfil',
-          children: [DesktopSettingsTiles(shell: _desktop, duvet: _duvet)],
+          children: () => [
+            DesktopSettingsTiles(shell: _desktop, duvet: _duvet),
+          ],
         ),
       (
         title: 'Ecualizador',
         subtitle: 'Bandas paramétricas, presets y comparación A/B',
-        children: [EqualizerPanel(controller: c)],
+        children: () => [EqualizerPanel(controller: c)],
       ),
       (
         title: 'Atajos',
         subtitle: 'Teclado y combinaciones',
-        children: [
+        children: () => [
           ShortcutsSettingsPanel(service: ref.read(shortcutServiceProvider)),
         ],
       ),
@@ -2812,7 +2897,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         subtitle: c.sleepRemaining == null
             ? 'Temporizador desactivado'
             : '${c.sleepRemaining!.inMinutes + 1} minutos restantes',
-        children: [
+        children: () => [
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.bedtime_outlined),
@@ -2830,7 +2915,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       (
         title: 'Herramientas, sesión y diagnóstico',
         subtitle: 'Fuentes locales y utilidades opcionales',
-        children: [
+        children: () => [
           Text(
             defaultTargetPlatform == TargetPlatform.android
                 ? 'Herramientas integradas en este dispositivo'
@@ -2936,17 +3021,13 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'Aurora · Tu biblioteca permanece en este dispositivo. Utiliza enlaces y contenido que tengas permiso para reproducir y guardar.',
-            style: TextStyle(fontSize: 13, height: 1.6),
-          ),
         ],
       ),
-    ];
-    final sections = [
-      for (final s in allSections)
-        if (_settingsTabOf(s.title) == _settingsTab) s,
+      (
+        title: 'Acerca de',
+        subtitle: 'Versión y nota de uso',
+        children: () => [const AboutSettings()],
+      ),
     ];
     final modern = isModern(context);
     final brasa = isBrasa(context);
@@ -2958,6 +3039,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         Icons.library_music_outlined,
         Icons.manage_accounts_outlined,
         Icons.tune_rounded,
+        Icons.info_outline_rounded,
       ],
       descriptions: const [
         'Tema, modo, color de acento y movimiento.',
@@ -2965,62 +3047,46 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
         'Carpetas, descargas y vista de playlists.',
         'Perfil, actualizaciones y Last.fm.',
         'Ventana, atajos, herramientas y diagnóstico.',
+        'Versión de Aurora.',
       ],
       selected: _settingsTab,
       onSelect: (i) => setState(() => _settingsTab = i),
-      cardCount: sections.length,
+      sections: [
+        for (final s in allSections)
+          SettingsSection(
+            title: s.title,
+            subtitle: s.subtitle,
+            tab: _settingsTabOf(s.title),
+            keywords: _settingsKeywords[s.title] ?? '',
+            builder: s.children,
+          ),
+      ],
+      expanded: _settingsExpanded,
+      openSerial: _settingsOpenSerial,
+      sectionTitle: _sectionTitle,
       chip: _chip,
-      card: (i, compact) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: brasa ? 16 : (modern ? 24 : 16)),
-          child: brasa
-              ? DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Brasa.obsidian,
-                    borderRadius: BorderRadius.circular(6),
-                    boxShadow: Brasa.cardShadow,
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(compact ? 16 : 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionTitle(sections[i].title, sections[i].subtitle),
-                        const SizedBox(height: 14),
-                        ...sections[i].children,
-                      ],
-                    ),
-                  ),
-                )
-              : modern
-              ? ModernCard(
-                  padding: EdgeInsets.all(compact ? 16 : 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionTitle(sections[i].title, sections[i].subtitle),
-                      const SizedBox(height: 14),
-                      ...sections[i].children,
-                    ],
-                  ),
-                )
-              : Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: EdgeInsets.all(compact ? 16 : 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionTitle(sections[i].title, sections[i].subtitle),
-                        const SizedBox(height: 14),
-                        ...sections[i].children,
-                      ],
-                    ),
-                  ),
+      card: (child, compact) => Padding(
+        padding: EdgeInsets.only(bottom: brasa ? 16 : (modern ? 24 : 16)),
+        child: brasa
+            ? DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Brasa.obsidian,
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: Brasa.cardShadow,
                 ),
-        );
-      },
+                child: Material(type: MaterialType.transparency, child: child),
+              )
+            : modern
+            ? ModernCard(
+                padding: EdgeInsets.zero,
+                child: Material(type: MaterialType.transparency, child: child),
+              )
+            : Material(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+                child: child,
+              ),
+      ),
     );
   }
 

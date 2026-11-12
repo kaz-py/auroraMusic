@@ -13,7 +13,8 @@ int jamTargetPosition(
   int? durationMs,
 }) {
   final elapsed = state.isPlaying
-      ? (localTimeMs + clockOffsetMs - state.serverTimeMs).clamp(0, 5000)
+      // 15 s: en línea el anfitrión solo publica al cambiar algo y cada ≤10 s.
+      ? (localTimeMs + clockOffsetMs - state.serverTimeMs).clamp(0, 15000)
       : 0;
   final target = state.positionMs + elapsed;
   return durationMs != null && durationMs > 0

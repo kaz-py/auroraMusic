@@ -673,6 +673,76 @@ void main() {
     },
   );
 
+  testWidgets('profile menu opens from the photo and jumps to a category', (
+    tester,
+  ) async {
+    await mount(tester, const Size(1200, 800));
+    await tester.tap(find.byTooltip('Perfil y ajustes').first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('profile-menu-header')), findsOneWidget);
+    for (final label in ['Perfil', 'Ajustes', 'Apariencia', 'Acerca de']) {
+      expect(find.text(label), findsWidgets);
+    }
+    await tester.tap(find.text('Cuenta y servicios').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('profile-menu-header')), findsNothing);
+    // La sección «Cuenta» llega desplegada con su contenido.
+    expect(find.textContaining('Las cuentas no están configuradas'), findsOne);
+    await tester.tap(find.byTooltip('Perfil y ajustes').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Acerca de').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Tu biblioteca permanece'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('settings sections are collapsible, lazy and searchable', (
+    tester,
+  ) async {
+    await mount(tester, const Size(1200, 800));
+    await tester.tap(find.byTooltip('Perfil y ajustes').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apariencia').last);
+    await tester.pumpAndSettle();
+    // Solo la primera sección de la categoría está desplegada.
+    expect(find.text('Temas'), findsOneWidget);
+    expect(find.text('Reducir movimiento'), findsNothing);
+    await tester.tap(find.text('Movimiento').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Reducir movimiento'), findsOneWidget);
+    // Plegar de nuevo la quita del árbol.
+    await tester.tap(find.text('Movimiento').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Reducir movimiento'), findsNothing);
+    // Búsqueda sin tildes entre todas las categorías.
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-search')),
+      'sueno',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Sueño'), findsOneWidget);
+    expect(find.text('Movimiento'), findsNothing);
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-search')),
+      'zzzz',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('settings-no-results')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('settings fit a narrow screen at 200 percent text', (
+    tester,
+  ) async {
+    await mount(tester, const Size(360, 740), scale: 2);
+    await tester.tap(find.byIcon(Icons.tune).last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('settings-search')), findsOneWidget);
+    await tester.tap(find.text('Reproducción').first);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'YouTube session settings explain local import and disable controls while busy',
     (tester) async {
@@ -683,7 +753,19 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Avanzado').first);
       await tester.pumpAndSettle();
+      // Las secciones de Ajustes son plegables: abre la de herramientas.
       final settingsScroll = find.byType(ListView).first;
+      await tester.dragUntilVisible(
+        find.text('Herramientas, sesión y diagnóstico'),
+        settingsScroll,
+        const Offset(0, -300),
+      );
+      await tester.ensureVisible(
+        find.text('Herramientas, sesión y diagnóstico'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Herramientas, sesión y diagnóstico'));
+      await tester.pumpAndSettle();
       await tester.dragUntilVisible(
         find.text('Sesión de YouTube opcional sin importar'),
         settingsScroll,
