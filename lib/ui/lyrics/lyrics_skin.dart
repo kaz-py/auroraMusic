@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../theme/aurora_tokens.dart';
 import '../mini_player/blurred_cover_backdrop.dart';
+import 'lyrics_skin_atelier.dart';
+import 'lyrics_skin_brasa.dart';
+import 'lyrics_skin_modern.dart';
+import 'lyrics_skin_slush.dart';
 
 /// Piel del modo letra: la composición (portada y progreso a la izquierda,
 /// letra a la derecha, transporte abajo; compacta en móvil) es la misma en
@@ -138,8 +142,10 @@ class LyricsPlayArgs {
   final String tooltip;
 }
 
-/// Pieles registradas; sin entrada, la clásica (todo por defecto).
-final Map<AuroraThemeKind, LyricsSkin> lyricsSkins = {};
-
-LyricsSkin lyricsSkinFor(AuroraThemeKind kind) =>
-    lyricsSkins[kind] ?? const LyricsSkin();
+/// Piel de cada tema: cada uno edita SOLO su `lyrics_skin_<tema>.dart`.
+LyricsSkin lyricsSkinFor(AuroraThemeKind kind) => switch (kind) {
+  AuroraThemeKind.atelier => atelierLyricsSkin,
+  AuroraThemeKind.modern => modernLyricsSkin,
+  AuroraThemeKind.brasa => brasaLyricsSkin,
+  AuroraThemeKind.slush => slushLyricsSkin,
+};
