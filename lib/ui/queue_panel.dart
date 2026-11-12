@@ -2,12 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../core/models.dart';
-import '../theme/brasa_theme.dart';
-import '../theme/modern_theme.dart';
-import '../theme/modern_widgets.dart';
-import '../theme/slush_theme.dart';
-import '../theme/slush_widgets.dart';
 import 'artwork.dart';
+import 'right_panel/right_panel_theme.dart';
 import 'track_actions.dart';
 
 class QueuePanel extends StatelessWidget {
@@ -16,10 +12,7 @@ class QueuePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final body = _body(context);
-    return isSlush(context)
-        ? SlushScreen(color: context.slush.screen, title: 'COLA', child: body)
-        : body;
+    return rightPanelThemeOf(context).wrapQueue(context, _body(context));
   }
 
   Widget _body(BuildContext context) => ListenableBuilder(
@@ -27,23 +20,14 @@ class QueuePanel extends StatelessWidget {
     builder: (context, _) => LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 700;
-        final modern = isModern(context);
+        final theme = rightPanelThemeOf(context);
         final playerBody = _CurrentTrack(
           controller: controller,
           track: controller.currentTrack,
         );
         final queueBody = _QueueList(controller: controller, bounded: !narrow);
-        final brasa = isBrasa(context);
-        final player = brasa
-            ? _brasaCard(playerBody)
-            : modern
-            ? ModernCard(child: playerBody)
-            : playerBody;
-        final queue = brasa
-            ? _brasaCard(queueBody)
-            : modern
-            ? ModernCard(child: queueBody)
-            : queueBody;
+        final player = theme.queueCard(playerBody);
+        final queue = theme.queueCard(queueBody);
         if (narrow) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -69,16 +53,6 @@ class QueuePanel extends StatelessWidget {
   );
 }
 
-/// Tarjeta Brasa: #17110e, radio 6 y la sombra de tarjeta del tema.
-Widget _brasaCard(Widget child) => DecoratedBox(
-  decoration: BoxDecoration(
-    color: Brasa.obsidian,
-    borderRadius: BorderRadius.circular(6),
-    boxShadow: Brasa.cardShadow,
-  ),
-  child: Padding(padding: const EdgeInsets.all(16), child: child),
-);
-
 class _CurrentTrack extends StatelessWidget {
   const _CurrentTrack({required this.controller, required this.track});
   final AppController controller;
@@ -87,33 +61,19 @@ class _CurrentTrack extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final audio = controller.audio;
+    final theme = rightPanelThemeOf(context);
     return ListenableBuilder(
       listenable: audio,
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            isBrasa(context) ? 'Sonando ahora' : 'SONANDO AHORA',
-            style: isBrasa(context)
-                ? const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Brasa.cream,
-                  )
-                : Theme.of(context).textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.4,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-          ),
+          Text(theme.nowPlayingLabel, style: theme.nowPlayingStyle(context)),
           const SizedBox(height: 14),
           Center(
             child: AspectRatio(
               aspectRatio: 1,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(
-                  isBrasa(context) ? 6 : (isModern(context) ? 16 : 8),
-                ),
+                borderRadius: BorderRadius.circular(theme.currentArtRadius),
                 child: _Artwork(track: track),
               ),
             ),
@@ -130,11 +90,7 @@ class _CurrentTrack extends StatelessWidget {
             track?.artist ?? 'Elige una canci\u00f3n de tu biblioteca',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isBrasa(context)
-                  ? Brasa.steel
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            style: theme.artistStyle(context),
           ),
           const SizedBox(height: 12),
           Row(
@@ -180,17 +136,7 @@ class _CurrentTrack extends StatelessWidget {
                 IconButton.filled(
                   tooltip: audio.isPlaying ? 'Pausar' : 'Reproducir',
                   onPressed: track == null ? null : controller.togglePlayback,
-                  style: isBrasa(context)
-                      ? IconButton.styleFrom(
-                          backgroundColor: Brasa.cream,
-                          foregroundColor: Colors.black,
-                        )
-                      : isModern(context)
-                      ? IconButton.styleFrom(
-                          backgroundColor: Tracky.mint,
-                          foregroundColor: Tracky.navy,
-                        )
-                      : null,
+                  style: theme.playButtonStyle,
                   icon: Icon(audio.isPlaying ? Icons.pause : Icons.play_arrow),
                 ),
                 IconButton(
@@ -291,59 +237,49 @@ class _QueueList extends StatelessWidget {
         builder: (context, _) => _queueTile(context, track, queueIndex),
       );
 
-  Widget _queueTile(BuildContext context, Track track, int queueIndex) =>
-      ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        shape: isBrasa(context)
-            ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))
-            : isModern(context)
-            ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-            : null,
-        leading: Artwork(
-          track: track,
-          artworkContext: ArtworkContext.thumbnail,
-          radius: isBrasa(context) ? 4 : (isModern(context) ? 8 : 5),
-        ),
-        title: Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: isBrasa(context)
-              ? const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Brasa.cream,
-                )
-              : null,
-        ),
-        subtitle: Text(
-          '${controller.autoAddedIds.contains(track.id) ? 'Sugerida · ' : ''}'
-          '${track.artist} · ${_time(track.duration)}',
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: isBrasa(context)
-              ? const TextStyle(fontSize: 12, color: Brasa.steel)
-              : null,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TrackMenuButton(
-              controller: controller,
-              track: track,
-              extras: [
-                (
-                  label: 'Quitar de la cola',
-                  run: () => controller.removeFromQueue(queueIndex),
-                ),
-              ],
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.drag_handle),
-          ],
-        ),
-        onTap: () => controller.playQueueAt(queueIndex),
-      );
+  Widget _queueTile(BuildContext context, Track track, int queueIndex) {
+    final theme = rightPanelThemeOf(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      shape: theme.tileShape,
+      leading: Artwork(
+        track: track,
+        artworkContext: ArtworkContext.thumbnail,
+        radius: theme.tileArtRadius,
+      ),
+      title: Text(
+        track.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.tileTitleStyle,
+      ),
+      subtitle: Text(
+        '${controller.autoAddedIds.contains(track.id) ? 'Sugerida · ' : ''}'
+        '${track.artist} · ${_time(track.duration)}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: theme.tileSubtitleStyle,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TrackMenuButton(
+            controller: controller,
+            track: track,
+            extras: [
+              (
+                label: 'Quitar de la cola',
+                run: () => controller.removeFromQueue(queueIndex),
+              ),
+            ],
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.drag_handle),
+        ],
+      ),
+      onTap: () => controller.playQueueAt(queueIndex),
+    );
+  }
 }
 
 class _Artwork extends StatelessWidget {

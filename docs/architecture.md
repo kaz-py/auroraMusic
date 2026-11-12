@@ -28,8 +28,20 @@ lib/
     jam_playback_bridge.dart        Audio temporal, reloj, desfase y restauración personal
     jam_qr.dart                     Lectura de imágenes QR con límites de tamaño
   lyrics/                           Consulta, caché y modelos de letras
+  theme/aurora_tokens.dart          AuroraThemeKind y themeKindOf(context): único resolvedor de tema
   ui/
-    aurora_shell.dart               Navegación adaptable y conexión con controladores
+    aurora_shell.dart               Estado de navegación y páginas; ensambla el chrome del tema activo
+    shell/                          Chrome por tema del shell (ver docs/temas.md)
+      shell_chrome.dart             ShellChrome, ShellScope y registro shellChromes
+      chrome_{atelier,modern,brasa,slush}.dart  Barra superior, sidebar, aside, cabecera, error, navegación móvil
+      bars_{atelier,modern,brasa,slush}.dart    Cuerpo de StudioTitleBar / StudioSidebar por tema
+      shell_sections.dart           Títulos, iconos y primarySections(kind, mobile)
+      shell_nav.dart                ShellNav (navegación para tests) y MouseOnlyRegion
+      shell_header.dart, shell_rail.dart  Cabecera de página y carril estrecho compartidos
+    home/                           HomeTheme y home_<tema>.dart (Inicio por tema)
+    player/                         PlayerTheme y player_<tema>.dart (reproductor completo, sección 4)
+    right_panel/                    RightPanelTheme y right_panel_<tema>.dart (cola y aside)
+    mini_player/, friends_chat/     Un archivo por tema (<tema>_mini_player.dart, <tema>_chat.dart)
     home_music_page.dart            Inicio con datos reales y secciones musicales
     horizontal_music_row.dart       Carruseles con tacto, rueda y controles de escritorio
     dj_discovery_page.dart          Tarjetas del DJ, gestos y botones equivalentes
@@ -102,3 +114,12 @@ Las sesiones Jam, sus participantes, tokens y cola común permanecen en memoria.
 Consulta [diseño implementado](design_idea_implementation.md),
 [DJ y sus señales](dj.md), [metadatos Spotify](spotify_metadata.md),
 [Jam](jam.md) y [firma/CI](ci_signing.md).
+
+## Temas por archivo
+
+`themeKindOf(context)` (`lib/theme/aurora_tokens.dart`) decide el tema; el shell,
+el inicio, el reproductor, el panel derecho, el mini reproductor y el chat eligen
+su implementación en un registro por `AuroraThemeKind`. Cada tema es dueño de sus
+archivos, así que cuatro personas pueden rediseñar a la vez sin tocarse. El modo
+letras (sección 6) queda fuera de cualquier chrome. Mapa y contratos:
+`docs/temas.md`.

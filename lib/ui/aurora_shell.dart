@@ -6,11 +6,14 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'aurora_states.dart';
+import '../theme/accent_transition.dart';
+import '../theme/aurora_tokens.dart';
+import '../theme/legacy/legacy_themes.dart';
+import 'shell/shell_chrome.dart';
+import 'shell/shell_nav.dart';
 import '../theme/brasa_theme.dart';
 import '../theme/slush_theme.dart';
 import '../theme/slush_widgets.dart';
-import 'slush/slush_player.dart';
-import 'slush/slush_mobile.dart';
 import '../theme/modern_theme.dart';
 import '../theme/modern_widgets.dart';
 import 'package:flutter/services.dart';
@@ -25,7 +28,6 @@ import '../core/desktop_shell.dart';
 import '../core/duvet_presence.dart';
 import '../core/window_controls.dart';
 import '../discord/discord_presence.dart';
-import 'brand/aurora_logo.dart';
 import '../jam/jam_protocol.dart';
 import '../account/account_settings.dart';
 import '../profile/profile_settings.dart';
@@ -43,14 +45,10 @@ import '../lyrics/lyrics_auto_sync.dart';
 import '../lyrics/lyrics_service.dart';
 import '../voice/voice_command_service.dart';
 import '../voice/voice_settings.dart';
-import 'slush/slush_eq_queue.dart';
 import 'studio/equalizer_panel.dart';
-import 'studio/studio_navigation.dart';
-import 'slush/slush_bars.dart';
 import 'slush/slush_pages.dart';
 import 'slush/slush_decor.dart';
 import 'mini_player/mini_player_host.dart';
-import 'studio/session_aside.dart';
 import 'studio/downloads_studio_page.dart';
 import '../shortcuts/shortcut_host.dart';
 import '../shortcuts/shortcut_service.dart';
@@ -62,7 +60,6 @@ import 'dj_discovery_page.dart';
 import 'home_music_page.dart';
 import 'jam/jam_flows.dart';
 import 'jam/jam_page.dart';
-import 'jam/jam_widgets.dart';
 import 'playlist_shelf.dart';
 import 'playlist_views/playlist_cover.dart';
 import 'playlist_views/playlist_photo_menu.dart';
@@ -91,7 +88,6 @@ import 'artists_page.dart';
 import 'follow_widgets.dart';
 import '../follow/follow_providers.dart';
 import 'track_actions.dart';
-import 'mini_player/song_card.dart';
 import 'friends_page.dart';
 import '../friends/friends_providers.dart';
 import '../friends/friends_service.dart';
@@ -99,42 +95,6 @@ import '../notifications/system_notifier.dart';
 import 'undo_snackbar.dart';
 import '../updater/update_controller.dart';
 import '../updater/update_ui.dart';
-
-// Los ids de sección son estables: no se renumeran al quitar una.
-const _sections = <int, String>{
-  0: 'Inicio',
-  1: 'Buscar',
-  2: 'Biblioteca',
-  3: 'Descargas locales',
-  4: 'Modo Vinilo',
-  5: 'Cola de reproducción',
-  6: 'Letras',
-  7: 'Ajustes',
-  8: 'DJ',
-  9: 'Jam',
-  11: 'Descargar vídeos',
-  12: 'Artistas',
-  13: 'Ecualizador',
-  14: 'Amigos',
-};
-const _icons = <int, IconData>{
-  0: Icons.home_outlined,
-  1: Icons.search,
-  2: Icons.library_music_outlined,
-  3: Icons.download_outlined,
-  4: Icons.album_outlined,
-  5: Icons.queue_music,
-  6: Icons.lyrics_outlined,
-  7: Icons.tune,
-  8: Icons.explore_outlined,
-  9: Icons.groups_outlined,
-  11: Icons.video_file_outlined,
-  12: Icons.mic_none_rounded,
-  13: Icons.equalizer,
-  14: Icons.people_outline,
-};
-const _primarySections = [0, 1, 8, 2, 3];
-const _slushPrimarySections = [0, 1, 2, 8, 9];
 
 class AuroraShell extends ConsumerStatefulWidget {
   const AuroraShell({super.key});
@@ -145,6 +105,11 @@ class AuroraShell extends ConsumerStatefulWidget {
 class _AuroraShellState extends ConsumerState<AuroraShell>
     with WidgetsBindingObserver {
   int _section = 0;
+
+  /// Chrome y alcance de la última disposición: los fija el `LayoutBuilder` de
+  /// `build` y los leen `_content`/`_page` dentro de ese mismo build.
+  late ShellChrome _chrome;
+  late ShellScope _scope;
   bool _jamVisited = false;
   bool _videosVisited = false;
   bool _navigationPending = false;
@@ -652,119 +617,75 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               final wide = size.maxWidth >= 900;
               final desktop = size.maxWidth >= 1200;
               final rail = size.maxWidth >= 600;
-              final brasa = isBrasa(context);
-              final slushBar = isSlush(context) && rail;
-              final jamOn =
-                  _jam?.service.connected == true ||
-                  _jam?.service.reconnecting == true;
+              final chrome = _chrome = shellChromeFor(themeKindOf(context));
+              final scope = _scope = ShellScope(
+                controller: c,
+                section: _section,
+                rail: rail,
+                wide: wide,
+                desktop: desktop,
+                jam: _jam,
+                jamOn:
+                    _jam?.service.connected == true ||
+                    _jam?.service.reconnecting == true,
+                friendsBadge: _friendsBadge,
+                playlist: _playlist,
+                likesSelected: _likesSelected,
+                spotifySearch: _spotifySearch,
+                settingsTabLabel: _settingsTabs[_settingsTab],
+                shortcuts: ref.watch(shortcutServiceProvider),
+                searchController: _search,
+                searchFocus: _searchFocus,
+                onNavigate: _navigate,
+                onProfile: (ctx) => _showProfileMenu(ctx, c),
+                onSearch: (q) {
+                  _spotifySearch = false;
+                  _navigate(1);
+                  _submitSearch(c, q);
+                },
+                onSearchChanged: (_) => setState(() {}),
+                onStartJam: _startJam,
+                onOpenJamPanel: _openJamPanel,
+                onCreatePlaylist: () => _createPlaylist(c),
+                onOpenLibrary: (playlist) => _openLibrary(playlist: playlist),
+                miniPlayer: (placement) => _miniPlayer(c, rail, placement),
+              );
+              final topBar = chrome.topBar(context, scope);
+              final sidebar = rail ? chrome.sidebar(context, scope) : null;
+              final header = chrome.header(context, scope);
+              final aside = chrome.aside(context, scope);
               return Scaffold(
                 body: SafeArea(
                   child: Column(
                     children: [
-                      if (slushBar)
-                        SlushTopBar(
-                          selected: _section,
-                          onNavigate: _navigate,
-                          onProfile: (ctx) => _showProfileMenu(ctx, c),
-                          avatar: c.profileAvatar,
-                          sessionText: jamOn ? 'JAM ACTIVA' : 'INICIAR JAM',
-                          onSession: jamOn ? _openJamPanel : _startJam,
-                          onAdd: () => _createPlaylist(c),
-                        )
-                      else if (rail || WindowControls.supported)
-                        StudioTitleBar(
-                          onNavigate: _navigate,
-                          onProfile: (ctx) => _showProfileMenu(ctx, c),
-                          avatar: c.profileAvatar,
-                          searchController: brasa && rail ? _search : null,
-                          searchFocus: _searchFocus,
-                          onSearch: (q) {
-                            _spotifySearch = false;
-                            _navigate(1);
-                            _submitSearch(c, q);
-                          },
-                          onSearchChanged: (_) => setState(() {}),
-                          sessionText: brasa
-                              ? (jamOn
-                                    ? 'Jam · ${_jam!.peopleCount} ${_jam!.peopleCount == 1 ? 'persona' : 'personas'}'
-                                    : 'Iniciar una Jam')
-                              : jamOn
-                              ? 'JAM · ${_jam!.peopleCount} ${_jam!.peopleCount == 1 ? 'PERSONA' : 'PERSONAS'} · ${_jam!.roleLabel.toUpperCase()}'
-                              : 'INICIAR UNA JAM',
-                          activeSession:
-                              (_jam?.service.connected == true ||
-                              _jam?.service.reconnecting == true),
-                          onSession:
-                              (_jam?.service.connected == true ||
-                                  _jam?.service.reconnecting == true)
-                              ? _openJamPanel
-                              : _startJam,
-                        ),
+                      ?topBar,
                       Expanded(
                         child: Row(
                           children: [
-                            if (rail && !slushBar) _sidebar(c, wide),
+                            ?sidebar,
                             Expanded(
                               child: Column(
                                 children: [
-                                  if (!(brasa && rail) &&
-                                      !(slushBar && _section == 0) &&
-                                      (!wide || ![0, 3].contains(_section)))
-                                    _header(c, rail),
+                                  ?header,
                                   if (!c.ready || c.busy)
                                     const LinearProgressIndicator(minHeight: 2),
-                                  if (c.error != null) _errorBanner(c),
+                                  if (c.error != null)
+                                    chrome.errorBanner(context, scope),
                                   UpdateBanner(
                                     controller: _updates,
                                     isPlaying: () => c.audio.isPlaying,
                                   ),
                                   Expanded(
-                                    child:
-                                        isModern(context) && !isSlush(context)
-                                        ? Align(
-                                            alignment: Alignment.topCenter,
-                                            child: ConstrainedBox(
-                                              constraints: BoxConstraints(
-                                                maxWidth:
-                                                    const [
-                                                      4,
-                                                      5,
-                                                      9,
-                                                      11,
-                                                    ].contains(_section)
-                                                    ? double.infinity
-                                                    : 1600,
-                                              ),
-                                              child: _content(c),
-                                            ),
-                                          )
-                                        : _content(c),
+                                    child: chrome.contentFrame(
+                                      context,
+                                      scope,
+                                      _content(c),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                            if (desktop &&
-                                !slushBar &&
-                                !c.jamPlaybackActive &&
-                                _section != 3 &&
-                                _section != 4 &&
-                                _section != 5 &&
-                                _section != 6 &&
-                                _section != 7 &&
-                                _section != 13 &&
-                                _section != 11)
-                              StudioSessionAside(
-                                controller: c,
-                                jam: _jam,
-                                onStartJam: _startJam,
-                                onJam: () => _navigate(9),
-                                onQueue: () => _navigate(
-                                  (_jam?.service.connected == true ||
-                                          _jam?.service.reconnecting == true)
-                                      ? 9
-                                      : 5,
-                                ),
-                              ),
+                            ?aside,
                           ],
                         ),
                       ),
@@ -774,78 +695,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 ),
                 bottomNavigationBar: rail
                     ? null
-                    : isSlush(context)
-                    ? MediaQuery.withClampedTextScaling(
-                        maxScaleFactor: 1.3,
-                        child: SlushBottomBar(
-                          icons: [
-                            for (final s in _slushPrimarySections)
-                              switch (s) {
-                                2 => Icons.queue_music,
-                                8 => Icons.auto_awesome,
-                                9 => Icons.groups_outlined,
-                                _ => _icons[s]!,
-                              },
-                          ],
-                          labels: [
-                            for (final s in _slushPrimarySections)
-                              _sections[s]!,
-                          ],
-                          selected: _slushPrimarySections.indexOf(_section),
-                          onSelect: (i) => _navigate(_slushPrimarySections[i]),
-                          mini: _miniPlayer(
-                            c,
-                            rail,
-                            MiniPlayerPlacement.bottomBar,
-                          ),
-                        ),
-                      )
-                    : NavigationBar(
-                        height: 64,
-                        selectedIndex: math.max(
-                          0,
-                          _primarySections.indexOf(_section),
-                        ),
-                        onDestinationSelected: (index) =>
-                            _navigate(_primarySections[index]),
-                        labelBehavior:
-                            NavigationDestinationLabelBehavior.onlyShowSelected,
-                        backgroundColor: brasa
-                            ? Brasa.void_
-                            : isSlush(context)
-                            ? context.slush.ink
-                            : isModern(context)
-                            ? Theme.of(context).colorScheme.surfaceContainerLow
-                            : null,
-                        indicatorColor: brasa ? Brasa.cream : null,
-                        elevation: isModern(context) || brasa ? 0 : null,
-                        destinations: List.generate(
-                          _primarySections.length,
-                          (i) => NavigationDestination(
-                            icon: Icon(_icons[_primarySections[i]]),
-                            selectedIcon: brasa
-                                ? SizedBox(
-                                    width: 64,
-                                    height: 32,
-                                    child: DecoratedBox(
-                                      decoration: const ShapeDecoration(
-                                        color: Brasa.cream,
-                                        shape: StadiumBorder(),
-                                      ),
-                                      child: Icon(
-                                        _icons[_primarySections[i]],
-                                        color: Brasa.void_,
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                            label: _primarySections[i] == 3
-                                ? 'Descargas'
-                                : _sections[_primarySections[i]]!,
-                            tooltip: _sections[_primarySections[i]],
-                          ),
-                        ),
-                      ),
+                    : chrome.bottomNavigation(context, scope),
               );
             },
           ),
@@ -861,571 +711,54 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       child: shell,
     );
     // Modo mini y Modo artista sustituyen a todo el shell (que conserva su
-    // estado, incluida la sección) mientras están activos.
-    return _miniWindow
-        ? MiniWindowView(
-            controller: c,
-            jam: _jam,
-            onTogglePlay: () => _togglePlay(c),
-            onExit: () => unawaited(_setMiniWindow(false)),
-          )
-        : _section == 6
-        ? Scaffold(
-            body: ArtistModePage(
+    // estado, incluida la sección) mientras están activos. La sección 6 (modo
+    // letras) debe quedar FUERA de cualquier chrome de tema: no mover este
+    // gancho dentro de `ShellChrome` ni de sus piezas.
+    return ShellNav(
+      section: _section,
+      navigate: _navigate,
+      child: _miniWindow
+          ? MiniWindowView(
               controller: c,
               jam: _jam,
               onTogglePlay: () => _togglePlay(c),
-              onClose: () {
-                if (!_handleBack(c)) _navigate(0);
-              },
-            ),
-          )
-        : guarded;
-  }
-
-  Widget _sidebar(AppController c, bool wide) {
-    if (wide) {
-      return StudioSidebar(
-        controller: c,
-        selected: _section,
-        onNavigate: _navigate,
-        onPlaylist: (playlist) => _openLibrary(playlist: playlist),
-        onCreatePlaylist: () => _createPlaylist(c),
-        shortcuts: ref.watch(shortcutServiceProvider),
-        friendsBadge: _friendsBadge,
-      );
-    }
-    final colors = Theme.of(context).colorScheme;
-    final modern = isModern(context);
-    return Container(
-      width: wide ? 216 : 76,
-      decoration: BoxDecoration(
-        border: modern
-            ? null
-            : Border(
-                right: BorderSide(
-                  color: colors.outlineVariant.withValues(alpha: .35),
+              onExit: () => unawaited(_setMiniWindow(false)),
+            )
+          : _section == 6
+          // Tema congelado (`lib/theme/legacy`): el modo letra no sigue los
+          // rediseños del tema vivo.
+          ? Theme(
+              data: legacyThemeFor(
+                themeKindOf(context),
+                Theme.of(context).brightness,
+                AccentScope.of(context, Theme.of(context).colorScheme.primary),
+              ),
+              child: Scaffold(
+                body: ArtistModePage(
+                  controller: c,
+                  jam: _jam,
+                  onTogglePlay: () => _togglePlay(c),
+                  onClose: () {
+                    if (!_handleBack(c)) _navigate(0);
+                  },
                 ),
               ),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (modern)
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Tracky.navy,
-                      shape: BoxShape.circle,
-                    ),
-                    child: SizedBox.square(
-                      dimension: 34,
-                      child: Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                  )
-                else
-                  const AuroraLogo(size: 28),
-                if (wide) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    'Aurora',
-                    style: TextStyle(
-                      fontSize: modern ? 18 : 20,
-                      fontWeight: modern ? FontWeight.w600 : FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  for (final i in _primarySections) _navItem(i, wide),
-                  const Divider(indent: 20, endIndent: 20, height: 18),
-                  for (final i in [12, 11, 9, 14, 4, 5, 6, 13])
-                    _navItem(i, wide),
-                  if (wide && c.playlists.isNotEmpty) ...[
-                    const Divider(indent: 20, endIndent: 20, height: 18),
-                    for (final playlist in c.playlists)
-                      ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                        ),
-                        leading: const Icon(Icons.queue_music, size: 18),
-                        title: Text(
-                          playlist.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => _openLibrary(playlist: playlist),
-                      ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          _navItem(7, wide),
-        ],
-      ),
+            )
+          : guarded,
     );
   }
-
-  Widget _navItem(int index, bool wide) {
-    final colors = Theme.of(context).colorScheme;
-    final active = _section == index;
-    final modern = isModern(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Tooltip(
-        message: _sections[index],
-        child: Material(
-          color: modern
-              ? (active ? colors.primary : Colors.transparent)
-              : active
-              ? colors.primary.withValues(alpha: .12)
-              : Theme.of(context).colorScheme.surface.withValues(alpha: 0),
-          borderRadius: BorderRadius.circular(modern ? 999 : 8),
-          child: InkWell(
-            onTap: () => _navigate(index),
-            borderRadius: BorderRadius.circular(modern ? 999 : 8),
-            child: SizedBox(
-              height: 42,
-              child: Row(
-                mainAxisAlignment: wide
-                    ? MainAxisAlignment.start
-                    : MainAxisAlignment.center,
-                children: [
-                  const SizedBox(width: 12),
-                  Badge(
-                    isLabelVisible: index == 14 && _friendsBadge > 0,
-                    label: Text('$_friendsBadge'),
-                    child: Icon(
-                      _icons[index],
-                      size: 19,
-                      color: modern
-                          ? (active
-                                ? colors.onPrimary
-                                : colors.onSurfaceVariant)
-                          : active
-                          ? colors.primary
-                          : colors.onSurfaceVariant,
-                    ),
-                  ),
-                  if (wide) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _sections[index]!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: modern && active ? colors.onPrimary : null,
-                          fontWeight: active
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _modernTitle(String title) {
-    final words = title.split(' ');
-    final (before, emphasis) = _section == 0 && _playlist == null
-        ? ('Tu ', 'música')
-        : _playlist != null || words.length < 2
-        ? (title, '')
-        : ('${words.sublist(0, words.length - 1).join(' ')} ', words.last);
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: ModernHeadline(before: before, emphasis: emphasis, size: 28),
-      ),
-    );
-  }
-
-  /// Slush: estas secciones llevan su propio titular gigante (SlushPage).
-  bool get _slushOwned =>
-      isSlush(context) && const [1, 2, 3, 7, 11, 12, 14].contains(_section);
-
-  Widget _header(AppController c, bool rail) {
-    if (rail && _slushOwned) return const SizedBox.shrink();
-    return !rail &&
-            isSlush(context) &&
-            ((_section == 0 && _playlist == null) || _slushOwned)
-        ? SlushMobileTopBar(
-            onSettings: () => _navigate(7),
-            onProfile: (ctx) => _showProfileMenu(ctx, c),
-            avatar: c.profileAvatar,
-            onMore: _navigate,
-            friendsBadge: _friendsBadge,
-          )
-        : _headerBar(c, rail);
-  }
-
-  /// Slush: cabecera gigante + píldoras + contenido en tarjeta blanca.
-  Widget _slushPage(AppController c, Widget child) {
-    if (!_slushOwned) return child;
-    final s = _section;
-    final libRoot = s == 2 && _playlist == null && !_likesSelected;
-    final songs = '${c.tracks.length} canciones';
-    final list = c.playlists.where((p) => p.id == _playlist?.id).firstOrNull;
-    final found = c.searchEntries.isNotEmpty && c.searchResults.isEmpty
-        ? c.searchEntries.length
-        : c.searchResults.length;
-    final (base, title, sticker, pills) = switch (s) {
-      1 => (
-        Slush.lilac,
-        'BÚSQUEDA',
-        '¡HEY!',
-        [
-          _spotifySearch ? 'Spotify' : 'YouTube',
-          if (c.searching)
-            'Buscando…'
-          else if (found > 0)
-            '$found resultados'
-          else
-            '${c.recentSearches.length} recientes',
-        ],
-      ),
-      2 => (
-        Slush.mint,
-        _likesSelected
-            ? 'ME GUSTA'
-            : _playlist == null
-            ? 'BIBLIOTECA'
-            : (list?.name ?? 'LISTA').toUpperCase(),
-        _likesSelected ? 'AMOR' : 'TUYA',
-        libRoot
-            ? [
-                songs,
-                '${c.playlists.length} listas',
-                '${c.favoriteIds.length} me gusta',
-              ]
-            : [
-                '${_likesSelected ? c.favoriteIds.length : (list?.trackIds.length ?? 0)} canciones',
-              ],
-      ),
-      3 => (
-        const Color(0xffa9d0ff),
-        'DESCARGAS',
-        'BAJA',
-        [
-          '${c.downloads.where((j) => j.status == DownloadStatus.completed).length} listas',
-          '${c.downloads.where((j) => j.status == DownloadStatus.queued || j.status == DownloadStatus.downloading).length} en curso',
-        ],
-      ),
-      11 => (const Color(0xffa9d0ff), 'VÍDEOS', 'MP4', ['yt-dlp']),
-      14 => (Slush.mint, 'AMIGOS', 'HOLA', const <String>[]),
-      12 => (
-        Slush.yellow,
-        'ARTISTAS',
-        'FANS',
-        ['${c.tracks.map((t) => t.artist).toSet().length} artistas', songs],
-      ),
-      _ => (
-        const Color(0xffffb48a),
-        'AJUSTES',
-        'TUYO',
-        ['Slush', _settingsTabs[_settingsTab]],
-      ),
-    };
-    return SlushPage(
-      color: slushTone(context, base),
-      title: title,
-      sticker: sticker,
-      pills: pills,
-      card: !libRoot && s != 7,
-      child: child,
-    );
-  }
-
-  Widget _headerBar(AppController c, bool rail) => Padding(
-    padding: rail
-        ? EdgeInsets.fromLTRB(
-            32,
-            isModern(context) ? 28 : 18,
-            32,
-            isModern(context) ? 20 : 12,
-          )
-        : const EdgeInsets.fromLTRB(16, 8, 8, 4),
-    child: Row(
-      children: [
-        if (!rail) ...[const AuroraLogo(size: 28), const SizedBox(width: 10)],
-        Expanded(
-          child: !rail && isModern(context)
-              ? const SizedBox.shrink()
-              : isModern(context)
-              ? _modernTitle(
-                  (_playlist == null
-                          ? null
-                          : c.playlists
-                                .where((p) => p.id == _playlist!.id)
-                                .firstOrNull
-                                ?.name) ??
-                      _sections[_section]!,
-                )
-              : Text(
-                  (_playlist == null
-                          ? null
-                          : c.playlists
-                                .where((p) => p.id == _playlist!.id)
-                                .firstOrNull
-                                ?.name) ??
-                      _sections[_section]!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-        ),
-        if (rail)
-          IconButton(
-            tooltip: 'Importar archivos de audio',
-            onPressed: c.ready ? c.importFiles : null,
-            icon: const Icon(Icons.create_new_folder_outlined),
-          ),
-        if (_section != 1)
-          IconButton(
-            tooltip: 'Buscar música',
-            onPressed: () => _navigate(1),
-            icon: const Icon(Icons.search),
-          ),
-        if (!rail)
-          IconButton(
-            tooltip: 'Ajustes',
-            onPressed: () => _navigate(7),
-            icon: const Icon(Icons.tune),
-          ),
-        if (!rail && _section == 4 && !isSlush(context) && c.nowTrack != null)
-          Builder(
-            builder: (b) => IconButton(
-              tooltip: 'Más acciones',
-              icon: const Icon(Icons.more_vert_rounded),
-              onPressed: () {
-                final box = b.findRenderObject() as RenderBox;
-                showSongCard(
-                  context,
-                  c,
-                  c.nowTrack!,
-                  box.localToGlobal(box.size.bottomLeft(Offset.zero)),
-                  openQueue: () => _navigate(5),
-                );
-              },
-            ),
-          ),
-        if (!rail)
-          PopupMenuButton<int>(
-            tooltip: 'Más vistas',
-            icon: Badge(
-              isLabelVisible: _friendsBadge > 0,
-              label: Text('$_friendsBadge'),
-              child: const Icon(Icons.more_horiz),
-            ),
-            onSelected: (v) =>
-                v == -1 ? (c.ready ? c.importFiles() : null) : _navigate(v),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: -1,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.create_new_folder_outlined),
-                  title: Text('Importar archivos'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 12,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.mic_none_rounded),
-                  title: Text('Artistas'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 11,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.video_file_outlined),
-                  title: Text('Descargar vídeos'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 9,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.groups_outlined),
-                  title: Text('Jam'),
-                ),
-              ),
-              if (supabaseServicesEnabled)
-                PopupMenuItem(
-                  value: 14,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Badge(
-                      isLabelVisible: _friendsBadge > 0,
-                      label: Text('$_friendsBadge'),
-                      child: const Icon(Icons.people_outline),
-                    ),
-                    title: const Text('Amigos'),
-                  ),
-                ),
-              PopupMenuItem(
-                value: 4,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.album_outlined),
-                  title: Text('Modo Vinilo'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 5,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.queue_music),
-                  title: Text('Cola de reproducción'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 6,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.lyrics_outlined),
-                  title: Text('Letras'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 13,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.equalizer),
-                  title: Text('Ecualizador'),
-                ),
-              ),
-            ],
-          ),
-        if (rail)
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: isModern(context)
-                ? ModernBadge(
-                    ref
-                        .watch(shortcutServiceProvider)
-                        .labelOf(ShortcutId.searchFocus),
-                  )
-                : Text(
-                    ref
-                        .watch(shortcutServiceProvider)
-                        .labelOf(ShortcutId.searchFocus),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-          ),
-      ],
-    ),
-  );
-
-  Widget _errorBanner(AppController c) => isBrasa(context)
-      ? Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-          child: Material(
-            color: Brasa.graphite,
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      c.error!,
-                      style: const TextStyle(fontSize: 14, color: Brasa.cream),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Cerrar aviso',
-                    onPressed: c.clearError,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        )
-      : isModern(context)
-      ? ModernBanner(message: c.error!, onClose: c.clearError)
-      : Material(
-          color: Theme.of(context).colorScheme.errorContainer,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    c.error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onErrorContainer,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Cerrar aviso',
-                  onPressed: c.clearError,
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-        );
 
   Widget _content(AppController c) => Stack(
     fit: StackFit.expand,
     children: [
       Offstage(
         offstage: [9, 11].contains(_section),
-        child: isSlush(context)
-            ? _SlushSectionFade(section: _section, child: _page(c))
-            : _page(c),
+        child: _chrome.pageTransition(context, _scope, _page(c)),
       ),
       if (_videosVisited)
         Offstage(
           offstage: _section != 11,
-          child: _slushPage(
-            c,
+          child: _framed(
             VideoDownloadsPage(
               key: const ValueKey('video-downloads-page'),
               source: c.source,
@@ -1450,29 +783,16 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     ],
   );
 
-  /// Slush: pestañas del reproductor (Vinilo/Letras/EQ/Cola) sobre la sección.
-  Widget _slushTabs(AppController c, int section, Widget child) =>
-      isSlush(context)
-      ? Column(
-          children: [
-            SlushPlayerHeader(
-              controller: c,
-              current: section,
-              onSection: _navigate,
-            ),
-            Expanded(child: child),
-          ],
-        )
-      : child;
+  Widget _framed(Widget child) => _chrome.framed(context, _scope, child);
 
   Widget _page(AppController c) {
     switch (_section) {
       case 1:
-        return _slushPage(c, _searchPage(c));
+        return _framed(_searchPage(c));
       case 2:
-        return _slushPage(c, _library(c));
+        return _framed(_library(c));
       case 3:
-        return _slushPage(c, _downloads(c));
+        return _framed(_downloads(c));
       case 4:
         return VinylPlayer(
           controller: c,
@@ -1482,33 +802,20 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           jam: _jam,
         );
       case 5:
-        if (isSlush(context)) {
-          return SlushEqQueue(
-            controller: c,
-            onNavigate: _navigate,
-            queueFirst: true,
-          );
-        }
-        return _slushTabs(c, 5, QueuePanel(controller: c));
+        return _chrome.sectionOverride(context, _scope, 5) ??
+            QueuePanel(controller: c);
       case 7:
-        return _slushPage(c, _settings(c));
+        return _framed(_settings(c));
       case 8:
         return DjDiscoveryPage(controller: c, onSearch: () => _navigate(1));
       case 13:
-        if (isSlush(context)) {
-          return SlushEqQueue(controller: c, onNavigate: _navigate);
-        }
-        return _slushTabs(
-          c,
-          13,
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: EqualizerPanel(controller: c, onClose: () => _navigate(0)),
-          ),
-        );
+        return _chrome.sectionOverride(context, _scope, 13) ??
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: EqualizerPanel(controller: c, onClose: () => _navigate(0)),
+            );
       case 12:
-        return _slushPage(
-          c,
+        return _framed(
           ArtistsPage(
             controller: c,
             follow: ref.read(followServiceProvider),
@@ -1522,8 +829,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         );
       case 14:
-        return _slushPage(
-          c,
+        return _framed(
           FriendsPage(
             controller: c,
             openChat: _friendsChat,
@@ -3447,41 +2753,4 @@ String _time(Duration value) {
   final seconds = math.max(0, value.inSeconds);
   final minutes = seconds ~/ 60;
   return '${minutes.toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
-}
-
-/// Slush: entrada de sección (opacidad + 8 px, 220 ms `easeOut`) al cambiar de
-/// pestaña. El hijo conserva su estado; con movimiento reducido es un corte.
-class _SlushSectionFade extends StatefulWidget {
-  const _SlushSectionFade({required this.section, required this.child});
-  final int section;
-  final Widget child;
-
-  @override
-  State<_SlushSectionFade> createState() => _SlushSectionFadeState();
-}
-
-class _SlushSectionFadeState extends State<_SlushSectionFade>
-    with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(
-    vsync: this,
-    duration: SlushMotion.sectionIn,
-    value: 1,
-  );
-
-  @override
-  void didUpdateWidget(_SlushSectionFade old) {
-    super.didUpdateWidget(old);
-    if (old.section != widget.section && !SlushMotion.reduce(context)) {
-      _c.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SlushMotion.fadeSlide(_c, widget.child);
 }

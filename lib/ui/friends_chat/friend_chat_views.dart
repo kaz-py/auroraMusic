@@ -7,8 +7,8 @@ import '../../app_controller.dart';
 import '../../core/models.dart';
 import '../../friends/friends_service.dart';
 import '../../jam/jam_controller.dart';
+import '../../theme/aurora_tokens.dart';
 import '../friends_page.dart' show friendsAgo;
-import '../mini_player/mini_player_host.dart';
 import '../undo_snackbar.dart';
 import 'atelier_chat.dart';
 import 'brasa_chat.dart';
@@ -27,7 +27,7 @@ const Map<String, ChatTheme> chatThemes = {
   'brasa': brasaChat,
 };
 
-ChatTheme chatThemeOf(BuildContext c) => chatThemes[MiniPlayerHost.kindOf(c)]!;
+ChatTheme chatThemeOf(BuildContext c) => chatThemes[themeKindOf(c).name]!;
 
 /// Lista de conversaciones (una por amigo). Va dentro del `ListView` de la
 /// página de Amigos.

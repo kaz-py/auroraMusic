@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import '../../app_controller.dart';
 import '../../core/models.dart';
 import '../../jam/jam_controller.dart';
-import '../../theme/brasa_theme.dart';
-import '../../theme/modern_theme.dart';
-import '../../theme/slush_theme.dart';
+import '../../theme/aurora_tokens.dart';
 import 'song_card.dart';
 import 'atelier_mini_player.dart';
 import 'brasa_mini_player.dart';
@@ -98,13 +96,7 @@ class MiniPlayerHost extends StatelessWidget {
   final Map<String, MiniPlayerTheme> themes;
 
   /// Clave del tema vigente según el `ThemeData` activo.
-  static String kindOf(BuildContext context) => isSlush(context)
-      ? 'slush'
-      : isBrasa(context)
-      ? 'brasa'
-      : isModern(context)
-      ? 'modern'
-      : 'atelier';
+  static String kindOf(BuildContext context) => themeKindOf(context).name;
 
   /// Reglas de los temas nuevos.
   static bool isVisible({required bool hasTrack, required int section}) =>

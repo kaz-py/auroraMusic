@@ -20,8 +20,7 @@ import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/friends/friends_providers.dart';
 import 'package:aurora_music/main.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
-import 'package:aurora_music/ui/slush/slush_bars.dart';
-import 'package:aurora_music/ui/studio/studio_navigation.dart';
+import 'package:aurora_music/ui/shell/shell_nav.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,20 +141,12 @@ Future<void> _navigate(
 ) async {
   final detour = target.width < phoneMaxWidth;
   if (detour) await _resize(tester, _navSize);
-  final slush = find.byType(SlushTopBar);
-  if (slush.evaluate().isNotEmpty) {
-    tester.widget<SlushTopBar>(slush).onNavigate(section);
-  } else {
-    tester
-        .widget<StudioTitleBar>(find.byType(StudioTitleBar))
-        .onNavigate(section);
-  }
+  final nav = find.byType(ShellNav);
+  tester.widget<ShellNav>(nav).navigate(section);
   await _settle(tester);
-  if (slush.evaluate().isNotEmpty) {
-    if (tester.widget<SlushTopBar>(slush).selected != section) {
-      errors.restore();
-      fail('la navegación a la sección $section no llegó a la barra superior');
-    }
+  if (tester.widget<ShellNav>(nav).section != section) {
+    errors.restore();
+    fail('la navegación a la sección $section no llegó al shell');
   }
   if (detour) {
     errors.drain(); // fallos del tamaño de paso no son de este caso

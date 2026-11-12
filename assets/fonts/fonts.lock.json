@@ -1,26 +1,128 @@
 ﻿[
     {
-        "file":  "assets/fonts/newsreader/Newsreader-Variable.ttf",
-        "sha256":  "8a08d13f8a6c0d51be379a60af84f945f65369a67e509ee3c3bdcc421254d7c1",
-        "provider":  "google/fonts",
-        "license":  "SIL Open Font License 1.1"
+        "file": "assets/fonts/newsreader/Newsreader-Variable.ttf",
+        "sha256": "8a08d13f8a6c0d51be379a60af84f945f65369a67e509ee3c3bdcc421254d7c1",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
     },
     {
-        "file":  "assets/fonts/plus_jakarta_sans/PlusJakartaSans-Variable.ttf",
-        "sha256":  "89b3fb38aa0d275d7a731d0d817a4f1622b316b4d7fbdedcf02ee9099ff68bc8",
-        "provider":  "google/fonts",
-        "license":  "SIL Open Font License 1.1"
+        "file": "assets/fonts/plus_jakarta_sans/PlusJakartaSans-Variable.ttf",
+        "sha256": "89b3fb38aa0d275d7a731d0d817a4f1622b316b4d7fbdedcf02ee9099ff68bc8",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
     },
     {
-        "file":  "assets/fonts/inter/Inter-Variable.ttf",
-        "sha256":  "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
-        "provider":  "google/fonts",
-        "license":  "SIL Open Font License 1.1"
+        "file": "assets/fonts/inter/Inter-Variable.ttf",
+        "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
     },
     {
-        "file":  "assets/fonts/bagel_fat_one/BagelFatOne-Regular.ttf",
-        "sha256":  "9286944032c5a9b20ad70940105417beae14013e0b4f5fc292425afdc4330245",
-        "provider":  "google/fonts",
-        "license":  "SIL Open Font License 1.1"
+        "file": "assets/fonts/bagel_fat_one/BagelFatOne-Regular.ttf",
+        "sha256": "9286944032c5a9b20ad70940105417beae14013e0b4f5fc292425afdc4330245",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\bagel_fat_one\\BagelFatOne-Regular.ttf",
+        "sha256": "9286944032c5a9b20ad70940105417beae14013e0b4f5fc292425afdc4330245",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\bricolage_grotesque\\BricolageGrotesque-Variable.ttf",
+        "sha256": "413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\dm_mono\\DMMono-Medium.ttf",
+        "sha256": "fd327daf461db87b44a87def475d251bf03b997f7c07d9680592d75dbbfaad0b",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\dm_mono\\DMMono-Regular.ttf",
+        "sha256": "55b4c98f123daebb3ed27947ba47b2af00554fc6284d639a540bcef5e6258ad2",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\dm_sans\\DMSans-Italic-Variable.ttf",
+        "sha256": "22259c0cc8237221b80f44c76ba8d36e6bce3cda72779f5b2773643d499720ae",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\dm_sans\\DMSans-Variable.ttf",
+        "sha256": "8cd08d97e89c24d0aa92edd2f0f4c8ee6195eee9b7c9f154865a58b02f0c1c0d",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\fraunces\\Fraunces-Italic-Variable.ttf",
+        "sha256": "b24448c43702fac4ee856781d461a0dfba8d8e594b6e8e190234b75fed2c0e01",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\fraunces\\Fraunces-Variable.ttf",
+        "sha256": "177ff6c0f14e5550a3c624247cd1189611d4eb65d000b14944c63d967958abbb",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\geist_mono\\GeistMono-Variable.ttf",
+        "sha256": "d00e590b8eb3a59acc329b2d044fd143ae935090b7da33199ebee27cc7de8196",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\ibm_plex_mono\\IBMPlexMono-Medium.ttf",
+        "sha256": "a9b4c49bb299e05b5f6c481e7fb5e78943d2793249a0c8874ab574a2d1ea6755",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\ibm_plex_mono\\IBMPlexMono-Regular.ttf",
+        "sha256": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\ibm_plex_mono\\IBMPlexMono-SemiBold.ttf",
+        "sha256": "d3c38e55c78f5b0f28009fddba4834ec503278936a5986032424c9bd2d23aa46",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\inter\\Inter-Variable.ttf",
+        "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\manrope\\Manrope-Variable.ttf",
+        "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\newsreader\\Newsreader-Italic-Variable.ttf",
+        "sha256": "796668611f80b64d5adf182fde3b6f29ed83b4e7cbec7b96937e84ac01364792",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\newsreader\\Newsreader-Variable.ttf",
+        "sha256": "8a08d13f8a6c0d51be379a60af84f945f65369a67e509ee3c3bdcc421254d7c1",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
+    },
+    {
+        "file": "assets/fonts\\plus_jakarta_sans\\PlusJakartaSans-Variable.ttf",
+        "sha256": "89b3fb38aa0d275d7a731d0d817a4f1622b316b4d7fbdedcf02ee9099ff68bc8",
+        "provider": "google/fonts",
+        "license": "SIL Open Font License 1.1"
     }
 ]
