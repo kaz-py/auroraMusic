@@ -276,33 +276,31 @@ void main() {
       expect(pill(), findsNothing);
     });
 
-    testWidgets(
-      'con carril: dock en el cuerpo, centrado y de 920 como máximo (1300 px)',
-      (tester) async {
-        await setup(tester);
-        await mountHost(
-          tester,
-          section: 0,
-          rail: true,
-          placement: MiniPlayerPlacement.body,
-        );
-        final rect = tester.getRect(pill());
-        expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 64));
-        expect(rect.center.dx, closeTo(650, 1));
-        // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
-        await tester.tapAt(const Offset(20, 790));
-        expect(calls.count('open'), 0);
-        // Con carril el clic abre el menú de la canción; el Vinilo es una
-        // entrada del menú.
-        await tester.tap(find.text('Luz de luna'));
-        await tester.pumpAndSettle();
-        expect(calls.count('open'), 0);
-        expect(find.text('Compartir'), findsOneWidget);
-        await tester.tap(find.text('Abrir Modo Vinilo'));
-        await tester.pumpAndSettle();
-        expect(calls.count('open'), 1);
-      },
-    );
+    testWidgets('con carril: dock en el cuerpo y centrado (1300 px)', (
+      tester,
+    ) async {
+      await setup(tester);
+      await mountHost(
+        tester,
+        section: 0,
+        rail: true,
+        placement: MiniPlayerPlacement.body,
+      );
+      final rect = tester.getRect(pill());
+      expect(rect.center.dx, closeTo(650, 1));
+      // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
+      await tester.tapAt(const Offset(20, 790));
+      expect(calls.count('open'), 0);
+      // Con carril el clic abre el menú de la canción; el Vinilo es una
+      // entrada del menú.
+      await tester.tap(find.text('Luz de luna'));
+      await tester.pumpAndSettle();
+      expect(calls.count('open'), 0);
+      expect(find.text('Compartir'), findsOneWidget);
+      await tester.tap(find.text('Abrir Modo Vinilo'));
+      await tester.pumpAndSettle();
+      expect(calls.count('open'), 1);
+    });
   });
 
   group('maquetación', () {
@@ -339,12 +337,6 @@ void main() {
           expect(rect.right, lessThanOrEqualTo(size.width));
           expect(rect.bottom, lessThanOrEqualTo(size.height));
           expect(rect.height, greaterThanOrEqualTo(56 * scale.clamp(1, 1.5)));
-          if (wide) {
-            expect(
-              rect.width,
-              lessThanOrEqualTo(slushMiniMaxWidthFor(size.width) + 64),
-            );
-          }
           for (final tip in [
             'Pausar',
             'Quitar de favoritos',
@@ -360,26 +352,6 @@ void main() {
         });
       }
     }
-
-    testWidgets('el dock ancho no pasa de 920 px de pastilla (720 bajo 1100)', (
-      tester,
-    ) async {
-      await mount(
-        tester,
-        size: const Size(1440, 900),
-        wide: true,
-        state: _state(track: _track),
-      );
-      final rect = tester.getRect(pill());
-      expect(rect.center.dx, closeTo(720, 1));
-      expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 2 * 32));
-      // Los gestos cubren el dock y nada más.
-      final gestures = tester.getRect(find.byType(MiniPlayerGestures));
-      expect(
-        gestures.width,
-        lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 2 * 32),
-      );
-    });
   });
 
   group('estados', () {

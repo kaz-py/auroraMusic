@@ -6,33 +6,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('barra superior Slush: pestañas, Jam y crear lista', (t) async {
+  testWidgets('cabecera Slush: búsqueda, Jam y perfil', (t) async {
     t.view.physicalSize = const Size(1400, 300);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    final nav = <int>[];
-    var jam = 0, add = 0;
+    final ctrl = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(ctrl.dispose);
+    addTearDown(focus.dispose);
+    final searched = <String>[];
+    var jam = 0, profile = 0;
     await t.pumpWidget(
       MaterialApp(
         theme: slushTheme(Brightness.light, Colors.blue),
         home: Scaffold(
-          body: SlushTopBar(
-            selected: 0,
-            onNavigate: nav.add,
+          body: SlushDesktopHeader(
+            searchController: ctrl,
+            searchFocus: focus,
+            onSearch: searched.add,
             onSession: () => jam++,
-            onAdd: () => add++,
-            onProfile: (_) {},
+            onProfile: (_) => profile++,
+            sessionText: 'Iniciar Jam',
           ),
         ),
       ),
     );
-    await t.tap(find.text('ARTISTAS'));
-    await t.tap(find.text('JAM'));
-    await t.tap(find.text('INICIAR JAM'));
-    await t.tap(find.byTooltip('Crear lista'));
-    expect(nav, [12, 9]);
+    await t.enterText(find.byType(TextField), 'luna');
+    await t.testTextInput.receiveAction(TextInputAction.search);
+    await t.tap(find.text('Iniciar Jam'));
+    await t.tap(find.byType(SlushProfileButton));
+    expect(searched, ['luna']);
     expect(jam, 1);
-    expect(add, 1);
+    expect(profile, 1);
   });
 
   test('duración total del mix', () {

@@ -1,44 +1,12 @@
 import 'dart:typed_data';
+import 'dart:ui' show PointMode;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import '../../core/window_controls.dart';
 import '../../theme/slush_theme.dart';
-
-/// Pestañas de la barra superior: (sección del shell, etiqueta).
-const slushTabs = <(int, String)>[
-  (0, 'INICIO'),
-  (1, 'BUSCAR'),
-  (12, 'ARTISTAS'),
-  (2, 'BIBLIOTECA'),
-  (3, 'DESCARGAS'),
-  (8, 'DJ'),
-  (9, 'JAM'),
-  (14, 'AMIGOS'),
-];
-
-Widget _round(
-  BuildContext context,
-  String tip,
-  IconData icon,
-  VoidCallback? onTap, {
-  double size = 34,
-}) => Tooltip(
-  message: tip,
-  child: Material(
-    color: context.slush.paper,
-    shape: CircleBorder(side: context.slush.border),
-    child: InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: SizedBox.square(
-        dimension: size,
-        child: Icon(icon, size: size * .52, color: context.slush.ink),
-      ),
-    ),
-  ),
-);
+import '../../theme/slush_widgets.dart';
+import '../shell/shell_nav.dart';
 
 /// Foto de perfil circular; al tocarla abre el menú de perfil anclado a ella.
 class SlushProfileButton extends StatelessWidget {
@@ -47,17 +15,21 @@ class SlushProfileButton extends StatelessWidget {
     required this.avatar,
     required this.onProfile,
     this.size = 34,
+    this.initial,
   });
   final Uint8List? avatar;
   final void Function(BuildContext anchor) onProfile;
   final double size;
+
+  /// Inicial que se muestra sin foto (por omisión, un icono de persona).
+  final String? initial;
 
   @override
   Widget build(BuildContext context) => Builder(
     builder: (anchor) => Tooltip(
       message: 'Perfil y ajustes',
       child: Material(
-        color: context.slush.paper,
+        color: avatar == null ? Slush.pink : context.slush.paper,
         shape: CircleBorder(side: context.slush.border),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -66,11 +38,22 @@ class SlushProfileButton extends StatelessWidget {
           child: SizedBox.square(
             dimension: size,
             child: avatar == null
-                ? Icon(
-                    Icons.person_outline_rounded,
-                    size: size * .52,
-                    color: context.slush.ink,
-                  )
+                ? (initial != null && initial!.isNotEmpty
+                      ? Center(
+                          child: Text(
+                            initial!,
+                            style: slushHeadline(
+                              size * .42,
+                              height: 1,
+                              color: Slush.ink,
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.person_outline_rounded,
+                          size: 24,
+                          color: Slush.ink,
+                        ))
                 : Image.memory(
                     avatar!,
                     fit: BoxFit.cover,
@@ -89,258 +72,414 @@ class SlushProfileButton extends StatelessWidget {
   );
 }
 
-/// Barra superior en píldora: logo, pestañas, búsqueda, «Iniciar Jam» y «+».
-class SlushTopBar extends StatelessWidget {
-  const SlushTopBar({
+/// Cabecera de escritorio: búsqueda en píldora, chip lima de Jam, perfil y
+/// controles de ventana. [compact] (reproductor a pantalla completa) deja solo
+/// el arrastre de ventana y sus botones.
+class SlushDesktopHeader extends StatelessWidget {
+  const SlushDesktopHeader({
     super.key,
-    required this.selected,
-    required this.onNavigate,
+    required this.searchController,
+    required this.searchFocus,
+    required this.onSearch,
     required this.onSession,
-    required this.onAdd,
     required this.onProfile,
+    required this.sessionText,
     this.avatar,
-    this.sessionText = 'INICIAR JAM',
+    this.initial,
+    this.shortcut = 'Ctrl+2',
+    this.compact = false,
   });
-  final int selected;
-  final ValueChanged<int> onNavigate;
-  final VoidCallback onSession, onAdd;
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final ValueChanged<String> onSearch;
+  final VoidCallback onSession;
   final void Function(BuildContext anchor) onProfile;
-  final Uint8List? avatar;
   final String sessionText;
-
-  @override
-  Widget build(BuildContext context) {
-    final w = MediaQuery.sizeOf(context).width;
-    final tabs = Semantics(
-      container: true,
-      label: 'Navegación principal',
-      child: DecoratedBox(
-        decoration: ShapeDecoration(
-          color: context.slush.paper,
-          shape: StadiumBorder(side: context.slush.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final (section, label) in slushTabs)
-                _Tab(
-                  label,
-                  active: section == selected,
-                  onTap: () => onNavigate(section),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-      child: DecoratedBox(
-        decoration: ShapeDecoration(
-          color: context.slush.paper,
-          shape: StadiumBorder(side: context.slush.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            children: [
-              GestureDetector(
-                onPanStart: (_) => WindowControls.invoke('drag'),
-                onDoubleTap: () => WindowControls.invoke('maximize'),
-                child: Semantics(
-                  label: 'Aurora',
-                  child: DecoratedBox(
-                    decoration: ShapeDecoration(
-                      color: context.slush.paper,
-                      shape: CircleBorder(side: context.slush.border),
-                    ),
-                    child: SizedBox.square(
-                      dimension: 34,
-                      child: Center(
-                        child: Text(
-                          'A',
-                          style: TextStyle(
-                            fontFamily: 'Bagel Fat One',
-                            fontSize: 18,
-                            color: context.slush.ink,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                // El arrastre de ventana va debajo: no compite con los toques.
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onPanStart: (_) => WindowControls.invoke('drag'),
-                        onDoubleTap: () => WindowControls.invoke('maximize'),
-                      ),
-                    ),
-                    FittedBox(fit: BoxFit.scaleDown, child: tabs),
-                  ],
-                ),
-              ),
-              _round(
-                context,
-                'Buscar',
-                Icons.search,
-                () => onNavigate(1),
-                size: 32,
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: context.slush.ink,
-                shape: const StadiumBorder(),
-                child: InkWell(
-                  customBorder: const StadiumBorder(),
-                  onTap: onSession,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: SlushControl.touch,
-                      minHeight: SlushControl.dense,
-                    ),
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.groups_rounded,
-                          size: 14,
-                          color: context.slush.paper,
-                        ),
-                        if (Breakpoints.isWide(w)) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            sessionText,
-                            style: TextStyle(
-                              color: context.slush.paper,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .3,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _round(context, 'Crear lista', Icons.add, onAdd, size: 32),
-              const SizedBox(width: 8),
-              _round(
-                context,
-                'Ajustes',
-                Icons.tune,
-                () => onNavigate(7),
-                size: 32,
-              ),
-              const SizedBox(width: 8),
-              SlushProfileButton(
-                avatar: avatar,
-                onProfile: onProfile,
-                size: 32,
-              ),
-              if (WindowControls.supported) ...[
-                const SizedBox(width: 6),
-                for (final (op, icon, tip) in const [
-                  ('minimize', Icons.remove, 'Minimizar'),
-                  ('maximize', Icons.crop_square, 'Maximizar o restaurar'),
-                  ('close', Icons.close, 'Cerrar ventana'),
-                ])
-                  IconButton(
-                    tooltip: tip,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => WindowControls.invoke(op),
-                    icon: Icon(icon, size: 15),
-                  ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Tab extends StatefulWidget {
-  const _Tab(this.label, {required this.active, required this.onTap});
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  State<_Tab> createState() => _TabState();
-}
-
-class _TabState extends State<_Tab> {
-  bool _hover = false;
-  bool _focus = false;
+  final Uint8List? avatar;
+  final String? initial;
+  final String shortcut;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final p = context.slush;
-    // 32 con puntero fino (denso), 44 táctil.
-    final fine = RendererBinding.instance.mouseTracker.mouseIsConnected;
-    final minHeight = fine ? SlushControl.dense : SlushControl.touch;
-    final fill = widget.active
-        ? p.ink
-        : _hover
-        ? p.hoverFill
-        : Colors.transparent;
-    return Semantics(
-      button: true,
-      selected: widget.active,
-      child: FocusableActionDetector(
-        mouseCursor: SystemMouseCursors.click,
-        onShowHoverHighlight: (v) => setState(() => _hover = v),
-        onShowFocusHighlight: (v) => setState(() => _focus = v),
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) {
-              widget.onTap();
-              return null;
-            },
-          ),
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: SlushMotion.hover,
-            curve: SlushMotion.easeOut,
-            constraints: BoxConstraints(minHeight: minHeight),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            alignment: Alignment.center,
-            decoration: ShapeDecoration(
-              color: fill,
-              shape: const StadiumBorder(),
+    final controls = WindowControls.supported
+        ? MouseOnlyRegion(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final (op, icon, tip, fill) in [
+                  ('minimize', Icons.remove, 'Minimizar', p.paper),
+                  (
+                    'maximize',
+                    Icons.crop_square,
+                    'Maximizar o restaurar',
+                    p.paper,
+                  ),
+                  ('close', Icons.close, 'Cerrar ventana', Slush.pink),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 3),
+                    child: Tooltip(
+                      message: tip,
+                      child: SlushPressable(
+                        onTap: () => WindowControls.invoke(op),
+                        minSize: 36,
+                        child: DecoratedBox(
+                          decoration: ShapeDecoration(
+                            color: fill,
+                            shape: CircleBorder(side: p.border),
+                          ),
+                          child: SizedBox.square(
+                            dimension: 36,
+                            child: Icon(
+                              icon,
+                              size: 16,
+                              color: fill == Slush.pink ? Slush.ink : p.ink,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            foregroundDecoration: _focus
-                ? ShapeDecoration(shape: StadiumBorder(side: p.focusRing))
-                : null,
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .3,
-                color: widget.active ? p.paper : p.ink,
+          )
+        : null;
+    final drag = Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanStart: (_) => WindowControls.invoke('drag'),
+        onDoubleTap: () => WindowControls.invoke('maximize'),
+      ),
+    );
+    if (compact) {
+      if (controls == null) return const SizedBox.shrink();
+      return SizedBox(
+        height: 48,
+        child: Stack(
+          children: [
+            drag,
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: controls,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final wide = MediaQuery.sizeOf(context).width >= 1100;
+    return Stack(
+      children: [
+        drag,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 3, bottom: 3),
+                    child: DecoratedBox(
+                      decoration: ShapeDecoration(
+                        color: p.paper,
+                        shadows: p.shadows,
+                        shape: StadiumBorder(side: p.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 18),
+                          Icon(Icons.search_rounded, size: 20, color: p.ink),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: searchController,
+                              focusNode: searchFocus,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: onSearch,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: p.ink,
+                              ),
+                              decoration: InputDecoration(
+                                isDense: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                filled: false,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
+                                hintText: 'Buscar canciones, artistas, álbumes',
+                                hintStyle: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: p.ink2,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (wide)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: p.ink2, width: 1.5),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  child: Text(
+                                    shortcut,
+                                    style: slushMono(
+                                      10.5,
+                                      color: p.ink2,
+                                      letterSpacing: 0,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.only(right: 3, bottom: 3),
+                child: SlushPressable(
+                  onTap: onSession,
+                  semanticLabel: sessionText,
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: Slush.lime,
+                      shape: StadiumBorder(side: p.border),
+                    ),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.groups_rounded,
+                            size: 18,
+                            color: Slush.ink,
+                          ),
+                          if ((wide ||
+                                  MediaQuery.sizeOf(context).width >= 760) &&
+                              MediaQuery.textScalerOf(context).scale(14) <=
+                                  21) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              sessionText,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: Slush.ink,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Padding(
+                padding: const EdgeInsets.only(right: 3, bottom: 3),
+                child: SlushProfileButton(
+                  avatar: avatar,
+                  onProfile: onProfile,
+                  initial: initial,
+                  size: 48,
+                ),
+              ),
+              ?controls,
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+const _weekdays = [
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
+];
+const _months = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+/// «Buenas noches, Pablo» según la hora.
+String slushGreeting(DateTime now, String name) {
+  final h = now.hour;
+  final hi = h < 6
+      ? 'Buenas noches'
+      : h < 13
+      ? 'Buenos días'
+      : h < 20
+      ? 'Buenas tardes'
+      : 'Buenas noches';
+  return name.trim().isEmpty ? hi : '$hi, ${name.trim()}';
+}
+
+/// «Jueves · 12 nov».
+String slushDateLine(DateTime now) =>
+    '${_weekdays[now.weekday - 1]} · ${now.day} ${_months[now.month - 1]}';
+
+/// Cabecera del Inicio móvil: fecha, saludo grande y avatar rosa.
+class SlushMobileGreeting extends StatelessWidget {
+  const SlushMobileGreeting({
+    super.key,
+    required this.name,
+    required this.onProfile,
+    this.avatar,
+    this.now,
+  });
+  final String name;
+  final Uint8List? avatar;
+  final void Function(BuildContext anchor) onProfile;
+  final DateTime? now;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    final t = now ?? DateTime.now();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  slushDateLine(t),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: p.ink2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  slushGreeting(t, name),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: slushHeadline(34, height: 1.05, color: p.ink),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Padding(
+            padding: const EdgeInsets.only(right: 3, bottom: 3),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: p.shadowsFor(SlushElevation.card),
+              ),
+              child: SlushProfileButton(
+                avatar: avatar,
+                onProfile: onProfile,
+                initial: name.trim().isEmpty
+                    ? null
+                    : name.trim().characters.first.toUpperCase(),
+                size: 52,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Trama de puntos (22 px) del fondo de Slush 2.0; un solo `CustomPaint`
+/// dentro de `RepaintBoundary`, no se repinta al cambiar el contenido.
+class SlushDotBackdrop extends StatelessWidget {
+  const SlushDotBackdrop({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.slush;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: _DotsPainter(
+                  p.ink.withValues(alpha: dark ? .07 : .13),
+                ),
               ),
             ),
           ),
         ),
-      ),
+        child,
+      ],
     );
   }
+}
+
+class _DotsPainter extends CustomPainter {
+  const _DotsPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pts = <Offset>[
+      for (var y = 11.0; y < size.height; y += 22)
+        for (var x = 11.0; x < size.width; x += 22) Offset(x, y),
+    ];
+    canvas.drawPoints(
+      PointMode.points,
+      pts,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DotsPainter old) => old.color != color;
 }

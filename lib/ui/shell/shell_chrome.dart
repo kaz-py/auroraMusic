@@ -113,6 +113,11 @@ abstract class ShellChrome {
   /// Navegación inferior móvil (solo se pide sin carril).
   Widget bottomNavigation(BuildContext context, ShellScope scope);
 
+  /// Fondo a ventana completa detrás de barra, sidebar, contenido y barra de
+  /// reproducción (Modern: aura de portada). Por defecto no añade nada.
+  Widget backdrop(BuildContext context, ShellScope scope, Widget child) =>
+      child;
+
   /// Envuelve el contenido completo del cuerpo (tras cabecera y avisos).
   Widget contentFrame(BuildContext context, ShellScope scope, Widget child) =>
       child;

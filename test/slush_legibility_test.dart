@@ -84,23 +84,26 @@ void main() {
 
           Future<void> go(Finder tap, String screen) async {
             expect(tap, findsWidgets, reason: screen);
+            // La barra lateral hace scroll: el tile puede quedar bajo el pliegue.
+            await tester.ensureVisible(tap.first);
+            await tester.pumpAndSettle();
             await tester.tap(tap.first);
             await tester.pumpAndSettle();
             audit(screen);
           }
 
           Future<void> more(String label, String screen) async {
-            await tester.tap(find.byIcon(Icons.more_horiz).first);
+            await tester.tap(find.byTooltip('Más vistas').first);
             await tester.pumpAndSettle();
             await go(find.text(label).last, screen);
           }
 
           audit('Inicio');
           if (wide) {
-            await go(find.text('BUSCAR'), 'Busqueda');
-            await go(find.text('BIBLIOTECA'), 'Biblioteca');
+            await go(find.text('Búsqueda'), 'Busqueda');
+            await go(find.text('Biblioteca'), 'Biblioteca');
             await go(find.text('DJ'), 'DJ');
-            await go(find.text('JAM'), 'Jam');
+            await go(find.text('Jam'), 'Jam');
             // El mini abre el menú de la canción y de ahí se entra a Vinilo y al EQ.
             await tester.tap(
               find.descendant(
@@ -110,20 +113,20 @@ void main() {
             );
             await tester.pumpAndSettle();
             await go(find.text('Abrir Modo Vinilo'), 'Vinilo');
-            await go(find.text('ECUALIZADOR'), 'EQ+Cola');
+            await go(find.text('Ecualizador'), 'EQ+Cola');
             await go(find.byTooltip('Ajustes'), 'Ajustes');
-            await go(find.text('DESCARGAS'), 'Descargas');
-            await go(find.text('ARTISTAS'), 'Artistas');
-            await go(find.text('AMIGOS'), 'Amigos');
+            await go(find.text('Descargas'), 'Descargas');
+            await go(find.text('Artistas'), 'Artistas');
+            await go(find.text('Amigos'), 'Amigos');
           } else {
             await go(find.byTooltip('Buscar'), 'Busqueda');
             await go(find.byTooltip('Biblioteca'), 'Biblioteca');
             await go(find.byTooltip('DJ'), 'DJ');
-            await go(find.byTooltip('Jam'), 'Jam');
+            await more('Jam', 'Jam');
             await more('Ecualizador', 'EQ+Cola');
             await more('Modo Vinilo', 'Vinilo');
             await go(find.byTooltip('Inicio'), 'Inicio2');
-            await go(find.byIcon(Icons.dark_mode_outlined), 'Ajustes');
+            await more('Ajustes', 'Ajustes');
             await more('Descargas', 'Descargas');
             await more('Artistas', 'Artistas');
             await more('Amigos', 'Amigos');

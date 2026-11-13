@@ -1,10 +1,8 @@
-import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
-import '../../theme/accent_transition.dart';
 import '../../theme/slush_theme.dart';
 import '../../theme/slush_widgets.dart';
 import '../artwork.dart';
@@ -12,13 +10,12 @@ import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 
-/// Mini reproductor de Slush: «pegatina» de contorno grueso y sombra dura.
+/// Mini reproductor de Slush 2.0: cápsula con contorno de 2 px y sombra dura.
 ///
-/// - Claro: losa de color vivo elegida por el acento de la portada (menta,
-///   amarillo, lila o naranja), tinta encima, play negro.
-/// - Oscuro: losa `raised` con contorno crema; el color vivo queda en el play y
-///   en el progreso.
-/// - Progreso: barra de segmentos de 5 px con mando cuadrado.
+/// - Escritorio: cápsula de papel a todo el ancho, portada circular, Play lima
+///   y progreso de 12 px (relleno violeta, mando lima de 22 px).
+/// - Móvil: cápsula lila con portada circular, Play lima de 44 y progreso fino.
+/// - Oscuro: cápsula `raised` con contorno crema; el lima queda en el Play.
 const MiniPlayerTheme slushMiniPlayerV2 = MiniPlayerTheme(build: _build);
 
 Widget _build(
@@ -39,30 +36,19 @@ Color slushVividFor(Color accent) {
   return Slush.lilac;
 }
 
-/// Ancho máximo del dock en pantallas con carril.
-const double kSlushMiniMaxWidth = 720;
-
-/// Ancho máximo del dock con carril desde [kSlushMiniWideFrom] px: cabe el
-/// slider de volumen junto a los controles de transporte.
-const double kSlushMiniMaxWidthLarge = 920;
-const double kSlushMiniWideFrom = 1100;
-
-/// Ancho máximo del dock para una pantalla de [screen] px de ancho.
-double slushMiniMaxWidthFor(double screen) =>
-    screen >= kSlushMiniWideFrom ? kSlushMiniMaxWidthLarge : kSlushMiniMaxWidth;
-
 /// Ancho interior (sin contorno ni relleno) desde el que el móvil añade
 /// «siguiente»; por debajo basta con deslizar.
 const double _kNextMinInner = 330;
 
-const double _kBar = 5, _kKnob = 10;
+/// Móvil: barra fina de 4 px. Escritorio: pista de 12 px y mando de 22 px.
+const double _kBar = 4, _kTrack = 12, _kKnob = 22;
 
 /// Franja arrastrable del progreso (la barra va centrada). Más alta que la
 /// barra para que sea fácil acertar con el ratón.
 const double _kSeekHit = 32;
 
 /// Tamaño del mando y grosor de la barra con el puntero encima.
-const double _kKnobHover = 14, _kBarHover = 7;
+const double _kKnobHover = 24, _kTrackHover = 14;
 
 // Ancho fijo de la fila ancha (portada 52 + 14 + 6 + aleatorio 44 + anterior
 // 44 + play 52 + siguiente 44 + corazón 44) y mínimo de título antes de
@@ -76,6 +62,7 @@ class _Look {
     required this.stroke,
     required this.fg,
     required this.sub,
+    required this.accent,
     required this.playFill,
     required this.playIcon,
     required this.barFilled,
@@ -85,30 +72,32 @@ class _Look {
     required this.heartFill,
   });
 
-  final Color fill, stroke, fg, sub;
+  final Color fill, stroke, fg, sub, accent;
   final Color playFill, playIcon;
   final Color barFilled, barEmpty, knobFill, knobStroke;
   final Color? heartFill;
 
-  factory _Look.of(BuildContext context, Color vivid) {
+  factory _Look.of(BuildContext context, {required bool wide}) {
     final p = context.slush;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final fill = dark ? p.raised : vivid;
-    final fg = dark ? p.ink : slushOnColor(context, vivid);
+    final fill = dark ? p.raised : (wide ? p.paper : Slush.lilacHero);
     return _Look(
       fill: fill,
       stroke: p.line,
-      fg: fg,
-      // Sobre color vivo no hay gris: el artista va en tinta, más ligero.
-      sub: dark ? p.ink2 : fg,
-      playFill: dark ? vivid : Slush.ink,
-      playIcon: dark ? Slush.ink : p.paper,
-      barFilled: dark ? vivid : Slush.ink,
-      barEmpty: Color.alphaBlend(
-        (dark ? p.line : Slush.ink).withAlpha(dark ? 80 : 72),
-        fill,
-      ),
-      knobFill: dark ? p.ink : p.paper,
+      fg: p.ink,
+      // Sobre el lila el secundario sube a tinta plena (contraste AA).
+      sub: dark || wide ? p.ink2 : Slush.ink,
+      accent: p.violetAccent,
+      playFill: Slush.lime,
+      playIcon: Slush.ink,
+      barFilled: wide ? (dark ? p.violetAccent : Slush.violet) : p.ink,
+      barEmpty: wide
+          ? p.inset
+          : Color.alphaBlend(
+              (dark ? p.line : Slush.ink).withAlpha(dark ? 80 : 56),
+              fill,
+            ),
+      knobFill: Slush.lime,
       knobStroke: Slush.ink,
       heartFill: dark ? null : p.paper,
     );
@@ -166,16 +155,14 @@ class _SlushMiniPlayerState extends State<SlushMiniPlayer>
     final wide = widget.wide;
     final p = context.slush;
     final reduce = SlushMotion.reduce(context);
-    final vivid = slushVividFor(AccentScope.of(context, Slush.mint));
-    final radius = BorderRadius.circular(wide ? 32 : 28);
+    final radius = BorderRadius.circular(wide ? 40 : 32);
 
-    final base = _Look.of(context, vivid);
+    final base = _Look.of(context, wide: wide);
     final content = _Body(
       state: widget.state,
       actions: widget.actions,
       wide: wide,
       look: base,
-      vivid: vivid,
     );
     final face = DecoratedBox(
       position: DecorationPosition.foreground,
@@ -209,30 +196,16 @@ class _SlushMiniPlayerState extends State<SlushMiniPlayer>
       ],
     );
 
-    if (wide) {
-      pill = ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: slushMiniMaxWidthFor(MediaQuery.sizeOf(context).width),
-        ),
-        child: pill,
-      );
-    }
-    final margin = wide
-        ? SlushSpacing.margin(MediaQuery.sizeOf(context).width)
-        : 0.0;
+    const margin = 16.0;
     pill = Padding(
       padding: EdgeInsets.fromLTRB(
-        margin,
+        wide ? margin : 0,
         0,
-        margin,
+        wide ? margin + e.offset.dx : e.offset.dx,
         wide ? SlushSpacing.s16 : SlushSpacing.s12,
       ),
       child: pill,
     );
-    // Con carril el dock se encoge a su pastilla: los gestos no cubren franjas
-    // vacías a los lados.
-    if (wide) pill = Center(widthFactor: 1, child: pill);
-
     return FadeTransition(
       opacity: _curve,
       child: reduce
@@ -255,21 +228,19 @@ class _Body extends StatelessWidget {
     required this.actions,
     required this.wide,
     required this.look,
-    required this.vivid,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
   final bool wide;
   final _Look look;
-  final Color vivid;
 
   @override
   Widget build(BuildContext context) {
     final track = state.track!;
     final reduce = SlushMotion.reduce(context);
-    final cover = wide ? 52.0 : 44.0;
-    final pad = wide ? 12.0 : 10.0;
+    final cover = wide ? 56.0 : 48.0;
+    final pad = wide ? 16.0 : 12.0;
 
     Widget swap(Widget child) => AnimatedSwitcher(
       duration: reduce ? SlushMotion.reduced : SlushMotion.sectionIn,
@@ -358,7 +329,7 @@ class _Body extends StatelessWidget {
                           ? 'Aleatorio (activado)'
                           : 'Aleatorio',
                       icon: Icons.shuffle_rounded,
-                      color: state.shuffle ? look.playFill : look.fg,
+                      color: state.shuffle ? look.accent : look.fg,
                       dot: state.shuffle,
                       onTap: state.canShuffle ? actions.toggleShuffle : null,
                     ),
@@ -395,6 +366,7 @@ class _Body extends StatelessWidget {
               _SeekBar(
                 progress: state.progress,
                 canSeek: state.canSeek,
+                thin: !wide,
                 look: look,
                 onSeek: actions.seek,
               ),
@@ -413,12 +385,13 @@ class _SeekBar extends StatefulWidget {
   const _SeekBar({
     required this.progress,
     required this.canSeek,
+    required this.thin,
     required this.look,
     required this.onSeek,
   });
 
   final double progress;
-  final bool canSeek;
+  final bool canSeek, thin;
   final _Look look;
   final ValueChanged<double> onSeek;
 
@@ -454,9 +427,12 @@ class _SeekBarState extends State<_SeekBar> {
             ? Duration.zero
             : const Duration(milliseconds: 120),
         builder: (context, grow, _) => CustomPaint(
-          size: Size.fromHeight(widget.canSeek ? _kKnobHover : _kKnob),
-          painter: _SegmentBarPainter(
+          size: Size.fromHeight(
+            widget.thin ? 10 : (widget.canSeek ? _kKnobHover : _kKnob),
+          ),
+          painter: _SmoothBarPainter(
             progress: value,
+            thin: widget.thin,
             grow: grow,
             filled: look.barFilled,
             empty: look.barEmpty,
@@ -514,13 +490,13 @@ class _Cover extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(SlushRadius.r12),
+      shape: BoxShape.circle,
       border: Border.all(color: stroke, width: SlushStroke.base),
     ),
     child: Artwork(
       track: track,
       size: size - 2 * SlushStroke.base,
-      radius: SlushRadius.r12 - SlushStroke.base,
+      radius: size,
     ),
   );
 }
@@ -801,11 +777,12 @@ class _HeartState extends State<_Heart> with SingleTickerProviderStateMixin {
   }
 }
 
-/// Progreso en segmentos de 5 px con mando cuadrado. Solo pinta: sin
-/// animación propia; se repinta cuando cambia la posición.
-class _SegmentBarPainter extends CustomPainter {
-  const _SegmentBarPainter({
+/// Progreso liso. Escritorio: pista crema de 12 px con contorno, relleno
+/// violeta y mando lima de 22 px; móvil: línea de 4 px sin mando. Solo pinta.
+class _SmoothBarPainter extends CustomPainter {
+  const _SmoothBarPainter({
     required this.progress,
+    required this.thin,
     required this.filled,
     required this.empty,
     required this.knobFill,
@@ -814,53 +791,56 @@ class _SegmentBarPainter extends CustomPainter {
   });
 
   final double progress;
+  final bool thin;
   final Color filled, empty, knobFill, knobStroke;
 
-  /// 0 en reposo, 1 con el puntero encima: engorda la barra y el mando.
+  /// 0 en reposo, 1 con el puntero encima: engorda la pista y el mando.
   final double grow;
-
-  static const _segment = 10.0, _gap = 3.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
-    final n = math.max(1, ((w + _gap) / (_segment + _gap)).floor());
-    final sw = (w - _gap * (n - 1)) / n;
-    final barH = lerpDouble(_kBar, _kBarHover, grow)!;
-    final knobSize = lerpDouble(_kKnob, _kKnobHover, grow)!;
-    final top = (h - barH) / 2;
     final p = progress.clamp(0.0, 1.0);
-    final knobX = p * (w - knobSize);
-    final split = p >= 1 ? w : knobX + knobSize / 2;
-    const radius = Radius.circular(1.5);
-    RRect seg(int i) => RRect.fromLTRBR(
-      i * (sw + _gap),
-      top,
-      i * (sw + _gap) + sw,
-      top + barH,
-      radius,
-    );
-
-    final paint = Paint()..color = empty;
-    for (var i = 0; i < n; i++) {
-      canvas.drawRRect(seg(i), paint);
+    if (thin) {
+      final r = RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, (h - _kBar) / 2, w, _kBar),
+        const Radius.circular(_kBar / 2),
+      );
+      canvas.drawRRect(r, Paint()..color = empty);
+      canvas
+        ..save()
+        ..clipRect(Rect.fromLTWH(0, 0, w * p, h))
+        ..drawRRect(r, Paint()..color = filled)
+        ..restore();
+      return;
     }
+    final trackH = lerpDouble(_kTrack, _kTrackHover, grow)!;
+    final knob = lerpDouble(_kKnob, _kKnobHover, grow)!;
+    final track = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, (h - trackH) / 2, w, trackH),
+      Radius.circular(trackH / 2),
+    );
+    final paint = Paint()..color = empty;
+    canvas.drawRRect(track, paint);
+    final cx = knob / 2 + p * (w - knob);
     canvas
       ..save()
-      ..clipRect(Rect.fromLTWH(0, 0, split, h));
-    paint.color = filled;
-    for (var i = 0; i < n; i++) {
-      canvas.drawRRect(seg(i), paint);
-    }
-    canvas.restore();
-
-    final knob = RRect.fromRectAndRadius(
-      Rect.fromLTWH(knobX, (h - knobSize) / 2, knobSize, knobSize),
-      const Radius.circular(2),
-    );
-    canvas.drawRRect(knob, paint..color = knobFill);
+      ..clipRect(Rect.fromLTWH(0, 0, cx, h))
+      ..drawRRect(track, paint..color = filled)
+      ..restore();
     canvas.drawRRect(
-      knob.deflate(1),
+      track.deflate(1),
+      paint
+        ..color = knobStroke
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    paint.style = PaintingStyle.fill;
+    final c = Offset(cx, h / 2);
+    canvas.drawCircle(c, knob / 2, paint..color = knobFill);
+    canvas.drawCircle(
+      c,
+      knob / 2 - 1,
       paint
         ..color = knobStroke
         ..style = PaintingStyle.stroke
@@ -869,8 +849,9 @@ class _SegmentBarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SegmentBarPainter old) =>
+  bool shouldRepaint(_SmoothBarPainter old) =>
       old.progress != progress ||
+      old.thin != thin ||
       old.grow != grow ||
       old.filled != filled ||
       old.empty != empty ||

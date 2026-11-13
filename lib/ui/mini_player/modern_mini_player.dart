@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/accent_transition.dart';
-import '../../theme/modern_theme.dart';
-import '../../theme/modern_widgets.dart';
-import 'cover_tone.dart' show coverContrast;
+import '../../theme/modern_cristal.dart';
 import '../artwork.dart';
-import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
+import 'modern_mini_desktop.dart';
+import 'modern_mini_parts.dart';
 
-/// Mini reproductor de Modern: tarjeta flotante de 18 px de radio sobre la
-/// navegación (móvil) o centrada al pie del contenido (carril). Portada de
-/// 11 px de radio, play circular en el acento, corazón de contorno y una línea
+/// Mini reproductor de Modern «Cristal y aura». Con carril (`wide`) es la
+/// barra flotante de [ModernMiniBar]; en móvil, una tarjeta de cristal de 64 px
+/// y radio 20 teñida por la portada, con play de 44 px en el acento y una línea
 /// de progreso de 2 px dentro del borde inferior que se arrastra para buscar.
 const MiniPlayerTheme modernMiniPlayer = MiniPlayerTheme(build: _build);
 
@@ -22,8 +20,6 @@ Widget _build(
   required bool wide,
 }) => ModernMiniPlayer(state: state, actions: actions, wide: wide);
 
-const double _radius = 18;
-const double _coverRadius = 11;
 const double _target = 44;
 const double _scrubHeight = 10;
 
@@ -51,55 +47,31 @@ class ModernMiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final track = state.track;
     if (track == null) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
-    final dark = isDarkTheme(context);
-    final accent = AccentScope.of(context, scheme.tertiary);
-    final fill = coverTint(scheme.surfaceContainerLow, accent, .07);
-    final edge = Color.lerp(
-      scheme.outlineVariant,
-      accent,
-      .35,
-    )!.withValues(alpha: .28);
-    const radius = BorderRadius.all(Radius.circular(_radius));
-
-    final body = _Body(state: state, actions: actions, wide: wide, fill: fill);
-    final card = DecoratedBox(
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: dark ? .38 : .10),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: DecoratedBox(
-        position: DecorationPosition.foreground,
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          border: Border.all(color: edge),
-        ),
-        child: ClipRRect(borderRadius: radius, child: body),
-      ),
-    );
+    if (wide) return ModernMiniBar(state: state, actions: actions);
+    final c = Cristal.of(context);
     return Padding(
-      padding: wide
-          ? const EdgeInsets.fromLTRB(16, 6, 16, 12)
-          : const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        heightFactor: 1,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: !wide
-                ? double.infinity
-                : MediaQuery.sizeOf(context).width >= 1100
-                ? 960
-                : 760,
-          ),
-          child: MouseRegion(cursor: SystemMouseCursors.click, child: card),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: ModernMiniTint(
+          track: track,
+          builder: (context, tint) {
+            // Relleno opaco aproximado del cristal teñido (para el contraste
+            // del acento, que se ajusta contra la tarjeta y no contra el lienzo).
+            final fill = tint == null
+                ? c.canvas
+                : Color.alphaBlend(tint.withValues(alpha: .17), c.canvas);
+            return ModernGlass(
+              radius: 20,
+              tint: tint,
+              clip: true,
+              child: _Body(
+                state: state,
+                actions: actions,
+                accent: modernMiniLegible(c.accent, fill, c.dark),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -110,101 +82,21 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.state,
     required this.actions,
-    required this.wide,
-    required this.fill,
+    required this.accent,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final bool wide;
 
-  /// Color opaco de la tarjeta (contra el que se ajusta el acento).
-  final Color fill;
+  /// Acento ajustado contra la tarjeta (línea de progreso).
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final c = Cristal.of(context);
     final track = state.track!;
-    final cover = wide ? 48.0 : 44.0;
-    final inkOn = scheme.onSurface;
-    final inkSoft = scheme.onSurfaceVariant;
 
-    // El acento del tema se ajusta contra el color de la tarjeta (más clara
-    // que el lienzo), no contra el lienzo.
-    final accent = _legible(scheme.tertiary, fill, isDarkTheme(context));
-    final playInk =
-        coverContrast(Colors.white, accent) > coverContrast(Tracky.navy, accent)
-        ? Colors.white
-        : Tracky.navy;
-    final liked = isDarkTheme(context) ? Tracky.coral : const Color(0xffd32f2f);
-
-    final primaryStyle = theme.textTheme.titleMedium!.copyWith(
-      fontSize: 14.5,
-      height: 1.2,
-      fontWeight: FontWeight.w600,
-      letterSpacing: -.2,
-      color: scheme.onSurface,
-    );
-    final secondaryStyle = theme.textTheme.bodySmall!.copyWith(
-      fontSize: 12.5,
-      height: 1.25,
-      letterSpacing: -.1,
-      color: inkSoft,
-    );
-
-    final String? note = miniSubtitleIsError(state)
-        ? miniErrorNotice
-        : state.jamHostName != null
-        ? 'Lo controla ${state.jamHostName}'
-        : null;
-    final text = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: primaryStyle,
-        ),
-        if (note != null)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (miniSubtitleIsError(state)) ...[
-                Icon(
-                  Icons.error_outline_rounded,
-                  size: 14,
-                  color: scheme.error,
-                ),
-                const SizedBox(width: 4),
-              ],
-              Flexible(
-                child: Text(
-                  note,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: secondaryStyle.copyWith(
-                    color: miniSubtitleIsError(state)
-                        ? scheme.error
-                        : scheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          )
-        else
-          Text(
-            miniSubtitle(state),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: secondaryStyle,
-          ),
-      ],
-    );
-
-    final heart = _Switch(
+    final heart = ModernMiniSwitch(
       value: state.liked,
       child: IconButton(
         key: ValueKey(state.liked),
@@ -212,64 +104,82 @@ class _Body extends StatelessWidget {
         onPressed: actions.toggleLike,
         style: _iconStyle(),
         isSelected: state.liked,
-        color: scheme.onSurfaceVariant,
+        color: c.text2,
         icon: const Icon(Icons.favorite_border_rounded, size: 22),
-        selectedIcon: Icon(Icons.favorite_rounded, size: 22, color: liked),
+        selectedIcon: Icon(Icons.favorite_rounded, size: 22, color: c.like),
       ),
     );
 
-    final play = _Press(
+    final play = ModernMiniPress(
       enabled: state.canTogglePlay,
-      child: IconButton(
-        tooltip: state.buffering
-            ? 'Cargando'
-            : state.isPlaying
-            ? 'Pausar'
-            : 'Reproducir',
-        onPressed: state.canTogglePlay ? actions.togglePlay : null,
-        style: IconButton.styleFrom(
-          backgroundColor: accent,
-          foregroundColor: playInk,
-          disabledBackgroundColor: accent.withValues(alpha: .38),
-          disabledForegroundColor: playInk,
-          fixedSize: const Size.square(_target),
-          minimumSize: const Size.square(_target),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
           shape: const CircleBorder(),
+          shadows: state.canTogglePlay
+              ? [
+                  BoxShadow(
+                    color: c.accent.withValues(alpha: c.dark ? .35 : .25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
         ),
-        icon: state.buffering
-            ? SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: playInk,
+        child: IconButton(
+          tooltip: state.buffering
+              ? 'Cargando'
+              : state.isPlaying
+              ? 'Pausar'
+              : 'Reproducir',
+          onPressed: state.canTogglePlay ? actions.togglePlay : null,
+          style: IconButton.styleFrom(
+            backgroundColor: c.accent,
+            foregroundColor: c.onAccent,
+            disabledBackgroundColor: c.accent.withValues(alpha: .38),
+            disabledForegroundColor: c.onAccent,
+            fixedSize: const Size.square(_target),
+            minimumSize: const Size.square(_target),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: const CircleBorder(),
+          ),
+          icon: state.buffering
+              ? SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: c.onAccent,
+                  ),
+                )
+              : ModernMiniSwitch(
+                  value: state.isPlaying,
+                  child: Icon(
+                    state.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    key: ValueKey(state.isPlaying),
+                    size: 26,
+                  ),
                 ),
-              )
-            : _Switch(
-                value: state.isPlaying,
-                child: Icon(
-                  state.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  key: ValueKey(state.isPlaying),
-                  size: 26,
-                ),
-              ),
+        ),
       ),
     );
 
-    Widget skip(IconData icon, String label, bool on, VoidCallback onTap) =>
-        _Press(
-          enabled: on,
-          child: IconButton(
-            tooltip: label,
-            onPressed: on ? onTap : null,
-            style: _iconStyle(),
-            color: inkOn,
-            icon: Icon(icon, size: 26),
-          ),
-        );
+    final next = ModernMiniPress(
+      enabled: state.hasNext,
+      child: IconButton(
+        tooltip: state.nextLabel(),
+        onPressed: state.hasNext ? actions.next : null,
+        style: _iconStyle(),
+        color: c.text,
+        icon: Icon(
+          state.jamVoteSkip
+              ? Icons.how_to_vote_outlined
+              : Icons.skip_next_rounded,
+          size: 26,
+        ),
+      ),
+    );
 
     final art = AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
@@ -279,117 +189,41 @@ class _Body extends StatelessWidget {
         key: ValueKey(track.id),
         position: DecorationPosition.foreground,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_coverRadius),
-          border: Border.all(color: inkOn.withValues(alpha: .10)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.border),
         ),
         child: Artwork(
           track: track,
-          size: cover,
+          size: 48,
           artworkContext: ArtworkContext.thumbnail,
-          radius: _coverRadius,
+          radius: 12,
         ),
       ),
     );
 
-    // Tarjeta < 640 px: controles sin slider de volumen.
     return LayoutBuilder(
       builder: (context, box) {
-        final compact = box.maxWidth < 640;
-        final showNext = wide || box.maxWidth >= _kNextMinInner;
-        // Fijo de la fila ancha: relleno, portada, huecos, 4 botones y los
-        // controles de escritorio; la hora solo si el título conserva 150.
-        final controls = compact
-            ? miniDesktopNoSlider(actions)
-            : miniDesktopFull(actions);
-        final showTime =
-            wide &&
-            box.maxWidth -
-                    (20 + 48 + 12 + 4 + 44 * 5 + 8 + controls) -
-                    (kMiniTimeWidth + 8) >=
-                150;
+        final showNext = box.maxWidth >= _kNextMinInner;
         return Stack(
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(8, 6, wide ? 12 : 8, _scrubHeight),
+              padding: const EdgeInsets.all(8),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: _target),
+                constraints: const BoxConstraints(minHeight: 48),
                 child: Row(
                   children: [
+                    SizedBox.square(dimension: 48, child: art),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Align(
                         alignment: Alignment.centerLeft,
-                        child: MiniPlayerInfoTap(
-                          actions: actions,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox.square(dimension: cover, child: art),
-                              const SizedBox(width: 12),
-                              Flexible(child: text),
-                            ],
-                          ),
-                        ),
+                        child: ModernMiniText(state: state),
                       ),
                     ),
-                    if (showTime) ...[
-                      const SizedBox(width: 8),
-                      MiniPlayerTime(state: state, color: inkSoft),
-                    ],
                     const SizedBox(width: 4),
                     heart,
-                    if (wide)
-                      _Press(
-                        enabled: state.canShuffle,
-                        child: IconButton(
-                          tooltip: state.shuffle
-                              ? 'Aleatorio (activado)'
-                              : 'Aleatorio',
-                          onPressed: state.canShuffle
-                              ? actions.toggleShuffle
-                              : null,
-                          style: _iconStyle(),
-                          isSelected: state.shuffle,
-                          color: inkSoft,
-                          icon: const Icon(Icons.shuffle_rounded, size: 22),
-                          selectedIcon: Icon(
-                            Icons.shuffle_rounded,
-                            size: 22,
-                            color: accent,
-                          ),
-                        ),
-                      ),
-                    if (wide)
-                      skip(
-                        Icons.skip_previous_rounded,
-                        state.previousLabel(),
-                        state.hasPrevious,
-                        actions.previous,
-                      ),
                     play,
-                    if (showNext)
-                      skip(
-                        state.jamVoteSkip
-                            ? Icons.how_to_vote_outlined
-                            : Icons.skip_next_rounded,
-                        state.nextLabel(),
-                        state.hasNext,
-                        actions.next,
-                      ),
-                    if (wide)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: SizedBox(
-                          width: compact
-                              ? miniDesktopNoSlider(actions)
-                              : miniDesktopFull(actions),
-                          child: MiniPlayerDesktopControls(
-                            state: state,
-                            actions: actions,
-                            color: inkSoft,
-                            compact: compact,
-                          ),
-                        ),
-                      ),
+                    if (showNext) next,
                   ],
                 ),
               ),
@@ -399,7 +233,7 @@ class _Body extends StatelessWidget {
               canSeek: state.canSeek,
               onSeek: actions.seek,
               color: accent,
-              trackColor: scheme.onSurface.withValues(alpha: .14),
+              trackColor: c.text.withValues(alpha: .14),
             ),
           ],
         );
@@ -413,78 +247,6 @@ class _Body extends StatelessWidget {
     padding: EdgeInsets.zero,
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
   );
-}
-
-/// Acerca [c] a claro (tema oscuro) u oscuro hasta llegar a 3:1 con [bg].
-Color _legible(Color c, Color bg, bool dark) {
-  var hsl = HSLColor.fromColor(c);
-  for (var i = 0; i < 100 && coverContrast(c, bg) < 3; i++) {
-    hsl = hsl.withLightness((hsl.lightness + (dark ? .01 : -.01)).clamp(0, 1));
-    c = hsl.toColor();
-  }
-  return c;
-}
-
-/// Cambio de icono: escala 0,8 → 1 con fundido; con movimiento reducido solo
-/// fundido.
-class _Switch extends StatelessWidget {
-  const _Switch({required this.value, required this.child});
-  final Object value;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final still = MediaQuery.disableAnimationsOf(context);
-    return AnimatedSwitcher(
-      duration: Duration(milliseconds: still ? 120 : 180),
-      switchInCurve: Curves.easeOutCubic,
-      transitionBuilder: (child, animation) => still
-          ? FadeTransition(opacity: animation, child: child)
-          : FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween(begin: .8, end: 1.0).animate(animation),
-                child: child,
-              ),
-            ),
-      child: KeyedSubtree(key: ValueKey(value), child: child),
-    );
-  }
-}
-
-/// Escala 0,96 mientras se pulsa (respuesta al bajar el dedo). Sin movimiento
-/// reducido no hay escala.
-class _Press extends StatefulWidget {
-  const _Press({required this.child, this.enabled = true});
-  final Widget child;
-  final bool enabled;
-
-  @override
-  State<_Press> createState() => _PressState();
-}
-
-class _PressState extends State<_Press> {
-  bool _down = false;
-
-  void _set(bool v) {
-    if (_down != v && mounted) setState(() => _down = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final still = MediaQuery.disableAnimationsOf(context);
-    return Listener(
-      onPointerDown: (_) => _set(true),
-      onPointerUp: (_) => _set(false),
-      onPointerCancel: (_) => _set(false),
-      child: AnimatedScale(
-        scale: _down && widget.enabled && !still ? .96 : 1,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOut,
-        child: widget.child,
-      ),
-    );
-  }
 }
 
 /// Franja de la línea de progreso: 10 px en reposo (para no tapar los botones)

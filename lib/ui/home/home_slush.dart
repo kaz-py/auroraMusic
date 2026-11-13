@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../app_controller.dart';
 import '../../core/models.dart';
-import '../../theme/modern_widgets.dart';
+import '../../theme/slush_widgets.dart';
 import '../../theme/slush_theme.dart';
 import '../artwork.dart';
 import '../horizontal_music_row.dart';
@@ -35,7 +35,6 @@ class SlushHomeTheme extends HomeTheme {
     final followed = d.followed;
     final onSearch = d.onSearch;
     final onSearchQuery = d.onSearchQuery;
-    final onVinyl = d.onVinyl;
     final onDownloads = d.onDownloads;
     final onLikes = d.onLikes;
     final onOpenPlaylist = d.onOpenPlaylist;
@@ -63,9 +62,8 @@ class SlushHomeTheme extends HomeTheme {
                 return Theme(
                   data: inner.copyWith(
                     textTheme: inner.textTheme.copyWith(
-                      titleLarge: const TextStyle(
-                        fontFamily: 'Bagel Fat One',
-                        fontSize: 22,
+                      titleLarge: slushHeadline(
+                        22,
                         height: 1.2,
                         color: Slush.ink,
                       ),
@@ -85,18 +83,16 @@ class SlushHomeTheme extends HomeTheme {
             if (compact)
               SlushMobileHome(controller: c, onSearch: onSearch)
             else ...[
-              StudioHomeIntroduction(
+              SlushHome(
                 controller: c,
                 onSearch: onSearch,
                 onSearchQuery: onSearchQuery,
-                onVinyl: onVinyl ?? onSearch,
               ),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 10,
                 runSpacing: 8,
                 children: [
-                  SlushChip('TODO', selected: true, onTap: () {}),
                   SlushChip(
                     'DESCARGAS LOCALES',
                     icon: Icons.download_outlined,
@@ -258,7 +254,11 @@ class SlushHomeTheme extends HomeTheme {
     StudioHomeIntroduction intro,
     Track? track,
   ) {
-    return SlushHome(controller: intro.controller, onSearch: intro.onSearch);
+    return SlushHome(
+      controller: intro.controller,
+      onSearch: intro.onSearch,
+      onSearchQuery: intro.onSearchQuery,
+    );
   }
 
   @override
@@ -323,7 +323,8 @@ class SlushHomeTheme extends HomeTheme {
   }
 }
 
-/// Tarjeta de estante de Slush (inicialmente idéntica a la de Modern): portada radio 12, título Inter 600, play menta.
+/// Tarjeta de estante de Slush: portada radio 24 (28 en móvil) con borde de
+/// tinta de 2 px, play lima, título Bricolage y artista en gris.
 class _SlushTile extends StatelessWidget {
   const _SlushTile({
     required this.track,
@@ -344,71 +345,92 @@ class _SlushTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = context.slush;
+    final radius = MediaQuery.sizeOf(context).width < 600 ? 28.0 : 24.0;
     return RepaintBoundary(
-      child: ModernCard(
-        onTap: onPlay,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Artwork(
-                  track: track,
-                  artworkContext: ArtworkContext.card,
-                  radius: round ? 88 : 12,
-                ),
-                Positioned(
-                  right: 8,
-                  bottom: 8,
-                  child: Tooltip(
-                    message: tooltip,
-                    child: Material(
-                      color: Tracky.mint,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: onPlay,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final side = box.maxWidth.isFinite ? box.maxWidth : 200.0;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  SlushPressable(
+                    onTap: onPlay,
+                    radius: round ? side : radius,
+                    elevation: SlushElevation.card,
+                    semanticLabel: tooltip,
+                    child: round
+                        ? ClipOval(
+                            child: DecoratedBox(
+                              position: DecorationPosition.foreground,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.fromBorderSide(p.border),
+                              ),
+                              child: SizedBox.square(
+                                dimension: side,
+                                child: Artwork(
+                                  track: track,
+                                  size: side,
+                                  radius: 0,
+                                ),
+                              ),
+                            ),
+                          )
+                        : SlushCover(track: track, side: side, radius: radius),
+                  ),
+                  Positioned(
+                    right: 10,
+                    bottom: 10,
+                    child: Tooltip(
+                      message: tooltip,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Slush.lime,
+                          shape: BoxShape.circle,
+                          border: Border.fromBorderSide(p.border),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
-                          child: Icon(icon, size: 22, color: Tracky.navy),
+                          child: Icon(icon, size: 22, color: Slush.ink),
                         ),
                       ),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: slushHeadline(16, height: 1.2, color: p.ink),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: p.ink2,
+                ),
+              ),
+              if (caption != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  caption!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: p.ink2),
                 ),
               ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                height: 1.25,
-                letterSpacing: -.16,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
-            ),
-            if (caption != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                caption!,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-              ),
             ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }

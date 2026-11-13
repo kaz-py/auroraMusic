@@ -15,8 +15,6 @@ const ChatTheme slushChat = ChatTheme(
   header: _header,
 );
 
-const _bagel = 'Bagel Fat One';
-
 TextStyle _inter(double size, FontWeight w, Color c, {bool italic = false}) =>
     TextStyle(
       fontFamily: 'Inter',
@@ -64,12 +62,7 @@ Widget _header(BuildContext context, FriendUser peer, VoidCallback onBack) {
             peer.username,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: _bagel,
-              fontSize: 22,
-              height: 1.1,
-              color: p.ink,
-            ),
+            style: slushHeadline(22, height: 1.1, color: p.ink),
           ),
         ),
         const SizedBox(width: SlushSpacing.s8),
@@ -143,7 +136,7 @@ Widget _row(
 
 Color _kindColor(String kind) => switch (kind) {
   'Lista' => Slush.lilac,
-  'Jam' => Slush.orange,
+  'Jam' => Slush.mint,
   _ => Slush.yellow,
 };
 
@@ -203,7 +196,7 @@ Widget _circleAction(BuildContext context, ChatAction a) {
 Widget _bubble(BuildContext context, ChatEntry entry) {
   final p = context.slush;
   final mine = entry.mine;
-  final fill = mine ? Slush.mint : p.paper;
+  final fill = mine ? Slush.lilacHero : p.paper;
   final on = slushOnColor(context, fill);
   final sub = mine ? on : p.ink2;
   final time = mine ? on : p.ink3;

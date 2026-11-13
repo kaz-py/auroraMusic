@@ -8,13 +8,51 @@ import 'package:flutter/material.dart';
 
 import '../../core/feature_flags.dart';
 import '../../core/window_controls.dart';
+import '../../shortcuts/shortcut_service.dart';
+import '../../theme/brasa_sidebar_playlists.dart';
+import '../../theme/brasa_theme.dart';
+import '../../theme/brasa_widgets.dart';
 import '../studio/studio_components.dart';
 import '../studio/studio_navigation.dart';
 import '../studio/studio_symbols.dart';
-import '../../theme/brasa_sidebar_playlists.dart';
-import '../../theme/brasa_theme.dart';
 
-/// Barra superior Brasa.
+/// Marca: cuadrado de brasa con brillo + «Aurora» en Fraunces.
+class BrasaLogo extends StatelessWidget {
+  const BrasaLogo({super.key, this.size = 34, this.showName = true});
+  final double size;
+  final bool showName;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(size * .32),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xffffa468), Brasa.ember, Color(0xffe0562a)],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Brasa.ember.withValues(alpha: .35),
+              blurRadius: 16,
+            ),
+          ],
+        ),
+        child: SizedBox.square(dimension: size),
+      ),
+      if (showName) ...[
+        const SizedBox(width: 12),
+        Text('Aurora', style: Brasa.serif(24, height: 1)),
+      ],
+    ],
+  );
+}
+
+/// Barra superior Brasa: marca a la izquierda, búsqueda, Jam, perfil y
+/// controles de ventana, sobre el mismo tono que la sidebar.
 Widget brasaTitleBar(
   StudioTitleBar bar,
   BuildContext context,
@@ -29,21 +67,22 @@ Widget brasaTitleBar(
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: Row(
       children: [
-        IconButton.filled(
-          tooltip: 'Inicio',
-          style: IconButton.styleFrom(
-            backgroundColor: Brasa.graphite,
-            foregroundColor: Brasa.cream,
-            minimumSize: const Size(40, 40),
+        Tooltip(
+          message: 'Inicio',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => bar.onNavigate(0),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: BrasaLogo(showName: wide),
+            ),
           ),
-          onPressed: () => bar.onNavigate(0),
-          icon: const Icon(StudioSymbols.home, size: 22),
         ),
         if (hasSearch)
           Expanded(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
+                constraints: const BoxConstraints(maxWidth: 440),
                 child: TextField(
                   controller: bar.searchController,
                   focusNode: bar.searchFocus,
@@ -51,13 +90,16 @@ Widget brasaTitleBar(
                   onTap: () => bar.onNavigate(1),
                   onSubmitted: bar.onSearch,
                   onChanged: bar.onSearchChanged,
+                  style: Brasa.sans(14),
                   decoration: InputDecoration(
                     hintText: '¿Qué quieres reproducir?',
-                    prefixIcon: const Icon(Icons.search, size: 22),
+                    hintStyle: Brasa.sans(14, color: Brasa.steel),
+                    prefixIcon: const Icon(Icons.search, size: 20),
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    fillColor: Brasa.graphite,
                     border: _pill(Colors.transparent),
                     enabledBorder: _pill(Colors.transparent),
-                    focusedBorder: _pill(Brasa.cream),
+                    focusedBorder: _pill(Brasa.ember),
                   ),
                 ),
               ),
@@ -78,7 +120,9 @@ Widget brasaTitleBar(
             child: Tooltip(
               message: 'Jam',
               child: Material(
-                color: Brasa.graphite,
+                color: bar.activeSession
+                    ? Brasa.ember.withValues(alpha: .16)
+                    : Brasa.graphite,
                 shape: const StadiumBorder(),
                 child: InkWell(
                   customBorder: const StadiumBorder(),
@@ -94,14 +138,15 @@ Widget brasaTitleBar(
                         Icon(
                           StudioSymbols.wifiTethering,
                           size: 16,
-                          color: bar.activeSession ? Brasa.cream : Brasa.steel,
+                          color: bar.activeSession ? Brasa.ember : Brasa.steel,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           bar.sessionText,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                          style: Brasa.sans(
+                            12,
+                            weight: FontWeight.w700,
+                            color: Brasa.cream,
                           ),
                         ),
                       ],
@@ -156,147 +201,123 @@ OutlineInputBorder _pill(Color c) => OutlineInputBorder(
   borderSide: BorderSide(color: c),
 );
 
-/// Sidebar Brasa: ~300 px sin borde, accesos arriba y panel «Tu biblioteca».
+/// Sidebar Brasa: 300 px por tono (sin bordes), destinos con atajo en mono,
+/// etiquetas con punto de brasa, listas con muestra de color y Ajustes abajo.
 Widget brasaSidebar(StudioSidebar side, BuildContext context) {
-  // (índice, título, tooltip, icono)
-  final items = <(int, String, String, IconData)>[
-    (2, 'Biblioteca', 'Biblioteca', StudioSymbols.libraryMusic),
-    (3, 'Descargas', 'Descargas locales', StudioSymbols.downloadDone),
-    (4, 'Modo Vinilo', 'Modo Vinilo', StudioSymbols.album),
-    (6, 'Letras', 'Letras', StudioSymbols.lyrics),
-    (9, 'Jam', 'Jam', StudioSymbols.groups),
-    if (supabaseServicesEnabled)
-      (
-        14,
-        side.friendsBadge > 0 ? 'Amigos (${side.friendsBadge})' : 'Amigos',
-        'Amigos',
-        Icons.people_outline,
-      ),
-    (13, 'Ecualizador', 'Ecualizador', StudioSymbols.equalizer),
-    (
-      5,
-      'Cola de reproducción',
-      'Cola de reproducción',
-      StudioSymbols.queueMusic,
-    ),
-  ];
-  Widget top(int i, String label, String tip, IconData icon) => Tooltip(
-    message: tip,
+  String key(ShortcutId id, String fallback) =>
+      side.shortcuts?.labelOf(id) ?? fallback;
+  Widget tile(
+    int i,
+    String label,
+    IconData icon, {
+    String? tip,
+    String? shortcut,
+    int badge = 0,
+  }) => Tooltip(
+    message: tip ?? label,
     child: _BrasaTile(
       selected: side.selected == i,
       onTap: () => side.onNavigate(i),
-      dense: true,
-      leading: Icon(
-        icon,
-        size: 24,
-        color: side.selected == i ? Brasa.cream : Brasa.cloud,
-      ),
+      icon: icon,
       title: label,
+      shortcut: shortcut,
+      badge: badge,
     ),
   );
   return Container(
     width: 300,
     color: Brasa.void_,
-    padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
+    padding: const EdgeInsets.only(top: 4, bottom: 12),
     child: Column(
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: Brasa.obsidian,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: [
-                top(0, 'Inicio', 'Inicio', StudioSymbols.home),
-                top(1, 'Búsqueda', 'Buscar', StudioSymbols.search),
-                top(8, 'DJ', 'DJ', StudioSymbols.explore),
-                top(12, 'Artistas', 'Artistas', Icons.mic_none_rounded),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Flexible(
-          flex: 3,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Brasa.obsidian,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        StudioSymbols.libraryMusic,
-                        size: 24,
-                        color: Brasa.cloud,
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Tu biblioteca',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Brasa.cloud,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    children: [
-                      for (final e in items)
-                        Tooltip(
-                          message: e.$3,
-                          child: _BrasaTile(
-                            selected: side.selected == e.$1,
-                            onTap: () => side.onNavigate(e.$1),
-                            dense: true,
-                            leading: Icon(
-                              e.$4,
-                              size: 22,
-                              color: side.selected == e.$1
-                                  ? Brasa.cream
-                                  : Brasa.cloud,
-                            ),
-                            title: e.$2,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
         Expanded(
-          child: BrasaSidebarPlaylists(
-            controller: side.controller,
-            onPlaylist: side.onPlaylist,
-            onCreate: side.onCreatePlaylist,
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
+              tile(
+                0,
+                'Inicio',
+                StudioSymbols.home,
+                shortcut: key(ShortcutId.home, 'Ctrl+1'),
+              ),
+              tile(
+                1,
+                'Búsqueda',
+                StudioSymbols.search,
+                tip: 'Buscar',
+                shortcut: key(ShortcutId.search, 'Ctrl+2'),
+              ),
+              tile(8, 'DJ', StudioSymbols.explore),
+              tile(12, 'Artistas', Icons.mic_none_rounded),
+              tile(
+                2,
+                'Biblioteca',
+                StudioSymbols.libraryMusic,
+                shortcut: key(ShortcutId.library, 'Ctrl+3'),
+              ),
+              tile(
+                3,
+                'Descargas',
+                StudioSymbols.downloadDone,
+                tip: 'Descargas locales',
+                shortcut: key(ShortcutId.downloads, 'Ctrl+4'),
+              ),
+              if (supabaseServicesEnabled)
+                tile(
+                  14,
+                  side.friendsBadge > 0
+                      ? 'Amigos (${side.friendsBadge})'
+                      : 'Amigos',
+                  Icons.people_outline,
+                  tip: 'Amigos',
+                ),
+              const BrasaSectionLabel('Fidelidad & experiencia'),
+              tile(
+                4,
+                'Modo Vinilo',
+                StudioSymbols.album,
+                shortcut: key(ShortcutId.vinyl, 'Ctrl+I'),
+              ),
+              tile(
+                6,
+                'Letras Dinámicas',
+                StudioSymbols.lyrics,
+                tip: 'Letras',
+                shortcut: key(ShortcutId.lyrics, 'Ctrl+L'),
+              ),
+              tile(
+                13,
+                'Ecualizador',
+                StudioSymbols.equalizer,
+                shortcut: side.shortcuts == null
+                    ? 'EQ'
+                    : key(ShortcutId.equalizer, 'EQ'),
+              ),
+              tile(
+                9,
+                'Jam',
+                StudioSymbols.groups,
+                shortcut: side.shortcuts == null
+                    ? null
+                    : key(ShortcutId.jam, 'Ctrl+J'),
+              ),
+              tile(5, 'Cola de reproducción', StudioSymbols.queueMusic),
+              BrasaSidebarPlaylists(
+                controller: side.controller,
+                onPlaylist: side.onPlaylist,
+                onCreate: side.onCreatePlaylist,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: Brasa.obsidian,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: top(7, 'Ajustes', 'Ajustes', StudioSymbols.settings),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Column(
+            children: [
+              tile(7, 'Ajustes', StudioSymbols.settings),
+              const SizedBox(height: 8),
+              _EngineCard(ready: side.controller.ready),
+            ],
           ),
         ),
       ],
@@ -304,56 +325,156 @@ Widget brasaSidebar(StudioSidebar side, BuildContext context) {
   );
 }
 
-/// Fila de la sidebar Brasa: portada/icono, título y subtítulo; activa = #231b16.
+/// Tarjeta de estado del motor al pie de la sidebar.
+class _EngineCard extends StatelessWidget {
+  const _EngineCard({required this.ready});
+  final bool ready;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Brasa.graphite,
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: ready ? Brasa.amber : Brasa.steel,
+              shape: BoxShape.circle,
+              boxShadow: ready
+                  ? [
+                      BoxShadow(
+                        color: Brasa.amber.withValues(alpha: .5),
+                        blurRadius: 6,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: const SizedBox.square(dimension: 8),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'MOTOR DE AUDIO',
+                  style: Brasa.mono(
+                    11,
+                    color: Brasa.amber,
+                    weight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  ready ? 'Motor de reproducción listo' : 'Iniciando motor…',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Brasa.sans(12, color: Brasa.cloud),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Fila de la sidebar: activa = fondo graphite + barra de brasa con brillo en
+/// el borde izquierdo + icono naranja; atajo en mono a la derecha.
 class _BrasaTile extends StatelessWidget {
   const _BrasaTile({
     required this.selected,
     required this.onTap,
-    required this.leading,
+    required this.icon,
     required this.title,
-    this.dense = false,
+    this.shortcut,
+    this.badge = 0,
   });
-  final bool selected, dense;
+  final bool selected;
   final VoidCallback onTap;
-  final Widget leading;
+  final IconData icon;
   final String title;
+  final String? shortcut;
+  final int badge;
+
   @override
-  Widget build(BuildContext context) => Material(
-    color: selected ? Brasa.graphite : Colors.transparent,
-    borderRadius: BorderRadius.circular(6),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      hoverColor: Brasa.graphite,
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: dense ? 12 : 8,
-          vertical: dense ? 10 : 8,
-        ),
-        child: Row(
-          children: [
-            leading,
-            SizedBox(width: dense ? 20 : 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: dense ? 16 : 14,
-                      fontWeight: dense ? FontWeight.w700 : FontWeight.w600,
-                      color: selected || !dense ? Brasa.cream : Brasa.cloud,
+  Widget build(BuildContext context) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1),
+        child: Material(
+          color: selected ? Brasa.graphite : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            hoverColor: Brasa.graphite,
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 36),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      icon,
+                      size: 20,
+                      color: selected ? Brasa.ember : Brasa.cloud,
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Brasa.sans(
+                          14,
+                          weight: selected ? FontWeight.w600 : FontWeight.w500,
+                          color: selected ? Brasa.cream : Brasa.cloud,
+                        ),
+                      ),
+                    ),
+                    if (shortcut != null) ...[
+                      const SizedBox(width: 6),
+                      Text(shortcut!, style: Brasa.mono(11, tracking: .02)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      if (selected)
+        Positioned(
+          left: -12,
+          top: 0,
+          bottom: 0,
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Brasa.ember,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(3),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Brasa.ember.withValues(alpha: .6),
+                    blurRadius: 10,
                   ),
                 ],
               ),
+              child: const SizedBox(width: 4, height: 18),
             ),
-          ],
+          ),
         ),
-      ),
-    ),
+    ],
   );
 }

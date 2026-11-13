@@ -653,42 +653,48 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
               final header = chrome.header(context, scope);
               final aside = chrome.aside(context, scope);
               return Scaffold(
-                body: SafeArea(
-                  child: Column(
-                    children: [
-                      ?topBar,
-                      Expanded(
-                        child: Row(
-                          children: [
-                            ?sidebar,
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  ?header,
-                                  if (!c.ready || c.busy)
-                                    const LinearProgressIndicator(minHeight: 2),
-                                  if (c.error != null)
-                                    chrome.errorBanner(context, scope),
-                                  UpdateBanner(
-                                    controller: _updates,
-                                    isPlaying: () => c.audio.isPlaying,
-                                  ),
-                                  Expanded(
-                                    child: chrome.contentFrame(
-                                      context,
-                                      scope,
-                                      _content(c),
+                body: chrome.backdrop(
+                  context,
+                  scope,
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        ?topBar,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              ?sidebar,
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    ?header,
+                                    if (!c.ready || c.busy)
+                                      const LinearProgressIndicator(
+                                        minHeight: 2,
+                                      ),
+                                    if (c.error != null)
+                                      chrome.errorBanner(context, scope),
+                                    UpdateBanner(
+                                      controller: _updates,
+                                      isPlaying: () => c.audio.isPlaying,
                                     ),
-                                  ),
-                                ],
+                                    Expanded(
+                                      child: chrome.contentFrame(
+                                        context,
+                                        scope,
+                                        _content(c),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            ?aside,
-                          ],
+                              ?aside,
+                            ],
+                          ),
                         ),
-                      ),
-                      _miniPlayer(c, rail, MiniPlayerPlacement.body),
-                    ],
+                        _miniPlayer(c, rail, MiniPlayerPlacement.body),
+                      ],
+                    ),
                   ),
                 ),
                 bottomNavigationBar: rail
@@ -847,6 +853,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     onSearch: () => _navigate(1),
     onDownloads: () => _navigate(3),
     onVinyl: () => _navigate(4),
+    onSettings: () => _navigate(7),
     onLikes: () => setState(() {
       _section = 2;
       _likesSelected = true;

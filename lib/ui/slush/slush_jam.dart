@@ -113,7 +113,9 @@ class _Avatar extends StatelessWidget {
             ? Text(
                 initial,
                 style: const TextStyle(
-                  fontFamily: 'Bagel Fat One',
+                  fontFamily: 'Bricolage Grotesque',
+                  fontWeight: FontWeight.w800,
+                  fontVariations: [FontVariation('wght', 800)],
                   fontSize: 18,
                   color: Slush.ink,
                 ),
@@ -298,7 +300,9 @@ class SlushJamActive extends StatelessWidget {
                           const Text(
                             'ESCANEA PARA UNIRTE',
                             style: TextStyle(
-                              fontFamily: 'Bagel Fat One',
+                              fontFamily: 'Bricolage Grotesque',
+                              fontWeight: FontWeight.w800,
+                              fontVariations: [FontVariation('wght', 800)],
                               fontSize: 22,
                               height: 1.2,
                               color: Slush.onViolet,
@@ -938,7 +942,9 @@ class SlushJamIdle extends StatelessWidget {
               const Text(
                 'EMPIEZA UNA JAM',
                 style: TextStyle(
-                  fontFamily: 'Bagel Fat One',
+                  fontFamily: 'Bricolage Grotesque',
+                  fontWeight: FontWeight.w800,
+                  fontVariations: [FontVariation('wght', 800)],
                   fontSize: 24,
                   height: 1.2,
                   color: Slush.onViolet,

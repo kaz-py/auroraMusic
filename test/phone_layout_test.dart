@@ -355,38 +355,40 @@ void main() {
     for (final tip in const ['Aleatorio', 'Repetir', 'Anterior', 'Siguiente']) {
       expect(find.byTooltip(tip), findsOneWidget, reason: tip);
     }
-    // Se puede cambiar a vinilo o casete y volver a la portada.
-    Finder inPicker(String tip) => find.descendant(
-      of: find.byKey(const ValueKey('modern-view-picker')),
-      matching: find.byTooltip(tip),
-    );
-    await tester.tap(inPicker('Ver vinilo'));
-    await tester.pump();
+    // Desde el ⋯ se cambia a vinilo o casete y se vuelve a la portada.
+    Future<void> pick(String label) async {
+      await tester.tap(find.byTooltip('Más acciones'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await pick('Ver vinilo');
     expect(find.byKey(const ValueKey('vinyl-disc')), findsOneWidget);
-    await tester.tap(inPicker('Ver casete'));
-    await tester.pump();
+    await pick('Ver casete');
     expect(find.byType(CassettePlayer), findsOneWidget);
     expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
-    await tester.tap(inPicker('Ver portada'));
-    await tester.pump();
+    await pick('Ver portada');
     expect(find.byType(CassettePlayer), findsNothing);
     expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
   });
 
-  testWidgets('Modern en móvil no muestra titular ni saludo en Inicio', (
+  testWidgets('Modern en móvil: saludo en la cabecera y sin titular grande', (
     tester,
   ) async {
     await pumpPhone(tester, theme: 'modern');
     expect(find.byType(ModernHeadline), findsNothing);
     expect(find.textContaining('siempre'), findsNothing);
-    expect(find.text('Encontrar música'), findsOneWidget);
+    expect(find.textContaining('Buenas'), findsOneWidget);
+    expect(find.byTooltip('Buscar música'), findsOneWidget);
   });
 }
 
 Future<void> _openFriends(WidgetTester tester) async {
   await tester.tap(find.byTooltip('Más vistas'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Amigos'));
+  // Brasa añade el contador a la etiqueta: «Amigos (2)».
+  await tester.tap(find.textContaining('Amigos').first);
   await tester.pumpAndSettle();
 }
 

@@ -232,7 +232,7 @@ void main() {
       );
       expect(find.byType(HorizontalMusicRow), findsNothing);
       await tester.scrollUntilVisible(
-        find.text('ENCONTRAR MÚSICA'),
+        find.text('Encontrar música'),
         240,
         scrollable: find
             .descendant(
@@ -242,7 +242,7 @@ void main() {
             .first,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('ENCONTRAR MÚSICA'));
+      await tester.tap(find.text('Encontrar música'));
       expect(searched, isTrue);
       expect(tester.takeException(), isNull);
     },
@@ -279,7 +279,7 @@ void main() {
         findsOneWidget,
       );
       await tester.scrollUntilVisible(
-        find.text('Mi playlist 4 para escuchar'),
+        find.byKey(const ValueKey('home-playlists')),
         300,
         scrollable: find
             .descendant(
@@ -287,6 +287,14 @@ void main() {
               matching: find.byType(Scrollable),
             )
             .first,
+      );
+      await tester.scrollUntilVisible(
+        find.text('Mi playlist 4 para escuchar'),
+        150,
+        scrollable: find.descendant(
+          of: find.byKey(const ValueKey('home-playlists')),
+          matching: find.byType(Scrollable),
+        ),
       );
       await tester.ensureVisible(find.text('Mi playlist 4 para escuchar'));
       await tester.pumpAndSettle();
@@ -435,10 +443,7 @@ void main() {
         scrollable: outer,
       );
       await tester.pumpAndSettle();
-      final artistsRow = tester.widget<HorizontalMusicRow>(
-        find.byKey(const ValueKey('home-artists')),
-      );
-      expect(artistsRow.itemCount, 2);
+      expect(find.byKey(const ValueKey('home-artists')), findsOneWidget);
       expect(find.byKey(const ValueKey('home-albums')), findsNothing);
       await tester.ensureVisible(find.byTooltip('Abrir artista $artistB'));
       await tester.pumpAndSettle();

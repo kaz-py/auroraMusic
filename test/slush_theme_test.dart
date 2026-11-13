@@ -8,11 +8,22 @@ import 'dart:math' as math;
 void main() {
   test('Modern y Brasa tiñen el fondo con el color de portada', () {
     const a = Color(0xffff0000), b = Color(0xff0000ff);
-    for (final f in [modernTheme, brasaTheme, slushTheme]) {
+    for (final f in [slushTheme]) {
       final x = f(Brightness.dark, a).colorScheme.surface;
       final y = f(Brightness.dark, b).colorScheme.surface;
       expect(x, isNot(y));
     }
+    // Brasa también fija su lienzo oscuro (tokens del rediseño).
+    expect(
+      brasaTheme(Brightness.dark, a).colorScheme.surface,
+      brasaTheme(Brightness.dark, b).colorScheme.surface,
+    );
+    // Modern «Cristal»: lienzo oscuro fijo; el color de la portada entra por el
+    // aura (ModernAura), no por el esquema.
+    expect(
+      modernTheme(Brightness.dark, a).colorScheme.surface,
+      modernTheme(Brightness.dark, b).colorScheme.surface,
+    );
   });
 
   double ratio(Color a, Color b) {

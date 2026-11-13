@@ -74,6 +74,9 @@ void main() {
       }
 
       Future<void> go(Finder tap, Type screen) async {
+        // La barra lateral hace scroll: el tile puede quedar bajo el pliegue.
+        await tester.ensureVisible(tap.first);
+        await tester.pumpAndSettle();
         await tester.tap(tap.first);
         await tester.pumpAndSettle();
         expect(find.byType(screen), findsWidgets, reason: '$screen');
@@ -89,9 +92,9 @@ void main() {
       );
       dark('Inicio');
       if (wide) {
-        await go(find.text('BUSCAR'), SlushPage);
+        await go(find.text('Búsqueda'), SlushPage);
         await go(find.text('DJ'), SlushDj);
-        await go(find.text('JAM'), SlushJamIdle);
+        await go(find.text('Jam'), SlushJamIdle);
         // El mini abre el menú de la canción y de ahí se entra a Vinilo y al EQ.
         await tester.tap(
           find.descendant(
@@ -101,7 +104,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await go(find.text('Abrir Modo Vinilo'), SlushPlayerScreen);
-        await go(find.text('ECUALIZADOR'), SlushEqQueue);
+        await go(find.text('Ecualizador'), SlushEqQueue);
         double lum(Color a, Color b) {
           final l1 = a.computeLuminance(), l2 = b.computeLuminance();
           return (l1 > l2 ? l1 + .05 : l2 + .05) /
@@ -110,9 +113,14 @@ void main() {
 
         final ctx = tester.element(find.byType(SlushEqQueue));
         final cola = tester.widget<Text>(
-          find.byWidgetPredicate(
-            (w) => w is Text && w.data == 'COLA' && w.style?.fontSize == 52,
-          ),
+          find
+              .descendant(
+                of: find.byType(SlushEqQueue),
+                matching: find.byWidgetPredicate(
+                  (w) => w is Text && w.data == 'COLA',
+                ),
+              )
+              .first,
         );
         expect(
           lum(cola.style!.color!, ctx.slush.paper),
@@ -129,14 +137,17 @@ void main() {
             expect(lum(thumb, track), greaterThanOrEqualTo(3));
           }
         }
-        await go(find.text('VINILO'), SlushPlayerScreen);
+        await go(find.text('Modo Vinilo'), SlushPlayerScreen);
       } else {
         await go(find.byTooltip('Buscar'), SlushPage);
         await go(find.byTooltip('DJ'), SlushDj);
-        await go(find.byTooltip('Jam'), SlushJamIdle);
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        // Jam y el Ecualizador viven en la hoja «Más».
+        await tester.tap(find.byTooltip('Más vistas').first);
         await tester.pumpAndSettle();
-        await go(find.text('Ecualizador').last, SlushEqQueue);
+        await go(find.text('Jam'), SlushJamIdle);
+        await tester.tap(find.byTooltip('Más vistas').first);
+        await tester.pumpAndSettle();
+        await go(find.text('Ecualizador'), SlushEqQueue);
         await go(find.byTooltip('Inicio'), AuroraShell);
         await go(
           find.descendant(

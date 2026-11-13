@@ -29,7 +29,10 @@ void main() {
         );
         await tester.pump();
         expect(tester.takeException(), isNull);
-        expect(find.text('VINILO'), findsOneWidget);
+        expect(
+          find.text(size.width > 600 ? 'Ahora suena' : 'REPRODUCIENDO DESDE'),
+          findsOneWidget,
+        );
         expect(find.byKey(const ValueKey('cassette-toggle')), findsOneWidget);
       }
     } finally {

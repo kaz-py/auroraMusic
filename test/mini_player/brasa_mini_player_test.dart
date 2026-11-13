@@ -2,6 +2,8 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/theme/brasa_theme.dart';
 import 'package:aurora_music/ui/artwork.dart';
+import 'package:aurora_music/theme/brasa_widgets.dart';
+import 'package:aurora_music/ui/mini_player/brasa_mini_controls.dart';
 import 'package:aurora_music/ui/mini_player/brasa_mini_player.dart';
 import 'package:aurora_music/ui/mini_player/cover_tone.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
@@ -175,16 +177,15 @@ void main() {
       }
     }
 
-    testWidgets('la hora cabe desde ~420 y se oculta a 412 y 360', (
+    testWidgets('la hora solo está en el escritorio, no en el móvil', (
       tester,
     ) async {
       final calls = _Calls();
-      await _mount(tester, calls, width: 360);
-      expect(find.textContaining('1:30'), findsNothing);
-      // Desde 330 entra «siguiente» y la hora cede su sitio.
-      await _mount(tester, calls, width: 412);
-      expect(find.textContaining('1:30'), findsNothing);
-      await _mount(tester, calls, width: 440);
+      for (final width in <double>[360, 412, 440]) {
+        await _mount(tester, calls, width: width);
+        expect(find.textContaining('1:30'), findsNothing, reason: '$width');
+      }
+      await _mount(tester, calls, width: 900);
       expect(find.textContaining('1:30'), findsOneWidget);
       expect(find.textContaining('3:00'), findsOneWidget);
     });
@@ -214,8 +215,8 @@ void main() {
       tester,
     ) async {
       final calls = _Calls();
-      await _mount(tester, calls, width: 900);
-      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      await _mount(tester, calls, width: 1440);
+      expect(find.byType(BrasaMiniControls), findsOneWidget);
       expect(find.byType(Slider), findsOneWidget);
       await tester.tap(find.byTooltip('Silenciar'));
       await tester.tap(find.byTooltip('Abrir cola (3)'));
@@ -223,14 +224,17 @@ void main() {
       await tester.tap(find.byTooltip('Letras'));
       expect([calls.mute, calls.queue, calls.eq, calls.lyrics], [1, 1, 1, 1]);
       expect(calls.open, 0);
-      await _mount(tester, calls, width: 600);
-      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      await _mount(tester, calls, width: 900);
       expect(find.byType(Slider), findsNothing);
+      expect(find.byTooltip('Letras'), findsOneWidget);
+      await _mount(tester, calls, width: 600);
+      expect(find.byTooltip('Más acciones'), findsOneWidget);
+      expect(find.byTooltip('Letras'), findsNothing);
       await _mount(tester, calls, width: 360);
-      expect(find.byType(MiniPlayerDesktopControls), findsNothing);
+      expect(find.byType(BrasaMiniControls), findsNothing);
     });
 
-    for (final width in <double>[600, 900, 1440, 1920]) {
+    for (final width in <double>[900, 1440, 1920]) {
       testWidgets('con controles: sin desbordes a $width px, texto ×2', (
         tester,
       ) async {
@@ -418,6 +422,9 @@ void main() {
   });
 
   group('buscar en la línea de brasa', () {
+    // Solo el escritorio tiene filamento interactivo; el móvil es indicador.
+    final line = find.byType(BrasaFilament);
+
     Offset top(WidgetTester tester, double dx) =>
         tester.getTopLeft(_bar) + Offset(dx, 5);
 
@@ -425,8 +432,9 @@ void main() {
       tester,
     ) async {
       final calls = _Calls();
-      await _mount(tester, calls);
-      final g = await tester.startGesture(top(tester, 100));
+      await _mount(tester, calls, width: 900);
+      final box = tester.getRect(line);
+      final g = await tester.startGesture(box.centerLeft + const Offset(10, 0));
       await g.moveBy(const Offset(40, 0));
       await g.moveBy(const Offset(60, 0));
       await tester.pump();
@@ -434,39 +442,26 @@ void main() {
       await g.up();
       await tester.pumpAndSettle();
       expect(calls.seeks, hasLength(1));
-      expect(calls.seeks.single, closeTo(200 / 412, .02));
+      expect(calls.seeks.single, closeTo(110 / box.width, .03));
       expect((calls.next, calls.previous, calls.open), (0, 0, 0));
     });
 
-    testWidgets('tocar la franja busca y no abre el reproductor', (
+    testWidgets('tocar el filamento busca y no abre el reproductor', (
       tester,
     ) async {
       final calls = _Calls();
-      await _mount(tester, calls);
-      // La franja empieza 12 px dentro y la línea tiene 4 px de margen a cada lado.
-      await tester.tapAt(top(tester, 111));
+      await _mount(tester, calls, width: 900);
+      final box = tester.getRect(line);
+      await tester.tapAt(box.centerLeft + Offset(box.width * .25, 0));
       expect(calls.seeks.single, closeTo(.25, .001));
       expect(calls.open, 0);
     });
 
-    testWidgets('con el cursor encima la franja crece y busca más abajo', (
-      tester,
-    ) async {
+    testWidgets('en el móvil el filamento es solo indicador', (tester) async {
       final calls = _Calls();
       await _mount(tester, calls);
-      // Sin cursor: a 17 px de la parte superior ya no es la franja (12 px).
-      await tester.tapAt(top(tester, 111) + const Offset(0, 12));
-      expect(calls.seeks, isEmpty);
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: Offset.zero);
-      addTearDown(mouse.removePointer);
-      await mouse.moveTo(top(tester, 111));
-      await tester.pump(const Duration(milliseconds: 300));
-      await mouse.moveTo(top(tester, 111) + const Offset(0, 12));
-      await mouse.down(top(tester, 111) + const Offset(0, 12));
-      await mouse.up();
-      await tester.pump();
-      expect(calls.seeks.single, closeTo(.25, .001));
+      expect(line, findsOneWidget);
+      expect(tester.widget<BrasaFilament>(line).onChanged, isNull);
     });
 
     testWidgets('fuera de la franja el deslizamiento sigue saltando de pista', (
@@ -497,7 +492,7 @@ void main() {
     testWidgets('semántica «Posición N %» con ajuste de 5 %', (tester) async {
       final calls = _Calls();
       final handle = tester.ensureSemantics();
-      await _mount(tester, calls, state: _state(progress: .5));
+      await _mount(tester, calls, width: 900, state: _state(progress: .5));
       final node = tester.getSemantics(find.bySemanticsLabel('Posición'));
       expect(node.value, '50 %');
       expect(
@@ -512,12 +507,8 @@ void main() {
     testWidgets('sin permiso la semántica no ofrece ajustar', (tester) async {
       final calls = _Calls();
       final handle = tester.ensureSemantics();
-      await _mount(tester, calls, state: _state(canSeek: false));
-      final node = tester.getSemantics(find.bySemanticsLabel('Posición'));
-      expect(
-        node.getSemanticsData().hasAction(SemanticsAction.increase),
-        isFalse,
-      );
+      await _mount(tester, calls, width: 900, state: _state(canSeek: false));
+      expect(find.bySemanticsLabel('Posición'), findsNothing);
       handle.dispose();
     });
   });
@@ -588,7 +579,7 @@ void main() {
       }
 
       expect(
-        coverContrast(colorOf('LOS RESCOLDOS'), bg),
+        coverContrast(colorOf('Los Rescoldos'), bg),
         greaterThanOrEqualTo(4.5),
       );
       expect(coverContrast(colorOf('Cenizas'), bg), greaterThanOrEqualTo(4.5));
@@ -669,7 +660,7 @@ void main() {
       testWidgets('Jam · $tag', (tester) async {
         await pump(tester, _state(track: _plain, jam: true, isPlaying: true));
         expect(tester.takeException(), isNull);
-        expect(find.text('LOS RESCOLDOS · JAM'), findsOneWidget);
+        expect(find.text('Los Rescoldos · Jam'), findsOneWidget);
         expect(find.text('Cenizas'), findsOneWidget);
       });
     }

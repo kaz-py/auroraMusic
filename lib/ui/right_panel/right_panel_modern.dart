@@ -6,6 +6,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../theme/modern_cristal.dart';
 import '../../theme/modern_widgets.dart';
 import 'right_panel_theme.dart';
 
@@ -43,8 +44,8 @@ class ModernRightPanelTheme extends RightPanelTheme {
 
   @override
   ButtonStyle? get playButtonStyle => IconButton.styleFrom(
-    backgroundColor: Tracky.mint,
-    foregroundColor: Tracky.navy,
+    backgroundColor: Cristal.darkPalette.accent,
+    foregroundColor: Cristal.darkPalette.onAccent,
   );
 
   @override
@@ -58,7 +59,7 @@ class ModernRightPanelTheme extends RightPanelTheme {
   Widget asidePanel(Widget child) => ModernCard(child: child);
 
   @override
-  String get asideTitleFont => 'Inter';
+  String get asideTitleFont => 'Manrope';
 
   @override
   FontWeight get asideTitleWeight => FontWeight.w600;

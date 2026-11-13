@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:aurora_music/theme/brasa_theme.dart';
 import 'package:aurora_music/theme/modern_theme.dart';
 import 'package:aurora_music/theme/slush_theme.dart';

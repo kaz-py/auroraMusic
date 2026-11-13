@@ -2,23 +2,26 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../../core/window_controls.dart';
+import '../../shortcuts/shortcut_service.dart';
 import '../mini_player/mini_player_host.dart';
 import '../../theme/aurora_tokens.dart';
 import '../../theme/modern_widgets.dart';
 import '../../theme/slush_theme.dart';
 import '../slush/slush_bars.dart';
 import '../slush/slush_eq_queue.dart';
-import '../slush/slush_mobile.dart';
+import '../slush/slush_aside.dart';
+import '../slush/slush_nav.dart';
 import '../slush/slush_pages.dart';
 import '../jam/jam_widgets.dart';
 import '../studio/studio_navigation.dart';
 import 'shell_chrome.dart';
 import 'shell_header.dart';
 import 'shell_nav.dart';
-import 'shell_sections.dart';
+import 'shell_rail.dart';
 
-/// Dueño: tema Slush. Chrome del shell: barra superior/inferior, cabeceras
-/// móviles, marco de página (SlushPage), cola/EQ y transición de sección.
+/// Dueño: tema Slush. Chrome del shell: sidebar flotante, cabecera con
+/// búsqueda, panel derecho del reproductor, navegación inferior móvil, marco de
+/// página (SlushPage), cola/EQ y transición de sección.
 const slushChrome = SlushChrome();
 
 /// Secciones cuyo titular gigante pinta [SlushPage] en vez del shell.
@@ -27,20 +30,11 @@ const _slushOwnedSections = [1, 2, 3, 7, 11, 12, 14];
 class SlushChrome extends ShellChrome {
   const SlushChrome();
 
+  /// Escritorio con carril: sin barra de título propia (la cabecera Slush lleva
+  /// búsqueda, perfil y controles de ventana). Ventana estrecha: barra de título.
   @override
   Widget? topBar(BuildContext context, ShellScope scope) {
-    if (scope.rail) {
-      return SlushTopBar(
-        selected: scope.section,
-        onNavigate: scope.onNavigate,
-        onProfile: scope.onProfile,
-        avatar: scope.avatar,
-        sessionText: scope.jamOn ? 'JAM ACTIVA' : 'INICIAR JAM',
-        onSession: scope.jamOn ? scope.onOpenJamPanel : scope.onStartJam,
-        onAdd: scope.onCreatePlaylist,
-      );
-    }
-    if (!WindowControls.supported) return null;
+    if (scope.rail || !WindowControls.supported) return null;
     return MouseOnlyRegion(
       child: StudioTitleBar(
         onNavigate: scope.onNavigate,
@@ -59,30 +53,84 @@ class SlushChrome extends ShellChrome {
     );
   }
 
-  /// Sin sidebar: la navegación va en [SlushTopBar].
+  /// Tarjeta flotante de 272 px (≥ 900); en 600-899, el carril estrecho.
   @override
-  Widget? sidebar(BuildContext context, ShellScope scope) => null;
+  Widget? sidebar(BuildContext context, ShellScope scope) {
+    if (!scope.rail) return null;
+    if (scope.wide) {
+      return StudioSidebar(
+        controller: scope.controller,
+        selected: scope.section,
+        onNavigate: scope.onNavigate,
+        onPlaylist: scope.onOpenLibrary,
+        onCreatePlaylist: scope.onCreatePlaylist,
+        shortcuts: scope.shortcuts,
+        friendsBadge: scope.friendsBadge,
+      );
+    }
+    return ShellNarrowRail(
+      scope: scope,
+      kind: AuroraThemeKind.slush,
+      modern: true,
+    );
+  }
 
-  /// Sin panel lateral derecho (el panel ≥ 1200 implica carril: barra Slush).
+  /// Panel derecho (Ahora suena / Cola / Letras) solo en el reproductor.
   @override
-  Widget? aside(BuildContext context, ShellScope scope) => null;
+  Widget? aside(BuildContext context, ShellScope scope) {
+    if (!scope.desktop || scope.section != 4) return null;
+    return SlushAside(
+      controller: scope.controller,
+      onNavigate: scope.onNavigate,
+    );
+  }
+
+  /// Fondo con trama de puntos de 22 px.
+  @override
+  Widget backdrop(BuildContext context, ShellScope scope, Widget child) =>
+      SlushDotBackdrop(child: child);
 
   @override
   Widget? header(BuildContext context, ShellScope scope) {
-    if (scope.rail && scope.section == 0) return null;
-    if (scope.wide && [0, 3].contains(scope.section)) return null;
-    if (scope.rail && ownsPageFrame(scope)) return const SizedBox.shrink();
-    return !scope.rail &&
-            ((scope.section == 0 && scope.playlist == null) ||
-                ownsPageFrame(scope))
-        ? SlushMobileTopBar(
-            onSettings: () => scope.onNavigate(7),
-            onProfile: scope.onProfile,
+    final c = scope.controller;
+    if (scope.rail) {
+      return SlushDesktopHeader(
+        searchController: scope.searchController,
+        searchFocus: scope.searchFocus,
+        onSearch: scope.onSearch,
+        onSession: scope.jamOn ? scope.onOpenJamPanel : scope.onStartJam,
+        sessionText: scope.jamOn ? 'Jam activa' : 'Iniciar Jam',
+        onProfile: scope.onProfile,
+        avatar: scope.avatar,
+        initial: c.profileName.trim().isEmpty
+            ? null
+            : c.profileName.trim().characters.first.toUpperCase(),
+        shortcut: scope.shortcuts.labelOf(ShortcutId.search),
+        compact: scope.section == 4,
+      );
+    }
+    if (scope.section == 4) return null;
+    if (scope.section == 0 && scope.playlist == null) {
+      return SlushMobileGreeting(
+        name: c.profileName,
+        avatar: scope.avatar,
+        onProfile: scope.onProfile,
+      );
+    }
+    if (ownsPageFrame(scope)) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: SlushProfileButton(
             avatar: scope.avatar,
-            onMore: scope.onNavigate,
-            friendsBadge: scope.friendsBadge,
-          )
-        : ShellHeaderBar(scope: scope, modern: true, playerMoreActions: false);
+            onProfile: scope.onProfile,
+            size: SlushControl.touch,
+          ),
+        ),
+      );
+    }
+    return ShellHeaderBar(scope: scope, modern: true, playerMoreActions: false);
   }
 
   /// Slush lleva `ModernMarker`: mismo aviso que Modern.
@@ -93,27 +141,16 @@ class SlushChrome extends ShellChrome {
   );
 
   @override
-  Widget bottomNavigation(BuildContext context, ShellScope scope) {
-    final primary = primarySections(AuroraThemeKind.slush, mobile: true);
-    return MediaQuery.withClampedTextScaling(
-      maxScaleFactor: 1.3,
-      child: SlushBottomBar(
-        icons: [
-          for (final s in primary)
-            switch (s) {
-              2 => Icons.queue_music,
-              8 => Icons.auto_awesome,
-              9 => Icons.groups_outlined,
-              _ => shellSectionIcons[s]!,
-            },
-        ],
-        labels: [for (final s in primary) shellSectionTitles[s]!],
-        selected: primary.indexOf(scope.section),
-        onSelect: (i) => scope.onNavigate(primary[i]),
-        mini: scope.miniPlayer(MiniPlayerPlacement.bottomBar),
-      ),
-    );
-  }
+  Widget bottomNavigation(BuildContext context, ShellScope scope) =>
+      MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: SlushBottomBar(
+          section: scope.section,
+          onNavigate: scope.onNavigate,
+          friendsBadge: scope.friendsBadge,
+          mini: scope.miniPlayer(MiniPlayerPlacement.bottomBar),
+        ),
+      );
 
   @override
   Widget pageTransition(BuildContext context, ShellScope scope, Widget child) =>

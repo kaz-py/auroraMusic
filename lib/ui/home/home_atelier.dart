@@ -1,184 +1,376 @@
-/// Dueño: tema Atelier Sonoro (sin marca).
+/// Dueño: tema Atelier («Papel y tinta»).
 ///
-/// Posee la portada (HomeMusicPage: maquetación de la página, introducción editorial y las tarjetas de estante: grupo, pista y reciente).
+/// Posee la portada (HomeMusicPage): saludo editorial, secciones numeradas
+/// (Nº 01 Seguir escuchando, Nº 02 Tu DJ personal, Nº 03 Recomendaciones) y las
+/// tarjetas de estante: portada + título serif + artista, sin cajas.
 library;
+
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../app_controller.dart';
 import '../../core/models.dart';
+import '../../dj/recommendations.dart';
+import '../../theme/atelier_theme.dart';
 import '../artwork.dart';
-import '../horizontal_music_row.dart';
-import '../dj_panel.dart';
-import '../playlist_shelf.dart';
+import '../shell/atelier_widgets.dart';
 import '../studio/home_introduction.dart';
-import '../studio/studio_components.dart';
-import '../studio/studio_symbols.dart';
 import 'home_theme.dart';
 
-/// Atelier Sonoro (sin marca): implementación de [HomeTheme].
+/// Atelier («Papel y tinta»): implementación de [HomeTheme].
 const HomeTheme atelierHome = AtelierHomeTheme();
 
 class AtelierHomeTheme extends HomeTheme {
   const AtelierHomeTheme();
 
   @override
-  Widget buildPage(BuildContext context, HomePageData d) {
-    final c = d.controller;
-    final recommendations = d.recommendations;
-    final recommendedTracks = d.recommendedTracks;
-    final personalized = d.personalized;
-    final followed = d.followed;
-    final onSearch = d.onSearch;
-    final onSearchQuery = d.onSearchQuery;
-    final onVinyl = d.onVinyl;
-    final onDownloads = d.onDownloads;
-    final onLikes = d.onLikes;
-    final onOpenPlaylist = d.onOpenPlaylist;
-    final play = d.play;
-    final followedCard = d.followedCard;
-    final text = MediaQuery.textScalerOf(context);
-    return LayoutBuilder(
-      builder: (context, bounds) {
-        final recentWidth = bounds.maxWidth >= 560
-            ? (bounds.maxWidth - 64) / 2
-            : 260.0;
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            StudioHomeIntroduction(
-              controller: c,
-              onSearch: onSearch,
-              onSearchQuery: onSearchQuery,
-              onVinyl: onVinyl ?? onSearch,
-            ),
-            const SizedBox(height: 24),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ActionChip(
-                  avatar: const Icon(Icons.download_outlined, size: 18),
-                  label: const Text('Descargas locales'),
-                  onPressed: onDownloads,
-                ),
-                ActionChip(
-                  avatar: const Icon(Icons.favorite_border, size: 18),
-                  label: const Text('Favoritos'),
-                  onPressed: onLikes,
+  Widget buildPage(BuildContext context, HomePageData d) =>
+      _AtelierHome(data: d);
+
+  @override
+  Widget introduction(
+    BuildContext context,
+    StudioHomeIntroduction intro,
+    Track? track,
+  ) => _Greeting(controller: intro.controller, desktop: true);
+
+  @override
+  Widget groupTile(
+    BuildContext context, {
+    required Track cover,
+    required String title,
+    required String count,
+    required bool artist,
+    required String tooltip,
+    required VoidCallback onPlay,
+  }) => _Tile(
+    track: cover,
+    title: title,
+    subtitle: count,
+    tooltip: tooltip,
+    round: artist,
+    onPlay: onPlay,
+  );
+
+  @override
+  Widget trackTile(
+    BuildContext context, {
+    required AppController controller,
+    required Track track,
+    required String actionLabel,
+    required VoidCallback onPlay,
+    String? reason,
+  }) => _Tile(
+    track: track,
+    title: track.title,
+    subtitle: track.artist,
+    reason: reason,
+    tooltip: track.isPendingSpotifyMatch
+        ? 'Elegir audio para ${track.title}'
+        : '$actionLabel ${track.title}',
+    onPlay: onPlay,
+  );
+
+  @override
+  Widget recentTile(
+    BuildContext context, {
+    required AppController controller,
+    required Track track,
+    required String actionLabel,
+    required VoidCallback onPlay,
+  }) => _Tile(
+    track: track,
+    title: track.title,
+    subtitle: track.artist,
+    tooltip: '$actionLabel ${track.title}',
+    onPlay: onPlay,
+  );
+}
+
+/// Portada + título serif + artista. Ocupa el ancho que le den.
+class _Tile extends StatelessWidget {
+  const _Tile({
+    required this.track,
+    required this.title,
+    required this.subtitle,
+    required this.tooltip,
+    required this.onPlay,
+    this.reason,
+    this.round = false,
+  });
+  final Track track;
+  final String title, subtitle, tooltip;
+  final String? reason;
+  final bool round;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    return Semantics(
+      button: true,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onPlay,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AspectRatio(
+                aspectRatio: 1,
+                child: round
+                    ? ClipOval(child: Artwork.fill(track: track))
+                    : AtelierCover(track: track),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: t.serif(19, height: 1.15),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.ui(13, color: t.ink2),
+              ),
+              if (reason != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  reason!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.ui(12, color: t.muted),
                 ),
               ],
-            ),
-            const SizedBox(height: 24),
-            if (c.recentTracks.isNotEmpty)
-              HorizontalMusicRow(
-                key: const ValueKey('home-recent'),
-                title: 'Escuchados recientemente',
-                subtitle: 'Continúa donde lo dejaste',
-                itemWidth: recentWidth,
-                itemCount: c.recentTracks.length,
-                itemHeight: 238 + text.scale(72),
-                itemBuilder: (context, index) => HomeRecentSleeve(
-                  controller: c,
-                  track: c.recentTracks[index],
-                  actionLabel: 'Reanudar',
-                  onPlay: () =>
-                      play(context, c.recentTracks[index], c.recentTracks),
-                ),
-              ),
-            const SizedBox(height: 28),
-            if (recommendations.isNotEmpty)
-              HorizontalMusicRow(
-                key: const ValueKey('home-recommendations'),
-                title: 'Para ti',
-                subtitle: personalized
-                    ? 'Basado en tus favoritos, listas y escucha reciente'
-                    : 'Aún no hay señales personales; elegimos de tu biblioteca',
-                itemCount: recommendations.length,
-                itemWidth: 200,
-                itemHeight: 228 + text.scale(136),
-                itemBuilder: (context, index) => HomeTrackCard(
-                  controller: c,
-                  track: recommendations[index].track,
-                  reason: recommendations[index].reason,
-                  actionLabel: 'Reproducir',
-                  onPlay: () => play(
-                    context,
-                    recommendations[index].track,
-                    recommendedTracks,
-                    replaceQueue: false,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _salute(DateTime now) => now.hour < 6
+    ? 'Buenas noches'
+    : now.hour < 13
+    ? 'Buenos días'
+    : now.hour < 21
+    ? 'Buenas tardes'
+    : 'Buenas noches';
+
+/// Saludo grande: «Buenas tardes, *Pablo*.» y una línea con el resumen real
+/// de la biblioteca.
+class _Greeting extends StatelessWidget {
+  const _Greeting({required this.controller, required this.desktop});
+  final AppController controller;
+  final bool desktop;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    final now = studioClock();
+    final name = controller.profileName.trim();
+    final size = desktop ? 56.0 : 38.0;
+    final summary =
+        '${controller.tracks.length} canciones · ${controller.playlists.length} listas en tu biblioteca';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (desktop) Text(atelierDateLabel(now), style: t.mono(size: 11)),
+        if (desktop) const SizedBox(height: 6),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: _salute(now)),
+              if (name.isNotEmpty) ...[
+                const TextSpan(text: ', '),
+                TextSpan(
+                  text: name,
+                  style: t.serif(
+                    size,
+                    italic: true,
+                    color: t.accentText,
+                    height: 1.05,
+                    letterSpacing: desktop ? -1.1 : -.4,
                   ),
                 ),
-              )
-            else ...[
-              Text('Para ti', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(
-                c.tracks.isEmpty
-                    ? 'Añade canciones reproducibles y aparecerán recomendaciones aquí.'
-                    : 'No hay recomendaciones disponibles con tus filtros y escucha actual.',
-              ),
+              ],
+              const TextSpan(text: '.'),
             ],
-            const SizedBox(height: 16),
-            DjPanel(controller: c, showRecommendations: false),
-            if (c.discoveredRecommendations.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              HorizontalMusicRow(
-                title: 'Encontradas en YouTube',
-                subtitle: 'Búsqueda solicitada por ti',
-                itemCount: c.discoveredRecommendations.length,
-                itemWidth: 200,
-                itemHeight: 220 + text.scale(72),
-                itemBuilder: (context, index) => HomeTrackCard(
+          ),
+          style: t.serif(
+            size,
+            height: 1.05,
+            letterSpacing: desktop ? -1.1 : -.4,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          summary,
+          style: t.serif(desktop ? 20 : 17, italic: true, color: t.ink2),
+        ),
+      ],
+    );
+  }
+}
+
+class _AtelierHome extends StatefulWidget {
+  const _AtelierHome({required this.data});
+  final HomePageData data;
+
+  @override
+  State<_AtelierHome> createState() => _AtelierHomeState();
+}
+
+class _AtelierHomeState extends State<_AtelierHome> {
+  /// Móvil: filtro de secciones (0 todo, 1 música, 2 DJ, 3 listas).
+  int _filter = 0;
+
+  bool _show(int group) => _filter == 0 || _filter == group;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.data;
+    final c = d.controller;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final desktop = box.maxWidth >= 720;
+        final pad = desktop ? 48.0 : 20.0;
+        final inner = box.maxWidth - 2 * pad;
+        final split = inner >= 900;
+        final hero = _hero(context, d);
+        final recs = d.recommendations;
+        final dj = _djSection(
+          context,
+          d,
+          recs.take(4).toList(),
+          mobile: !desktop,
+        );
+        final forYou = recs.length > 4
+            ? recs.skip(4).map((r) => (r.track, r.reason)).toList()
+            : [for (final tr in c.tracks.take(6)) (tr, null as String?)];
+        var n = 0;
+        int next() => ++n;
+        final sections = <Widget>[
+          if (_show(1) && _show(2) && split)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 6, child: hero(next())),
+                const SizedBox(width: 48),
+                Expanded(flex: 5, child: dj(next())),
+              ],
+            )
+          else ...[
+            if (_show(1)) hero(next()),
+            if (_show(2)) dj(next()),
+          ],
+          if (_show(2) && forYou.isNotEmpty)
+            _Section(
+              number: next(),
+              title: 'Recomendaciones para ti',
+              trailing: d.personalized ? 'ACTUALIZADO HOY' : null,
+              child: _Editorial(
+                key: const ValueKey('home-recommendations'),
+                data: d,
+                items: forYou,
+              ),
+            ),
+          if (_show(1) && c.recentTracks.isNotEmpty)
+            _Section(
+              number: next(),
+              title: 'Escuchados recientemente',
+              trailing: 'CONTINÚA DONDE LO DEJASTE',
+              child: _Shelf(
+                key: const ValueKey('home-recent'),
+                count: c.recentTracks.length,
+                builder: (i) => HomeRecentSleeve(
                   controller: c,
-                  track: c.discoveredRecommendations[index],
+                  track: c.recentTracks[i],
+                  actionLabel: 'Reanudar',
+                  onPlay: () =>
+                      d.play(context, c.recentTracks[i], c.recentTracks),
+                ),
+              ),
+            ),
+          if (_show(3) && c.playlists.isNotEmpty)
+            _Section(
+              number: next(),
+              title: 'Tus listas',
+              child: _Shelf(
+                key: const ValueKey('home-playlists'),
+                count: c.playlists.length,
+                builder: (i) => _PlaylistTile(
+                  controller: c,
+                  playlist: c.playlists[i],
+                  onOpen: d.onOpenPlaylist,
+                ),
+              ),
+            ),
+          if (_show(1) && d.followed.isNotEmpty)
+            _Section(
+              number: next(),
+              title: 'Tus artistas',
+              child: _Shelf(
+                key: const ValueKey('home-artists'),
+                count: d.followed.length,
+                builder: (i) => d.followedCard(d.followed[i]),
+              ),
+            ),
+          if (_show(1) && c.discoveredRecommendations.isNotEmpty)
+            _Section(
+              number: next(),
+              title: 'Encontradas en YouTube',
+              trailing: 'BÚSQUEDA SOLICITADA POR TI',
+              child: _Shelf(
+                count: c.discoveredRecommendations.length,
+                builder: (i) => HomeTrackCard(
+                  controller: c,
+                  track: c.discoveredRecommendations[i],
                   actionLabel: 'Reproducir',
-                  onPlay: () => play(
+                  onPlay: () => d.play(
                     context,
-                    c.discoveredRecommendations[index],
+                    c.discoveredRecommendations[i],
                     c.discoveredRecommendations,
                     replaceQueue: false,
                   ),
                 ),
               ),
-            ],
-            const SizedBox(height: 28),
-            if (c.playlists.isNotEmpty) ...[
-              PlaylistShelf(
-                controller: c,
-                horizontal: true,
-                onOpen: onOpenPlaylist,
-              ),
-              const SizedBox(height: 28),
-            ],
-            if (followed.isNotEmpty) ...[
-              HorizontalMusicRow(
-                key: const ValueKey('home-artists'),
-                title: 'Tus artistas',
-                itemCount: followed.length,
-                itemWidth: 200,
-                itemHeight: 228 + text.scale(120),
-                itemBuilder: (context, index) => followedCard(followed[index]),
-              ),
-              const SizedBox(height: 28),
-            ],
-            if (c.tracks.isNotEmpty)
-              HorizontalMusicRow(
+            ),
+          if (_show(1) && c.tracks.isNotEmpty)
+            _Section(
+              number: next(),
+              title: 'Tu colección',
+              trailing:
+                  '${c.tracks.length} CANCIONES · ${c.playlists.length} LISTAS',
+              child: _Shelf(
                 key: const ValueKey('home-library'),
-                title: 'Tu colección',
-                subtitle:
-                    '${c.tracks.length} canciones · ${c.playlists.length} listas',
-                itemCount: c.tracks.length,
-                itemWidth: 200,
-                itemHeight: 220 + text.scale(72),
-                itemBuilder: (context, index) => HomeTrackCard(
+                count: c.tracks.length,
+                builder: (i) => HomeTrackCard(
                   controller: c,
-                  track: c.tracks[index],
+                  track: c.tracks[i],
                   actionLabel: 'Escuchar',
-                  onPlay: () => play(context, c.tracks[index], c.tracks),
+                  onPlay: () => d.play(context, c.tracks[i], c.tracks),
                 ),
-              )
-            else
+              ),
+            ),
+        ];
+        return ListView(
+          padding: EdgeInsets.fromLTRB(pad, desktop ? 8 : 16, pad, 32),
+          children: [
+            _Greeting(controller: c, desktop: desktop),
+            const SizedBox(height: 16),
+            if (desktop) _quickLinks(context, d) else _filters(context),
+            const SizedBox(height: 24),
+            for (final s in sections) ...[s, const SizedBox(height: 32)],
+            if (c.tracks.isEmpty)
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
@@ -193,518 +385,492 @@ class AtelierHomeTheme extends HomeTheme {
     );
   }
 
-  @override
-  Widget introduction(
-    BuildContext context,
-    StudioHomeIntroduction intro,
-    Track? track,
-  ) {
-    final colors = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _quickLinks(BuildContext context, HomePageData d) {
+    final t = AtelierTokens.of(context);
+    Widget link(IconData icon, String label, VoidCallback onTap) =>
+        OutlinedButton.icon(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: t.ink,
+            side: BorderSide(color: t.rule),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(2),
+            ),
+            textStyle: t.mono(size: 12),
+          ),
+          icon: Icon(icon, size: 16),
+          label: Text(label),
+        );
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          alignment: WrapAlignment.spaceBetween,
-          children: [
-            StudioStamp(
-              '● CALIBRACIÓN DE SEÑAL · VÁLVULAS CALIENTES',
-              color: colors.primary,
-            ),
-            const StudioStamp('LATENCIA DAC: NO MEDIDA // MOTOR AURORA'),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const StudioGreetingRow(),
-        const SizedBox(height: 8),
-        Text(
-          'La resonancia del recinto está optimizada a 432Hz. El flujo analógico simula la atenuación natural de cinta magnética Studer A800.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: colors.tertiary),
-        ),
-        const SizedBox(height: 4),
-        const StudioStamp(
-          'TEXTO DE REFERENCIA · SIMULACIÓN ANALÓGICA PENDIENTE',
-        ),
-        const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _mood(
-                context,
-                StudioSymbols.waterDrop,
-                'Tarde Lluviosa',
-                () => showStudioPending(context, 'Ánimos de escucha'),
-              ),
-              _mood(
-                context,
-                StudioSymbols.graphicEq,
-                'Cinta Magnética',
-                () => showStudioPending(context, 'Simulación de cinta'),
-              ),
-              _mood(context, StudioSymbols.nightlife, 'Improvisación Jazz', () {
-                _searchMood(intro, 'jazz');
-              }),
-              _mood(
-                context,
-                StudioSymbols.psychology,
-                'Enfoque Profundo',
-                () => showStudioPending(context, 'Perfil de enfoque'),
-              ),
-              _mood(context, StudioSymbols.acUnit, 'Acústica Nórdica', () {
-                _searchMood(intro, 'acústica nórdica');
-              }),
-            ],
-          ),
-        ),
-        const SizedBox(height: 36),
-        if (track != null)
-          _master(context, intro, track)
-        else
-          StudioPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const StudioStamp('EDICIÓN MÁSTER · AUDIÓFILO DE LA SEMANA'),
-                const SizedBox(height: 20),
-                Text(
-                  'Tu historia empieza aquí',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Busca una canción o abre tus archivos para comenzar.',
-                ),
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  onPressed: intro.onSearch,
-                  icon: const Icon(StudioSymbols.search),
-                  label: const Text('ENCONTRAR MÚSICA'),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 40),
-        const StudioStamp('CAJA DE DISCOS // ROTACIÓN RECIENTE'),
-        const SizedBox(height: 4),
-        Text(
-          'Crate Digger: Archivos en Rotación',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
+        link(Icons.download_outlined, 'DESCARGAS LOCALES', d.onDownloads),
+        link(Icons.favorite_border, 'FAVORITOS', d.onLikes),
       ],
     );
   }
 
-  @override
-  Widget groupTile(
-    BuildContext context, {
-    required Track cover,
-    required String title,
-    required String count,
-    required bool artist,
-    required String tooltip,
-    required VoidCallback onPlay,
-  }) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: StudioPalette.of(context),
-      child: InkWell(
-        borderRadius: StudioPalette.of(context),
-        onTap: onPlay,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  Artwork(
-                    track: cover,
-                    artworkContext: ArtworkContext.card,
-                    radius: artist ? 88 : 2,
+  Widget _filters(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    const labels = ['TODO', 'MÚSICA', 'DJ', 'LISTAS'];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var i = 0; i < labels.length; i++)
+          Semantics(
+            button: true,
+            selected: _filter == i,
+            child: InkWell(
+              onTap: () => setState(() => _filter = i),
+              child: IntrinsicWidth(
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minHeight: 44,
+                    minWidth: 44,
                   ),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: IconButton.filled(
-                      tooltip: tooltip,
-                      onPressed: onPlay,
-                      icon: const Icon(StudioSymbols.playArrow),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: _filter == i ? t.ink : Colors.transparent,
+                    border: Border.all(color: _filter == i ? t.ink : t.rule),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Text(
+                    labels[i],
+                    style: t.mono(
+                      size: 12,
+                      color: _filter == i ? t.paper : t.ink,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: 'Newsreader',
-                  fontSize: 24,
-                  height: 1.1,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                count,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+      ],
     );
   }
 
-  @override
-  Widget trackTile(
-    BuildContext context, {
-    required AppController controller,
-    required Track track,
-    required String actionLabel,
-    required VoidCallback onPlay,
-    String? reason,
-  }) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: StudioPalette.of(context),
-      child: InkWell(
-        borderRadius: StudioPalette.of(context),
-        onTap: onPlay,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  Artwork(
-                    track: track,
-                    artworkContext: ArtworkContext.card,
-                    radius: 2,
-                  ),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: IconButton.filled(
-                      tooltip: track.isPendingSpotifyMatch
-                          ? 'Elegir audio para ${track.title}'
-                          : '$actionLabel ${track.title}',
-                      onPressed: onPlay,
-                      icon: Icon(
-                        track.isPendingSpotifyMatch
-                            ? Icons.link
-                            : StudioSymbols.playArrow,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                track.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: 'Newsreader',
-                  fontSize: 24,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                track.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (reason != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  reason,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+  /// Nº «Seguir escuchando».
+  Widget Function(int) _hero(BuildContext context, HomePageData d) {
+    final c = d.controller;
+    final track =
+        c.nowTrack ?? c.recentTracks.firstOrNull ?? c.tracks.firstOrNull;
+    return (n) => _Section(
+      number: n,
+      title: 'Seguir escuchando',
+      trailing: c.recentTracks.isEmpty ? null : 'HISTORIAL',
+      child: track == null ? _EmptyHero(data: d) : _Hero(data: d, track: track),
     );
   }
 
-  @override
-  Widget recentTile(
-    BuildContext context, {
-    required AppController controller,
-    required Track track,
-    required String actionLabel,
-    required VoidCallback onPlay,
+  Widget Function(int) _djSection(
+    BuildContext context,
+    HomePageData d,
+    List<TrackRecommendation> recs, {
+    required bool mobile,
   }) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: StudioPalette.of(context),
-      child: InkWell(
-        borderRadius: StudioPalette.of(context),
-        onTap: onPlay,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Artwork(
-                        track: track,
-                        artworkContext: ArtworkContext.cardDetail,
-                        radius: 2,
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: IconButton.filled(
-                        tooltip: '$actionLabel ${track.title}',
-                        onPressed: onPlay,
-                        icon: const Icon(StudioSymbols.playArrow),
-                      ),
-                    ),
-                  ],
-                ),
+    final c = d.controller;
+    final items = recs;
+    return (n) => _Section(
+      number: n,
+      title: 'Tu DJ personal',
+      subtitle: items.isEmpty
+          ? null
+          : d.personalized
+          ? 'Basado en tus favoritos, listas y escucha reciente'
+          : 'Aún no hay señales personales; elegimos de tu biblioteca',
+      child: items.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                c.tracks.isEmpty
+                    ? 'Añade canciones reproducibles y aparecerán recomendaciones aquí.'
+                    : 'No hay recomendaciones disponibles con tus filtros y escucha actual.',
+                style: AtelierTokens.of(
+                  context,
+                ).ui(14, color: AtelierTokens.of(context).ink2),
               ),
-              const SizedBox(height: 16),
-              Text(
-                track.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontFamily: 'Newsreader',
-                  fontSize: 24,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                track.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-Widget _mood(
-  BuildContext context,
-  IconData icon,
-  String label,
-  VoidCallback action,
-) => Padding(
-  padding: const EdgeInsets.only(right: 4, bottom: 4),
-  child: TextButton.icon(
-    style: TextButton.styleFrom(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-      foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-    ),
-    onPressed: action,
-    icon: Icon(icon, size: 16),
-    label: Text(label),
-  ),
-);
-
-void _searchMood(StudioHomeIntroduction intro, String query) {
-  if (intro.onSearchQuery != null) {
-    intro.onSearchQuery!(query);
-  } else {
-    intro.onSearch();
-    intro.controller.search(query);
-  }
-}
-
-Widget _master(
-  BuildContext context,
-  StudioHomeIntroduction intro,
-  Track track,
-) {
-  final c = intro.controller;
-  final colors = Theme.of(context).colorScheme;
-  final albumTracks = track.album?.trim().isNotEmpty == true
-      ? c.tracks
-            .where(
-              (t) =>
-                  t.album == track.album &&
-                  t.artist == track.artist &&
-                  !t.isPendingSpotifyMatch,
             )
-            .toList()
-      : [track];
-  final info = Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      StudioStamp(track.artist.toUpperCase(), color: colors.primary),
-      const SizedBox(height: 8),
-      Text(
-        track.album?.trim().isNotEmpty == true ? track.album! : track.title,
-        style: Theme.of(context).textTheme.headlineLarge,
-      ),
-      const SizedBox(height: 16),
-      StudioPanel(
-        recessed: true,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Notas de producción y edición',
-              style: TextStyle(
-                fontFamily: 'Newsreader',
-                fontStyle: FontStyle.italic,
-                fontSize: 18,
-                color: colors.tertiary,
+          : mobile
+          ? _Shelf(
+              key: const ValueKey('home-dj'),
+              count: items.length,
+              builder: (i) => _Tile(
+                track: items[i].track,
+                title: items[i].track.title,
+                subtitle: items[i].reason,
+                tooltip: 'Reproducir ${items[i].track.title}',
+                onPlay: () => d.play(
+                  context,
+                  items[i].track,
+                  d.recommendedTracks,
+                  replaceQueue: false,
+                ),
               ),
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  _DjRow(
+                    number: i + 1,
+                    track: items[i].track,
+                    meta: items[i].reason,
+                    onTap: () => d.play(
+                      context,
+                      items[i].track,
+                      d.recommendedTracks,
+                      replaceQueue: false,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Aurora todavía no dispone de notas de estudio para esta selección.',
-            ),
-            const SizedBox(height: 16),
-            StudioStamp(
-              '${albumTracks.length} PISTAS // ${track.isLocal ? 'ARCHIVO LOCAL' : 'FUENTE DE AUDIO EXISTENTE'}',
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 20),
-      FilledButton.icon(
-        onPressed: c.jamPlaybackActive
-            ? null
-            : () => c.playTrack(track, context: albumTracks),
-        icon: const Icon(StudioSymbols.playArrow, size: 18),
-        label: Text(
-          track.album == null
-              ? 'REPRODUCIR SELECCIÓN'
-              : 'REPRODUCIR PISTAS DISPONIBLES',
-        ),
-      ),
-      const SizedBox(height: 12),
-      Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        children: [
-          OutlinedButton.icon(
-            onPressed: c.jamPlaybackActive
-                ? null
-                : () async {
-                    if (c.currentTrack?.id != track.id) {
-                      await c.playTrack(track, context: albumTracks);
-                    }
-                    if (context.mounted) intro.onVinyl();
-                  },
-            icon: const Icon(StudioSymbols.album, size: 18),
-            label: const Text('Girar en Modo Vinilo'),
-          ),
-          IconButton.filledTonal(
-            tooltip: 'Guardar en favoritos',
-            onPressed: () => c.toggleFavorite(track),
-            icon: Icon(
-              c.favoriteIds.contains(track.id)
-                  ? StudioSymbols.favorite
-                  : StudioSymbols.bookmarkAdd,
-            ),
-          ),
+    );
+  }
+}
+
+/// Cabecera numerada + contenido.
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.number,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.subtitle,
+  });
+  final int number;
+  final String title;
+  final String? trailing;
+  final String? subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AtelierSectionHead(number: number, title: title, trailing: trailing),
+        if (subtitle != null) ...[
+          const SizedBox(height: 8),
+          Text(subtitle!, style: t.ui(13, color: t.ink2)),
         ],
-      ),
-    ],
-  );
-  return StudioPanel(
-    padding: const EdgeInsets.all(24),
-    child: Column(
+        const SizedBox(height: 12),
+        child,
+      ],
+    );
+  }
+}
+
+class _EmptyHero extends StatelessWidget {
+  const _EmptyHero({required this.data});
+  final HomePageData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Text('Tu historia empieza aquí', style: t.serif(32)),
+        const SizedBox(height: 8),
+        Text(
+          'Busca una canción o abre tus archivos para comenzar.',
+          style: t.ui(14, color: t.ink2),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: data.onSearch,
+          icon: const Icon(Icons.search),
+          label: const Text('Encontrar música'),
+        ),
+      ],
+    );
+  }
+}
+
+class _Hero extends StatelessWidget {
+  const _Hero({required this.data, required this.track});
+  final HomePageData data;
+  final Track track;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    final c = data.controller;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return ListenableBuilder(
+      listenable: c.audio,
+      builder: (context, _) {
+        final current = c.nowTrack?.id == track.id;
+        final duration = current && c.audio.duration > Duration.zero
+            ? c.audio.duration
+            : track.duration;
+        final position = current ? c.audio.position : Duration.zero;
+        final progress = duration > Duration.zero
+            ? position.inMilliseconds / duration.inMilliseconds
+            : 0.0;
+        final playing = current && c.audio.isPlaying;
+        final format = atelierFormat(track);
+        final album = track.album?.trim();
+        final info = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(StudioSymbols.verified, color: colors.primary, size: 18),
-            const SizedBox(width: 6),
-            const Expanded(
-              child: StudioStamp('EDICIÓN MÁSTER · AUDIÓFILO DE LA SEMANA'),
+            if (album != null && album.isNotEmpty)
+              Text(
+                'ÁLBUM · ${album.toUpperCase()}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: t.mono(size: 11),
+              ),
+            const SizedBox(height: 6),
+            Text(
+              track.title,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: t.serif(38, height: 1.08, letterSpacing: -.5),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              track.artist,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: t.serif(18, italic: true, color: t.ink2),
+            ),
+            const SizedBox(height: 16),
+            if (duration > Duration.zero) ...[
+              Text(
+                current
+                    ? '-${atelierClock(duration - position)} RESTANTES'
+                    : atelierClock(duration),
+                style: t.mono(size: 11),
+              ),
+              AtelierLine(
+                progress: progress,
+                onSeek: current
+                    ? (f) => c.seek(
+                        Duration(
+                          milliseconds: (duration.inMilliseconds * f).round(),
+                        ),
+                      )
+                    : null,
+              ),
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: c.jamPlaybackActive
+                      ? null
+                      : () => current
+                            ? c.togglePlayback()
+                            : data.play(
+                                context,
+                                track,
+                                c.recentTracks.isNotEmpty
+                                    ? c.recentTracks
+                                    : c.tracks,
+                              ),
+                  icon: Icon(
+                    playing ? Icons.pause : Icons.play_arrow,
+                    size: 20,
+                  ),
+                  label: Text(playing ? 'Pausar' : 'Reanudar'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: c.jamPlaybackActive
+                      ? null
+                      : () => c.addToQueue(track),
+                  icon: const Icon(Icons.playlist_add, size: 20),
+                  label: const Text('Añadir a la cola'),
+                ),
+                if (format != null) AtelierFormatChip(format),
+              ],
             ),
           ],
-        ),
-        const SizedBox(height: 24),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 560;
-            final sleeve = Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: StudioPalette.of(context),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black, offset: Offset(4, 6)),
-                    ],
-                  ),
-                  child: Artwork.fill(
-                    track: track,
-                    artworkContext: ArtworkContext.sleeve,
-                    radius: 8,
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: StudioStamp(
-                    track.isLocal
-                        ? 'ARCHIVO LOCAL'
-                        : 'METADATOS · AUDIO EXTERNO',
-                    filled: true,
-                  ),
-                ),
-              ],
-            );
-            return wide
+        );
+        return LayoutBuilder(
+          builder: (context, box) {
+            final row = box.maxWidth >= 340 && scale <= 1.3;
+            final cover = row
+                ? (box.maxWidth * (box.maxWidth > 560 ? .42 : .46)).clamp(
+                    120.0,
+                    300.0,
+                  )
+                : math.min(box.maxWidth, 320.0);
+            final art = AtelierCover(track: track, size: cover);
+            return row
                 ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(width: constraints.maxWidth * .4, child: sleeve),
-                      const SizedBox(width: 24),
+                      art,
+                      SizedBox(width: box.maxWidth > 560 ? 24 : 16),
                       Expanded(child: info),
                     ],
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: SizedBox(
-                          width: ArtworkContext.sleeve.constrain(constraints),
-                          child: sleeve,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      info,
-                    ],
+                    children: [art, const SizedBox(height: 16), info],
                   );
           },
+        );
+      },
+    );
+  }
+}
+
+class _DjRow extends StatelessWidget {
+  const _DjRow({
+    required this.number,
+    required this.track,
+    required this.meta,
+    required this.onTap,
+  });
+  final int number;
+  final Track track;
+  final String meta;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AtelierTokens.of(context);
+    return Semantics(
+      button: true,
+      label: 'Reproducir ${track.title}',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 64),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: t.rule)),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 30,
+                child: Text(
+                  number.toString().padLeft(2, '0'),
+                  style: t.mono(size: 11, color: t.accentText),
+                ),
+              ),
+              AtelierCover(track: track, size: 48, shadow: false),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.serif(18),
+                    ),
+                    Text(
+                      '${track.artist} · $meta',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.ui(12.5, color: t.ink2),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.play_arrow, size: 18, color: t.ink2),
+            ],
+          ),
         ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
+}
+
+/// Ritmo editorial: una portada grande y varias pequeñas alineadas a la base.
+class _Editorial extends StatelessWidget {
+  const _Editorial({super.key, required this.data, required this.items});
+  final HomePageData data;
+  final List<(Track, String?)> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = data.controller;
+    final tracks = [for (final (tr, _) in items) tr];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          for (final (i, item) in items.indexed) ...[
+            if (i > 0) const SizedBox(width: 24),
+            SizedBox(
+              width: i == 0 ? 220 : 160,
+              child: HomeTrackCard(
+                controller: c,
+                track: item.$1,
+                reason: i == 0 ? item.$2 : null,
+                actionLabel: 'Reproducir',
+                onPlay: () =>
+                    data.play(context, item.$1, tracks, replaceQueue: false),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Fila horizontal de tarjetas de 168 px (altura por contenido).
+class _Shelf extends StatelessWidget {
+  const _Shelf({super.key, required this.count, required this.builder});
+  final int count;
+  final Widget Function(int index) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return SizedBox(
+      height: 168 + 96 * scale.clamp(1.0, 2.0),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: count,
+        separatorBuilder: (_, _) => const SizedBox(width: 20),
+        itemBuilder: (context, i) => SizedBox(width: 168, child: builder(i)),
+      ),
+    );
+  }
+}
+
+class _PlaylistTile extends StatelessWidget {
+  const _PlaylistTile({
+    required this.controller,
+    required this.playlist,
+    required this.onOpen,
+  });
+  final AppController controller;
+  final MusicPlaylist playlist;
+  final ValueChanged<MusicPlaylist> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final ids = playlist.trackIds.toSet();
+    final first = controller.tracks
+        .where((t) => ids.contains(t.id) && t.artworkUrl?.isNotEmpty == true)
+        .firstOrNull;
+    final n = playlist.trackIds.length;
+    return _Tile(
+      track:
+          first ??
+          Track(id: 'pl:${playlist.id}', title: playlist.name, artist: ''),
+      title: playlist.name,
+      subtitle: '$n ${n == 1 ? 'canción' : 'canciones'}',
+      tooltip: 'Abrir lista ${playlist.name}',
+      onPlay: () => onOpen(playlist),
+    );
+  }
 }

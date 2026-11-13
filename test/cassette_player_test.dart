@@ -1,5 +1,6 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/theme/slush_theme.dart';
 import 'package:aurora_music/ui/vinyl_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,10 +32,12 @@ void main() {
   testWidgets('toggle switches to cassette, remembers it and skips 10 s', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(400, 700));
+    // Slush es el tema que conserva el interruptor vinilo/casete a pantalla completa.
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
+        theme: slushTheme(Brightness.light, const Color(0xffe86927)),
         home: Scaffold(body: VinylPlayer(controller: controller)),
       ),
     );
@@ -52,5 +55,8 @@ void main() {
     );
     expect(audio.position, const Duration(seconds: 10));
     expect(tester.takeException(), isNull);
+    // Slush pide letras al montarse: se deja acabar su E/S antes de cerrar.
+    await settleLyricsIo(tester);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

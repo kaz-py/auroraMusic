@@ -18,6 +18,13 @@ const _songs = [
   Track(id: 'b', title: 'Segunda', artist: 'Otro'),
 ];
 
+/// Entrada de la tarjeta de la canción (no del contenido que queda debajo: el
+/// hero de Inicio de Atelier también lleva «Añadir a la cola»).
+Finder inCard(String label) => find.descendant(
+  of: find.byWidgetPredicate((w) => w.runtimeType.toString() == '_SongCard'),
+  matching: find.text(label),
+);
+
 void main() {
   for (final (size, scale) in const [
     (Size(1440, 900), 1.0),
@@ -62,7 +69,7 @@ void main() {
           'Compartir',
           'Abrir Modo Vinilo',
         ]) {
-          expect(find.text(label), findsOneWidget, reason: label);
+          expect(inCard(label), findsOneWidget, reason: label);
         }
         // «Cola de reproducción» también es una entrada de la barra lateral.
         expect(find.text('Cola de reproducción'), findsWidgets);
@@ -125,7 +132,7 @@ void main() {
           'Compartir',
           'Abrir Modo Vinilo',
         ]) {
-          expect(find.text(label), findsOneWidget, reason: label);
+          expect(inCard(label), findsOneWidget, reason: label);
         }
         expect(find.text('Reproducir a continuación'), findsNothing);
         expect(
@@ -148,7 +155,7 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
       for (final label in ['Añadir a la cola', 'Compartir']) {
-        final r = tester.getRect(find.text(label));
+        final r = tester.getRect(inCard(label));
         expect(r.top, greaterThan(40), reason: label);
         expect(r.bottom, lessThanOrEqualTo(640), reason: label);
       }

@@ -289,6 +289,8 @@ class _ArtistModePageState extends State<ArtistModePage> {
           fixedSize: const Size.square(44),
           padding: EdgeInsets.zero,
         );
+    ButtonStyle top({required bool copy}) =>
+        _skin(context).topButtonStyle?.call(tone, copy: copy) ?? style();
     return Row(
       children: [
         _exit(context, tone, compact),
@@ -297,7 +299,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
           tooltip: 'Copiar letra',
           icon: const Icon(Icons.copy_rounded),
           onPressed: _copyText() == null ? null : _copy,
-          style: style(),
+          style: top(copy: true),
         ),
         Expanded(
           child: GestureDetector(
@@ -322,7 +324,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
                   ? Icons.fullscreen_exit_rounded
                   : Icons.fullscreen_rounded,
             ),
-            style: style(),
+            style: top(copy: false),
           ),
         if (WindowControls.supported) ...[
           // En ventana estrecha no caben todos los botones: minimizar y
@@ -332,21 +334,21 @@ class _ArtistModePageState extends State<ArtistModePage> {
               tooltip: 'Minimizar',
               onPressed: () => WindowControls.invoke('minimize'),
               icon: const Icon(Icons.remove_rounded),
-              style: style(),
+              style: top(copy: false),
             ),
             if (!_fullscreen)
               IconButton(
                 tooltip: 'Maximizar o restaurar',
                 onPressed: () => WindowControls.invoke('maximize'),
                 icon: const Icon(Icons.crop_square_rounded, size: 20),
-                style: style(),
+                style: top(copy: false),
               ),
           ],
           IconButton(
             tooltip: 'Cerrar la ventana',
             onPressed: () => WindowControls.invoke('close'),
             icon: const Icon(Icons.close_rounded),
-            style: style(),
+            style: top(copy: false),
           ),
         ],
       ],
@@ -541,7 +543,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
               track: track,
               size: 72,
               artworkContext: ArtworkContext.thumbnailDetail,
-              radius: 8,
+              radius: _skin(context).compactCoverRadius ?? 8,
             ),
             const SizedBox(width: 12),
             Expanded(child: _titles(context, state, track, tone)),
@@ -647,6 +649,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
           position: shown,
           duration: state.duration,
           canSeek: state.canSeek,
+          trackId: state.track?.id ?? '',
           onChanged: state.canSeek ? (v) => setState(() => _drag = v) : null,
           onChangeEnd: state.canSeek
               ? (v) {

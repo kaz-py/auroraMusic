@@ -9,6 +9,7 @@ import 'package:aurora_music/core/online_status.dart';
 import 'package:aurora_music/core/source_backend.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeAudio extends AudioBackend {
@@ -245,5 +246,19 @@ Future<void> closeTestController(AppController controller) async {
   await controller.closed;
   if (await controller.supportDirectory.exists()) {
     await controller.supportDirectory.delete(recursive: true);
+  }
+}
+
+/// Los reproductores piden letras (E/S real de caché) al montarse. Esa cadena
+/// vive en la zona falsa de `testWidgets`: si se desmonta o se cierra el
+/// controlador a medias, un archivo `lyrics/*.json` queda abierto y Windows no
+/// deja borrar el directorio. Llámalo antes de desmontar (p. ej. en un
+/// `addTearDown` registrado después de montar).
+Future<void> settleLyricsIo(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(seconds: 1));
   }
 }

@@ -320,7 +320,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byTooltip('Buscar').last);
+    await tester.tap(find.byTooltip('Buscar música').last);
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Canciones'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'daft');

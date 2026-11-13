@@ -1,5 +1,6 @@
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/theme/modern_theme.dart';
 import 'package:aurora_music/ui/queue_panel.dart';
 import 'package:aurora_music/ui/vinyl_player.dart';
 import 'package:flutter/material.dart';
@@ -56,10 +57,8 @@ void main() {
       await audio.pause();
       expect(controller.error, isNull);
       expect(audio.loaded, isNotNull);
-    });
-
-    tearDown(() async {
-      await closeTestController(controller);
+      // Registrado en setUp: corre después de los addTearDown de `mount`.
+      addTearDown(() => closeTestController(controller));
     });
 
     Future<void> mount(
@@ -67,11 +66,13 @@ void main() {
       Widget screen, {
       Size size = const Size(320, 600),
       double scale = 1,
+      ThemeData? theme,
     }) async {
       await tester.binding.setSurfaceSize(size);
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
         MaterialApp(
+          theme: theme,
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,
@@ -80,6 +81,24 @@ void main() {
           ),
           home: Scaffold(body: screen),
         ),
+      );
+      // El reproductor pide letras al montarse: se deja acabar su E/S de caché
+      // y se desmonta antes de borrar el directorio de soporte.
+      addTearDown(() async {
+        await settleLyricsIo(tester);
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+
+    /// Atelier (el tema por defecto) pinta solo la portada: el disco que
+    /// gira y busca por posición es la vista vinilo de Modern (escritorio).
+    Future<void> mountVinyl(WidgetTester tester) async {
+      await controller.preferences.setBool('modernPhoto', false);
+      await mount(
+        tester,
+        VinylPlayer(controller: controller),
+        size: const Size(1280, 800),
+        theme: modernTheme(Brightness.dark, const Color(0xff6ea8ff)),
       );
     }
 
@@ -99,7 +118,7 @@ void main() {
     testWidgets('vinyl click seeks by position without changing playback', (
       tester,
     ) async {
-      await mount(tester, VinylPlayer(controller: controller));
+      await mountVinyl(tester);
       final disc = find.byKey(const ValueKey('vinyl-disc'));
       final rect = tester.getRect(disc);
       await tester.tapAt(Offset(rect.left + rect.width * .75, rect.center.dy));
@@ -124,7 +143,7 @@ void main() {
       tester,
     ) async {
       audio.position = const Duration(seconds: 90);
-      await mount(tester, VinylPlayer(controller: controller));
+      await mountVinyl(tester);
       final disc = find.byKey(const ValueKey('vinyl-disc'));
       final rect = tester.getRect(disc);
       final gesture = await tester.startGesture(rect.center);
@@ -180,7 +199,7 @@ void main() {
     testWidgets(
       'vinyl stays safe while paused by reduced motion and background',
       (tester) async {
-        await mount(tester, VinylPlayer(controller: controller));
+        await mountVinyl(tester);
         await audio.play();
         controller.reducedMotion = true;
         controller.notifyListeners();

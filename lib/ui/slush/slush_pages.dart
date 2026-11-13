@@ -8,7 +8,7 @@ import '../playlist_views/playlist_cover.dart';
 import '../playlist_views/playlist_photo_menu.dart';
 import '../playlist_views/playlist_view_mode.dart';
 
-const _display = 'Bagel Fat One';
+const _display = 'Bricolage Grotesque';
 
 /// Colores vivos que se repiten en tarjetas y píldoras.
 const slushPalette = [
@@ -64,6 +64,8 @@ class SlushTitle extends StatelessWidget {
               maxLines: 1,
               style: TextStyle(
                 fontFamily: _display,
+                fontWeight: FontWeight.w800,
+                fontVariations: const [FontVariation('wght', 800)],
                 fontSize: font,
                 height: .95,
                 letterSpacing: -font * .02,
@@ -287,6 +289,8 @@ class SlushEmpty extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: _display,
+                fontWeight: FontWeight.w800,
+                fontVariations: const [FontVariation('wght', 800)],
                 fontSize: 26,
                 height: 1.15,
                 letterSpacing: -.26,
@@ -363,6 +367,8 @@ class SlushLikesCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: _display,
+                    fontWeight: FontWeight.w800,
+                    fontVariations: [FontVariation('wght', 800)],
                     fontSize: 26,
                     height: 1.15,
                     color: Slush.ink,

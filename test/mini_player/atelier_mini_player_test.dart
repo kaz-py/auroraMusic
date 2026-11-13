@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart' show RendererBinding;
 import 'package:aurora_music/core/models.dart';
-import 'package:aurora_music/main.dart' show auroraTheme;
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:aurora_music/ui/mini_player/cover_tone.dart' show coverContrast;
 import 'package:aurora_music/ui/mini_player/atelier_mini_player.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
@@ -289,7 +289,7 @@ void main() {
   });
 
   group('jerarquía', () {
-    testWidgets('normal: título en display, artista en cursiva más pequeño', (
+    testWidgets('normal: título serif y artista en Inter más pequeño', (
       tester,
     ) async {
       await mount(tester);
@@ -297,7 +297,7 @@ void main() {
       final artist = style(tester, _plain.artist);
       expect(title.fontFamily, _light.textTheme.titleLarge!.fontFamily);
       expect(title.fontSize, greaterThan(artist.fontSize!));
-      expect(artist.fontStyle, FontStyle.italic);
+      expect(artist.fontFamily, 'Inter');
       expect(
         tester.getTopLeft(text(_plain.title)).dy,
         lessThan(tester.getTopLeft(text(_plain.artist)).dy),
@@ -382,42 +382,6 @@ void main() {
       await mount(tester, state: _state(liked: false));
       expect(find.byIcon(Icons.favorite), findsNothing);
       expect(find.byIcon(StudioSymbols.favorite), findsOneWidget);
-    });
-  });
-
-  group('vinilo', () {
-    double turns(WidgetTester tester) => tester
-        .widget<RotationTransition>(
-          find.byWidgetPredicate(
-            (w) => w is RotationTransition && w.turns is AnimationController,
-          ),
-        )
-        .turns
-        .value;
-
-    testWidgets('gira solo con la pista sonando', (tester) async {
-      await mount(tester, state: _state(playing: true));
-      await tester.pump(const Duration(seconds: 2));
-      expect(turns(tester), greaterThan(.1));
-      await mount(tester, state: _state(playing: false));
-      final rest = turns(tester);
-      await tester.pump(const Duration(seconds: 2));
-      expect(turns(tester), rest);
-    });
-
-    testWidgets('no gira mientras carga ni con error', (tester) async {
-      await mount(tester, state: _state(playing: true, buffering: true));
-      await tester.pump(const Duration(seconds: 2));
-      expect(turns(tester), 0);
-      await mount(tester, state: _state(playing: true, error: true));
-      await tester.pump(const Duration(seconds: 2));
-      expect(turns(tester), 0);
-    });
-
-    testWidgets('con movimiento reducido no gira', (tester) async {
-      await mount(tester, state: _state(playing: true), reduced: true);
-      await tester.pump(const Duration(seconds: 2));
-      expect(turns(tester), 0);
     });
   });
 
@@ -517,7 +481,7 @@ void main() {
         state: _state(seek: true),
       );
       final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
-      final g = await tester.startGesture(top + const Offset(90, 6));
+      final g = await tester.startGesture(top + const Offset(90, 2));
       await g.moveBy(const Offset(180, 0));
       await g.moveBy(const Offset(180, 0));
       await tester.pump();
@@ -539,9 +503,9 @@ void main() {
         width: 900,
         state: _state(seek: true),
       );
-      // La tarjeta (760 px a 900) empieza en x = 70; un cuarto son 190 px.
+      // La barra ocupa los 900 px y la regla deja 5 px a cada lado: un cuarto es x = 227,5.
       final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
-      await tester.tapAt(top + const Offset(70 + 190, 6 + 3));
+      await tester.tapAt(top + const Offset(227.5, 3));
       expect(calls.seeks.single, closeTo(.25, .01));
       expect(
         tester.getSemantics(find.bySemanticsLabel('Posición')),
@@ -564,7 +528,7 @@ void main() {
         state: _state(),
       );
       final top = tester.getTopLeft(find.byType(AtelierMiniPlayer));
-      await tester.tapAt(top + const Offset(225, 6 + 3));
+      await tester.tapAt(top + const Offset(227.5, 3));
       expect(calls.seeks, isEmpty);
     });
 
@@ -583,27 +547,27 @@ void main() {
       addTearDown(mouse.removePointer);
 
       // En reposo la franja es la de la regla: a 18 px no hay zona.
-      await mouse.moveTo(top + const Offset(70 + 190, 6 + 18));
+      await mouse.moveTo(top + const Offset(227.5, 18));
       await tester.pump(const Duration(milliseconds: 300));
-      await mouse.down(top + const Offset(70 + 190, 6 + 18));
+      await mouse.down(top + const Offset(227.5, 18));
       await mouse.up();
       expect(calls.seeks, isEmpty);
 
       // Sobre la regla: cursor de mano y la zona crece.
-      await mouse.moveTo(top + const Offset(70 + 190, 6 + 3));
+      await mouse.moveTo(top + const Offset(227.5, 3));
       await tester.pump(const Duration(milliseconds: 300));
       expect(
         RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
         SystemMouseCursors.click,
       );
       // Con la zona crecida, un clic a 18 px de la regla también busca.
-      await mouse.down(top + const Offset(70 + 190, 6 + 18));
+      await mouse.down(top + const Offset(227.5, 18));
       await mouse.up();
       await tester.pump(const Duration(milliseconds: 300));
       expect(calls.seeks.single, closeTo(.25, .01));
 
       // Fuera de la zona (a 40 px) vuelve a reposo.
-      await mouse.moveTo(top + const Offset(70 + 190, 6 + 40));
+      await mouse.moveTo(top + const Offset(227.5, 40));
       await tester.pump(const Duration(milliseconds: 300));
       expect(
         RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),

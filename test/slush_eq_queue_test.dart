@@ -123,7 +123,7 @@ void main() {
     });
   }
 
-  testWidgets('chip «A continuación» abre la cola y muestra cuántas faltan', (
+  testWidgets('hoja de cola del móvil: total, siguiente y abre la cola', (
     tester,
   ) async {
     final app = await _app(tester, [_song, ..._many.take(13)]);
@@ -134,21 +134,18 @@ void main() {
       SlushPlayerScreen(
         controller: app,
         track: _song,
-        compact: false,
+        compact: true,
         recordBuilder: (_) => const SizedBox.shrink(),
         onToggleCassette: () {},
         cassette: false,
         onSection: opened.add,
       ),
-      size: const Size(1400, 1000),
+      size: const Size(390, 844),
     );
-    expect(find.text('A CONTINUACIÓN'), findsOneWidget);
+    expect(find.text('Cola de reproducción · 14'), findsOneWidget);
     expect(find.byKey(const ValueKey('next-up-remaining')), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('next-up-remaining'))).data,
-      '+13',
-    );
-    await tester.tap(find.text('A CONTINUACIÓN'));
+    await tester.ensureVisible(find.byKey(const ValueKey('queue-peek')));
+    await tester.tap(find.byKey(const ValueKey('queue-peek')));
     expect(opened, [5]);
     expect(app.queueIndex, 0);
   });

@@ -12,14 +12,23 @@ export 'slush_tokens.dart';
 /// vive en [SlushPalette].
 abstract final class Slush {
   /// Negro para texto e iconos sobre colores vivos (en ambos modos).
-  static const ink = Color(0xff0a0a0a);
+  static const ink = Color(0xff14101f);
   static const mint = Color(0xff5fe0a0);
   static const yellow = Color(0xffffd62e);
-  static const lilac = Color(0xffe3cdfb);
+  static const lilac = Color(0xffe3d8ff);
   static const orange = Color(0xffff4d0a);
   static const blue = Color(0xff3b8bf2);
   static const violet = Color(0xff5b3fe0);
-  static const pink = Color(0xffff9ec4);
+  static const pink = Color(0xffff8fc7);
+
+  /// Slush 2.0: lima = «lo que suena» (Play, progreso, pista actual).
+  static const lime = Color(0xffd8ff5c);
+
+  /// Slush 2.0: lila saturado del hero («Ahora suena», mini reproductor).
+  static const lilacHero = Color(0xffc4b0ff);
+
+  /// Velo violeta oscuro del fondo del modo letra.
+  static const violetDeep = Color(0xff2b1a86);
 
   /// Texto e iconos sobre relleno [violet] (6.50:1; la tinta da 3.05).
   static const onViolet = Color(0xffffffff);
@@ -42,12 +51,7 @@ abstract final class Slush {
             h.saturation.clamp(.18, .34),
             .07,
           ).toColor()
-        : HSLColor.fromAHSL(
-            1,
-            h.hue,
-            h.saturation.clamp(.40, .75),
-            .88,
-          ).toColor();
+        : const Color(0xffe9e0ff);
   }
 }
 
@@ -134,17 +138,17 @@ class SlushPalette extends ThemeExtension<SlushPalette> {
   final Color disabledBorder;
 
   static const light = SlushPalette(
-    ink: Color(0xff0a0a0a),
-    ink2: Color(0xff3b3844),
+    ink: Color(0xff14101f),
+    ink2: Color(0xff4a4358),
     ink3: Color(0xff4f4b59),
     paper: Color(0xfffffdf8),
     raised: Color(0xffffffff),
     inset: Color(0xfff3efe6),
-    screen: Color(0xffdedbe6),
-    line: Color(0xff0a0a0a),
-    lineSoft: Color(0xff0a0a0a),
+    screen: Color(0xffe9e0ff),
+    line: Color(0xff14101f),
+    lineSoft: Color(0xff14101f),
     divider: Color(0xffd8d2c6),
-    shadow: Color(0xff0a0a0a),
+    shadow: Color(0xff14101f),
     focus: Color(0xff5b3fe0),
     violetAccent: Color(0xff5b3fe0),
     hover: Color(0x8cffd62e),
@@ -279,7 +283,7 @@ extension SlushContext on BuildContext {
 }
 
 /// Tema «Slush»: claro u oscuro según [brightness]; fondo plano teñido por la
-/// portada, contornos de 2 px, titulares Bagel Fat One, píldoras y tarjetas
+/// portada, contornos de 2 px, titulares Bricolage Grotesque 800, píldoras y tarjetas
 /// de papel. Misma firma que `auroraTheme`. Lleva también [ModernMarker] para
 /// reutilizar las composiciones de Modern (tarjetas, paneles, barras).
 ThemeData slushTheme(
@@ -326,14 +330,8 @@ ThemeData slushTheme(
       );
 
   const font = 'Inter';
-  const display = 'Bagel Fat One';
-  TextStyle head(double size, double h) => TextStyle(
-    fontFamily: display,
-    fontSize: size,
-    height: h,
-    letterSpacing: -size * .01,
-    color: ink,
-  );
+  TextStyle head(double size, double h) =>
+      slushHeadline(size, height: h, color: ink);
   TextStyle inter(
     double size,
     FontWeight w,

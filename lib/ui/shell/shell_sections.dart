@@ -36,11 +36,31 @@ const shellSectionIcons = <int, IconData>{
   14: Icons.people_outline,
 };
 const _primarySections = [0, 1, 8, 2, 3];
-const _slushMobilePrimarySections = [0, 1, 2, 8, 9];
+
+/// Slush móvil: Inicio, Buscar, Biblioteca, DJ y «Más» (hoja con el resto,
+/// ver `slush_nav.dart`).
+const _slushMobilePrimarySections = [0, 1, 2, 8];
+
+/// Atelier móvil: cuatro pestañas y «Más» (hoja con el resto, ver
+/// `chrome_atelier.dart`).
+const _atelierMobilePrimarySections = [0, 1, 2, 3];
+
+/// Brasa móvil: Inicio, Buscar, DJ, Biblioteca y «Más» (hoja con el resto, ver
+/// `chrome_brasa.dart`).
+const _brasaMobilePrimarySections = [0, 1, 8, 2];
+
+/// Modern móvil: Inicio, Buscar, Biblioteca, Descargas y «Más» (hoja con el
+/// resto, ver `modern_mobile_nav.dart`).
+const _modernMobilePrimarySections = [0, 1, 2, 3];
 
 /// Secciones de la navegación principal. Móvil (sin carril): la barra
-/// inferior; Slush lleva las suyas.
+/// inferior; Slush y Atelier llevan las suyas.
 List<int> primarySections(AuroraThemeKind kind, {required bool mobile}) =>
-    kind == AuroraThemeKind.slush && mobile
-    ? _slushMobilePrimarySections
-    : _primarySections;
+    !mobile
+    ? _primarySections
+    : switch (kind) {
+        AuroraThemeKind.slush => _slushMobilePrimarySections,
+        AuroraThemeKind.atelier => _atelierMobilePrimarySections,
+        AuroraThemeKind.brasa => _brasaMobilePrimarySections,
+        AuroraThemeKind.modern => _modernMobilePrimarySections,
+      };

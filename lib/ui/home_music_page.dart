@@ -18,6 +18,7 @@ class HomeMusicPage extends StatelessWidget {
     required this.onOpenPlaylist,
     this.onVinyl,
     this.onSearchQuery,
+    this.onSettings,
     this.follow,
   });
   final AppController controller;
@@ -25,6 +26,7 @@ class HomeMusicPage extends StatelessWidget {
   final ValueChanged<MusicPlaylist> onOpenPlaylist;
   final VoidCallback? onVinyl;
   final ValueChanged<String>? onSearchQuery;
+  final VoidCallback? onSettings;
   final FollowService? follow;
 
   @override
@@ -51,6 +53,7 @@ class HomeMusicPage extends StatelessWidget {
           onOpenPlaylist: onOpenPlaylist,
           onVinyl: onVinyl,
           onSearchQuery: onSearchQuery,
+          onSettings: onSettings,
           recommendations: recommendations,
           recommendedTracks: recommendedTracks,
           personalized: personalized,

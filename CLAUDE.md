@@ -8,10 +8,13 @@ local. No hay reproductor web ni respaldo: si falla, se muestra el error real.
 
 ## Qué es
 
-Reproductor Flutter (Windows + Android + Linux) con estética propia «Atelier Sonoro»
-(Newsreader + Plus Jakarta Sans, tonos tinta/marfil con acento de portada).
-Funcionamiento de referencia: LIMusic (búsqueda de YouTube Music, radio/autoplay,
-cola nativa), pero con la interfaz de Aurora. **No cambiar la estética.**
+Reproductor Flutter (Windows + Android + Linux) con cuatro temas propios: Atelier
+(papel y tinta), Modern (cristal), Brasa (oscuro con brasa) y Slush (pegatinas).
+Su diseño vigente está en `docs/temas.md` y en los prototipos de
+`Aurora-prototipos/<tema>/DISENO.md` (rediseño 1.6.0-beta.6). Funcionamiento de
+referencia: LIMusic (búsqueda de YouTube Music, radio/autoplay, cola nativa), con
+la interfaz de Aurora. Cada tema se cambia solo en sus archivos; respetar la
+zona segura en móvil.
 
 ## Motor de audio (actual)
 

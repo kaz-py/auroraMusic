@@ -13,7 +13,7 @@ import '../artwork.dart';
 import '../studio/equalizer_panel.dart';
 import '../track_actions.dart';
 
-const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Slush.lilac];
+const _bandColors = [Slush.blue, Slush.mint, Slush.yellow, Slush.lilacHero];
 
 /// Contenedor: `lineSoft` (tarjeta); [control] = borde de control (`line`).
 BoxDecoration _card(
@@ -342,22 +342,15 @@ class _SlushEqQueueState extends State<SlushEqQueue> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(18),
-              decoration: _card(context, Slush.mint),
+              decoration: _card(context, Slush.pink),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Text(
-                        'ZZ',
-                        style: TextStyle(
-                          fontFamily: 'Bagel Fat One',
-                          fontSize: 40,
-                          color: Slush.ink,
-                        ),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
+                      Text('ZZ', style: slushHeadline(40, color: Slush.ink)),
+                      const SizedBox(width: 10),
+                      const Expanded(
                         child: Text(
                           'Temporizador de apagado',
                           style: TextStyle(
@@ -666,9 +659,8 @@ class _QueueCardState extends State<_QueueCard> {
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'COLA',
-                          style: TextStyle(
-                            fontFamily: 'Bagel Fat One',
-                            fontSize: compact ? 32 : 52,
+                          style: slushHeadline(
+                            compact ? 32 : 52,
                             height: 1,
                             color: context.slush.ink,
                           ),
@@ -690,7 +682,7 @@ class _QueueCardState extends State<_QueueCard> {
                     ),
                   ],
                 ),
-                if (summary.isNotEmpty)
+                if (summary.isNotEmpty && !compact)
                   Padding(
                     padding: EdgeInsets.only(top: compact ? 2 : 6),
                     child: Text(
@@ -845,104 +837,103 @@ class _QueueCardState extends State<_QueueCard> {
       extras: extras,
       builder: (context, _) => Padding(
         key: active ? _currentKey : null,
-        padding: const EdgeInsets.only(bottom: 8),
+        // Derecha y abajo: sitio para la sombra dura de la fila actual.
+        padding: const EdgeInsets.only(right: 4, bottom: 8),
         child: Opacity(
           opacity: dim ? .7 : 1,
-          child: Material(
-            color: active ? Slush.mint : context.slush.paper,
-            shape: RoundedRectangleBorder(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: active ? Slush.lime : context.slush.paper,
               borderRadius: BorderRadius.circular(SlushRadius.r16),
-              side: active ? context.slush.border : context.slush.borderSoft,
-            ),
-            child: InkWell(
-              customBorder: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(SlushRadius.r16),
+              border: Border.fromBorderSide(
+                active ? context.slush.border : context.slush.borderSoft,
               ),
-              onTap: () {
-                _follow = true;
-                c.playQueueAt(i);
-              },
-              child: wrap(
-                context,
-                Builder(
-                  builder: (context) => Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          child: active
-                              ? const Center(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: Slush.orange,
-                                      shape: BoxShape.circle,
-                                      border: Border.fromBorderSide(
-                                        BorderSide(
-                                          color: Slush.ink,
-                                          width: 1.5,
-                                        ),
-                                      ),
+              boxShadow: active
+                  ? context.slush.shadowsFor(SlushElevation.card)
+                  : null,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(SlushRadius.r16),
+                onTap: () {
+                  _follow = true;
+                  c.playQueueAt(i);
+                },
+                child: wrap(
+                  context,
+                  Builder(
+                    builder: (context) => Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            child: active
+                                ? const Center(
+                                    child: Icon(
+                                      Icons.graphic_eq_rounded,
+                                      size: 18,
+                                      color: Slush.ink,
                                     ),
-                                    child: SizedBox.square(dimension: 10),
+                                  )
+                                : Text(
+                                    '${i + 1}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                )
-                              : Text(
-                                  '${i + 1}',
+                          ),
+                          Artwork(track: t, size: 42, radius: 12),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 12,
+                                    fontSize: 14,
                                   ),
                                 ),
-                        ),
-                        Artwork(track: t, size: 36, radius: 8),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
+                                Text(
+                                  t.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12),
                                 ),
-                              ),
-                              Text(
-                                t.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        // Con texto grande la fila no cabe en el teléfono: la
-                        // activa se distingue por el color.
-                        if (MediaQuery.textScalerOf(context).scale(1) <=
-                            1.3) ...[
-                          if (active)
-                            const SlushPill('Sonando', color: Slush.yellow)
-                          else
-                            SlushPill(_kind(t), color: context.slush.paper),
-                          const SizedBox(width: 6),
+                          // Con texto grande la fila no cabe en el teléfono: la
+                          // activa se distingue por el color.
+                          if (MediaQuery.textScalerOf(context).scale(1) <=
+                              1.3) ...[
+                            if (active)
+                              const SlushPill('Sonando', color: Slush.violet)
+                            else
+                              SlushPill(_kind(t), color: context.slush.paper),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            _time(t.duration),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TrackMenuButton(
+                            controller: c,
+                            track: t,
+                            extras: extras,
+                          ),
                         ],
-                        Text(
-                          _time(t.duration),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontFeatures: [FontFeature.tabularFigures()],
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        TrackMenuButton(
-                          controller: c,
-                          track: t,
-                          extras: extras,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -1043,12 +1034,7 @@ class _SlushEqBoardState extends State<SlushEqBoard> {
           children: [
             Text(
               'EQ',
-              style: TextStyle(
-                fontFamily: 'Bagel Fat One',
-                fontSize: 130,
-                height: .95,
-                color: context.slush.ink,
-              ),
+              style: slushHeadline(120, height: .95, color: context.slush.ink),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

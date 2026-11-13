@@ -30,12 +30,14 @@ class HomePageData {
     required this.followed,
     this.onVinyl,
     this.onSearchQuery,
+    this.onSettings,
   });
   final AppController controller;
   final VoidCallback onSearch, onDownloads, onLikes;
   final ValueChanged<MusicPlaylist> onOpenPlaylist;
   final VoidCallback? onVinyl;
   final ValueChanged<String>? onSearchQuery;
+  final VoidCallback? onSettings;
   final List<TrackRecommendation> recommendations;
   final List<Track> recommendedTracks;
   final bool personalized;

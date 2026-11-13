@@ -1,7 +1,8 @@
 /// Dueño: tema Brasa.
 ///
 /// Posee la pintura de los paneles de la derecha: cola completa (QueuePanel)
-/// y aside de sesión (StudioSessionAside).
+/// y aside de sesión (StudioSessionAside). El aside con pestañas y Jam al pie
+/// vive en `brasa_aside.dart` (BrasaAside).
 library;
 
 import 'package:flutter/material.dart';
@@ -15,77 +16,66 @@ const RightPanelTheme brasaRightPanel = BrasaRightPanelTheme();
 class BrasaRightPanelTheme extends RightPanelTheme {
   const BrasaRightPanelTheme();
 
-  /// Tarjeta Brasa: #17110e, radio 6 y la sombra de tarjeta del tema.
+  /// Tarjeta tonal (graphite), radio 24, sin borde ni sombra.
   @override
   Widget queueCard(Widget child) => DecoratedBox(
     decoration: BoxDecoration(
-      color: Brasa.obsidian,
-      borderRadius: BorderRadius.circular(6),
-      boxShadow: Brasa.cardShadow,
+      color: Brasa.graphite,
+      borderRadius: BorderRadius.circular(24),
     ),
     child: Padding(padding: const EdgeInsets.all(16), child: child),
   );
 
   @override
-  String get nowPlayingLabel => 'Sonando ahora';
+  String get nowPlayingLabel => 'SONANDO AHORA';
 
   @override
-  TextStyle? nowPlayingStyle(BuildContext context) => const TextStyle(
-    fontFamily: 'Inter',
-    fontSize: 14,
-    fontWeight: FontWeight.w700,
-    color: Brasa.cream,
-  );
+  TextStyle? nowPlayingStyle(BuildContext context) => Brasa.mono(11);
 
   @override
-  double get currentArtRadius => 6;
+  double get currentArtRadius => 12;
 
   @override
   TextStyle artistStyle(BuildContext context) =>
-      const TextStyle(color: Brasa.steel);
+      Brasa.sans(14, color: Brasa.cloud);
 
   @override
   ButtonStyle? get playButtonStyle => IconButton.styleFrom(
-    backgroundColor: Brasa.cream,
-    foregroundColor: Colors.black,
+    backgroundColor: Brasa.ember,
+    foregroundColor: Brasa.onEmber,
   );
 
   @override
   ShapeBorder? get tileShape =>
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(4));
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
 
   @override
-  double get tileArtRadius => 4;
+  double get tileArtRadius => 8;
 
   @override
-  TextStyle? get tileTitleStyle => const TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    color: Brasa.cream,
-  );
+  TextStyle? get tileTitleStyle => Brasa.sans(14, weight: FontWeight.w500);
 
   @override
-  TextStyle? get tileSubtitleStyle =>
-      const TextStyle(fontSize: 12, color: Brasa.steel);
+  TextStyle? get tileSubtitleStyle => Brasa.sans(12, color: Brasa.cloud);
 
   @override
   Widget asidePanel(Widget child) => DecoratedBox(
     decoration: BoxDecoration(
-      color: Brasa.obsidian,
-      borderRadius: BorderRadius.circular(8),
+      color: Brasa.graphite,
+      borderRadius: BorderRadius.circular(24),
     ),
     child: Padding(padding: const EdgeInsets.all(16), child: child),
   );
 
   @override
-  String get asideTitleFont => 'Inter';
+  String get asideTitleFont => 'Fraunces';
 
   @override
-  FontWeight get asideTitleWeight => FontWeight.w700;
+  FontWeight get asideTitleWeight => FontWeight.w600;
 
   @override
   FontWeight? get asideQueueTitleWeight => FontWeight.w600;
 
   @override
-  double get asideSectionGap => 20;
+  double get asideSectionGap => 16;
 }

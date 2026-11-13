@@ -3,17 +3,18 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
-import '../artwork.dart';
-import '../studio/studio_components.dart';
+import '../../theme/atelier_theme.dart';
+import '../shell/atelier_widgets.dart';
 import '../studio/studio_symbols.dart';
 import 'mini_player_desktop_controls.dart';
 import 'mini_player_model.dart';
 import 'mini_player_theme.dart';
 
-/// Mini reproductor de Atelier Sonoro: una funda de disco con el vinilo
-/// asomando, sobre papel cálido (oscuro: carbón cálido). La regla superior de
-/// un píxel es a la vez el borde del dock y la línea de tiempo, con un nudo
-/// minúsculo donde va la reproducción. Ver `docs/mini_player.md`.
+/// Mini reproductor de Atelier («Papel y tinta»). Escritorio: barra de papel
+/// de 76 px cuyo filete superior es la línea de progreso (terracota con rombo);
+/// portada, título serif y favorito a la izquierda, transporte y tiempos al
+/// centro, formato y controles a la derecha. Móvil: tira de 60 px sobre la
+/// navegación, con portada, título serif y play circular.
 const MiniPlayerTheme atelierMiniPlayer = MiniPlayerTheme(build: _build);
 
 Widget _build(
@@ -23,24 +24,17 @@ Widget _build(
   required bool wide,
 }) => AtelierMiniPlayer(state: state, actions: actions, wide: wide);
 
-/// Alto de la zona de la regla/nudo en reposo (también el aire sobre y bajo el
-/// contenido).
+/// Alto de la zona de la regla/rombo en reposo.
 const double _kStrip = 5;
 
-/// Alto de la regla pintada con el puntero encima: cabe el nudo ampliado.
+/// Alto de la regla pintada con el puntero encima: cabe el rombo ampliado.
 const double _kStripHover = 12;
 
-/// Alto de la franja que recibe tocar o arrastrar la regla (≥ 24 para que
-/// acertar con el ratón o el dedo no cueste).
+/// Alto de la franja que recibe tocar o arrastrar la regla.
 const double _kScrub = 24;
 
-/// Margen lateral fijo de la regla: el radio del nudo ampliado. Lo comparten el
-/// pintado y la conversión de toque a fracción.
+/// Margen lateral fijo de la regla: el radio del rombo ampliado.
 const double _kScrubInset = 5;
-
-/// Ancho fijo (a escala 1) de lo que no son texto ni controles en el carril:
-/// margen, funda con vinilo, hueco, corazón, aleatorio, anterior, play y siguiente.
-const double _kWideFixed = 20 + 4 + 72 + 12 + 5 * 44;
 
 /// Lado táctil de los botones.
 const double _kTouch = 44;
@@ -62,62 +56,43 @@ class AtelierMiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final track = state.track;
     if (track == null) return const SizedBox.shrink();
-    final paper = Theme.of(context).colorScheme.surfaceContainerLow;
     // La barra nunca crece más allá de ×1,5 (igual que el host): por encima
     // el texto se recorta con puntos.
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.5,
       child: Builder(
         builder: (context) {
+          final t = AtelierTokens.of(context);
           final scale = MediaQuery.textScalerOf(context).scale(1);
-          final dock = _Dock(
-            state: state,
-            actions: actions,
-            track: track,
-            wide: wide,
-            minHeight: (wide ? 64.0 : 56.0) * scale,
-            scale: scale,
-          );
-          if (!wide) return ColoredBox(color: paper, child: dock);
-          // Escritorio: tarjeta flotante y centrada (como la de Modern) con la
-          // forma de funda del tema, en vez de una barra de borde a borde.
-          final scheme = Theme.of(context).colorScheme;
-          const radius = StudioPalette.sleeve;
-          final card = DecoratedBox(
-            decoration: BoxDecoration(
-              color: paper,
-              borderRadius: radius,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: scheme.brightness == Brightness.dark ? .38 : .10,
-                  ),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: DecoratedBox(
-              position: DecorationPosition.foreground,
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(color: scheme.outlineVariant),
+          if (wide) {
+            return ColoredBox(
+              color: t.paper,
+              child: _Bar(
+                state: state,
+                actions: actions,
+                track: track,
+                minHeight: 76.0 * scale,
+                scale: scale,
               ),
-              child: ClipRRect(borderRadius: radius, child: dock),
-            ),
-          );
+            );
+          }
           return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              heightFactor: 1,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width >= 1100
-                      ? 960
-                      : 760,
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: t.panel,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: t.rule),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: _Strip(
+                  state: state,
+                  actions: actions,
+                  track: track,
+                  minHeight: 56.0 * scale,
+                  scale: scale,
                 ),
-                child: card,
               ),
             ),
           );
@@ -127,38 +102,45 @@ class AtelierMiniPlayer extends StatelessWidget {
   }
 }
 
-/// Colores resueltos del tema.
-class _Ink {
-  _Ink._({
-    required this.fg,
-    required this.sub,
-    required this.accent,
-    required this.onAccent,
-    required this.track,
-    required this.error,
-  });
+Widget _line(String s, TextStyle style) =>
+    Text(s, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
 
-  factory _Ink.of(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return _Ink._(
-      fg: scheme.onSurface,
-      sub: scheme.onSurfaceVariant,
-      accent: scheme.primary,
-      onAccent: scheme.onPrimary,
-      track: scheme.outlineVariant,
-      error: scheme.error,
-    );
-  }
-
-  final Color fg, sub, accent, onAccent, track, error;
+/// Título serif y subtítulo (artista, o aviso de error con su icono).
+Widget _titleBlock(
+  BuildContext context,
+  MiniPlayerState state,
+  Track track, {
+  required double size,
+}) {
+  final t = AtelierTokens.of(context);
+  final error = miniSubtitleIsError(state);
+  final color = error ? Theme.of(context).colorScheme.error : t.ink2;
+  final sub = _line(miniSubtitle(state), t.ui(12.5, color: color, height: 1.2));
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _line(track.title, t.serif(size, height: 1.15)),
+      const SizedBox(height: 2),
+      error
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(StudioSymbols.error, size: 14, color: color),
+                const SizedBox(width: 4),
+                Flexible(child: sub),
+              ],
+            )
+          : sub,
+    ],
+  );
 }
 
-class _Dock extends StatelessWidget {
-  const _Dock({
+class _Strip extends StatelessWidget {
+  const _Strip({
     required this.state,
     required this.actions,
     required this.track,
-    required this.wide,
     required this.minHeight,
     required this.scale,
   });
@@ -166,68 +148,14 @@ class _Dock extends StatelessWidget {
   final MiniPlayerState state;
   final MiniPlayerActions actions;
   final Track track;
-  final bool wide;
   final double minHeight, scale;
 
   @override
   Widget build(BuildContext context) {
-    final ink = _Ink.of(context);
-    final base = Theme.of(context).textTheme.titleLarge!;
-    final cover = (wide ? 54.0 : 46.0) * math.min(scale, 1.25);
-    final edge = wide ? 20.0 : 12.0;
-
-    Text line(String s, TextStyle style) =>
-        Text(s, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
-    // Título en la cara de display, artista en cursiva pequeña.
-    final headline = line(
-      track.title,
-      base.copyWith(
-        fontSize: wide ? 18 : 16.5,
-        height: 1.15,
-        fontWeight: FontWeight.w500,
-        letterSpacing: -.1,
-        color: ink.fg,
-      ),
-    );
-    final small = TextStyle(
-      fontSize: wide ? 14.5 : 14,
-      height: 1.2,
-      fontStyle: FontStyle.italic,
-    );
-    final detail = miniSubtitleIsError(state)
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(StudioSymbols.error, size: 14, color: ink.error),
-              const SizedBox(width: 4),
-              Flexible(
-                child: line(
-                  miniSubtitle(state),
-                  base.merge(small).copyWith(color: ink.error),
-                ),
-              ),
-            ],
-          )
-        : line(miniSubtitle(state), base.merge(small).copyWith(color: ink.sub));
-    final text = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [headline, detail],
-    );
-
-    final playing = state.isPlaying && !state.buffering && !state.hasError;
+    final t = AtelierTokens.of(context);
     return LayoutBuilder(
       builder: (context, box) {
-        final showHeart = box.maxWidth >= 330;
-        // La hora solo cuando los controles de escritorio ya caben enteros y
-        // sobra su ancho además del título mínimo.
-        final showTime =
-            wide &&
-            box.maxWidth -
-                    _kWideFixed * scale -
-                    150 -
-                    miniDesktopFull(actions) >=
-                kMiniTimeWidth + 8;
+        final showHeart = box.maxWidth >= 330 - 24;
         return Material(
           type: MaterialType.transparency,
           child: ConstrainedBox(
@@ -236,7 +164,7 @@ class _Dock extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 Padding(
-                  padding: EdgeInsets.fromLTRB(edge, _kStrip, 4, _kStrip),
+                  padding: const EdgeInsets.fromLTRB(8, _kStrip, 4, _kStrip),
                   child: Row(
                     children: [
                       Expanded(
@@ -247,20 +175,18 @@ class _Dock extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                _Sleeve(
+                                AtelierCover(
                                   track: track,
-                                  size: cover,
-                                  spinning: playing,
-                                  accent: ink.accent,
-                                  onAccent: ink.onAccent,
+                                  size: 44 * math.min(scale, 1.25),
+                                  shadow: false,
                                 ),
                                 const SizedBox(width: 12),
                                 Flexible(
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: wide ? 460 : double.infinity,
-                                    ),
-                                    child: text,
+                                  child: _titleBlock(
+                                    context,
+                                    state,
+                                    track,
+                                    size: 16.5,
                                   ),
                                 ),
                               ],
@@ -268,10 +194,6 @@ class _Dock extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (showTime) ...[
-                        const SizedBox(width: 8),
-                        MiniPlayerTime(state: state, color: ink.sub),
-                      ],
                       if (showHeart)
                         _Quiet(
                           tooltip: state.liked
@@ -280,53 +202,18 @@ class _Dock extends StatelessWidget {
                           icon: state.liked
                               ? Icons.favorite
                               : StudioSymbols.favorite,
-                          color: state.liked ? ink.accent : ink.sub,
+                          color: state.liked ? t.accentText : t.ink2,
                           onPressed: actions.toggleLike,
                         ),
-                      if (wide)
-                        _Quiet(
-                          tooltip: state.shuffle
-                              ? 'Aleatorio (activado)'
-                              : 'Aleatorio',
-                          icon: Icons.shuffle_rounded,
-                          color: state.shuffle ? ink.accent : ink.sub,
-                          onPressed: state.canShuffle
-                              ? actions.toggleShuffle
-                              : null,
-                        ),
-                      if (wide)
-                        _Quiet(
-                          tooltip: state.previousLabel(),
-                          icon: StudioSymbols.skipPrevious,
-                          color: ink.fg,
-                          onPressed: state.hasPrevious
-                              ? actions.previous
-                              : null,
-                        ),
-                      _PlayButton(state: state, actions: actions, ink: ink),
+                      _PlayButton(state: state, actions: actions, t: t),
                       _Quiet(
                         tooltip: state.nextLabel(),
                         icon: state.jamVoteSkip
                             ? Icons.how_to_vote_outlined
                             : StudioSymbols.skipNext,
-                        color: ink.fg,
+                        color: t.ink,
                         onPressed: state.hasNext ? actions.next : null,
                       ),
-                      if (wide)
-                        SizedBox(
-                          width: math.min(
-                            miniDesktopFull(actions),
-                            math.max(
-                              kMiniControlTarget,
-                              box.maxWidth - _kWideFixed * scale - 150,
-                            ),
-                          ),
-                          child: MiniPlayerDesktopControls(
-                            state: state,
-                            actions: actions,
-                            color: ink.sub,
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -334,8 +221,8 @@ class _Dock extends StatelessWidget {
                   progress: state.progress,
                   canSeek: state.canSeek,
                   onSeek: actions.seek,
-                  rule: ink.track,
-                  fill: ink.accent,
+                  rule: t.ink,
+                  fill: t.accent,
                 ),
               ],
             ),
@@ -346,94 +233,135 @@ class _Dock extends StatelessWidget {
   }
 }
 
-/// Funda cuadrada (radio 6) con el vinilo asomando por la derecha. Con la
-/// pista sonando el disco gira despacio (solo `transform`); con movimiento
-/// reducido se queda quieto.
-class _Sleeve extends StatefulWidget {
-  const _Sleeve({
+class _Bar extends StatelessWidget {
+  const _Bar({
+    required this.state,
+    required this.actions,
     required this.track,
-    required this.size,
-    required this.spinning,
-    required this.accent,
-    required this.onAccent,
+    required this.minHeight,
+    required this.scale,
   });
 
+  final MiniPlayerState state;
+  final MiniPlayerActions actions;
   final Track track;
-  final double size;
-  final bool spinning;
-  final Color accent, onAccent;
-
-  @override
-  State<_Sleeve> createState() => _SleeveState();
-}
-
-class _SleeveState extends State<_Sleeve> with SingleTickerProviderStateMixin {
-  late final _turns = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 10),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _sync();
-  }
-
-  @override
-  void didUpdateWidget(_Sleeve old) {
-    super.didUpdateWidget(old);
-    _sync();
-  }
-
-  void _sync() {
-    final move = widget.spinning && !MediaQuery.disableAnimationsOf(context);
-    if (move && !_turns.isAnimating) {
-      _turns.repeat();
-    } else if (!move && _turns.isAnimating) {
-      _turns.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _turns.dispose();
-    super.dispose();
-  }
+  final double minHeight, scale;
 
   @override
   Widget build(BuildContext context) {
-    final size = widget.size;
-    final disc = size * .92;
-    final left = size * .34;
-    final scheme = Theme.of(context).colorScheme;
-    return ExcludeSemantics(
-      child: SizedBox(
-        width: left + disc,
-        height: size,
+    final t = AtelierTokens.of(context);
+    final format = atelierFormat(track);
+    return Material(
+      type: MaterialType.transparency,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: minHeight),
         child: Stack(
+          alignment: Alignment.center,
           children: [
-            Positioned(
-              left: left,
-              top: (size - disc) / 2,
-              width: disc,
-              height: disc,
-              child: RepaintBoundary(
-                child: RotationTransition(
-                  turns: _turns,
-                  child: CustomPaint(
-                    painter: _VinylPainter(
-                      rim: scheme.onSurface.withValues(alpha: .28),
-                      label: widget.accent,
-                      ink: widget.onAccent,
-                    ),
-                  ),
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, _kStrip + 4, 12, 4),
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final roomy = box.maxWidth >= 1000;
+                  return Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: MiniPlayerInfoTap(
+                                  actions: actions,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      AtelierCover(
+                                        track: track,
+                                        size: 48 * math.min(scale, 1.25),
+                                        shadow: !MediaQuery.disableAnimationsOf(
+                                          context,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Flexible(
+                                        child: _titleBlock(
+                                          context,
+                                          state,
+                                          track,
+                                          size: 17,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              _Quiet(
+                                tooltip: state.liked
+                                    ? 'Quitar de favoritos'
+                                    : 'Añadir a favoritos',
+                                icon: state.liked
+                                    ? Icons.favorite
+                                    : StudioSymbols.favorite,
+                                color: state.liked ? t.accentText : t.ink2,
+                                onPressed: actions.toggleLike,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: roomy ? 6 : 5,
+                        child: _Center(
+                          state: state,
+                          actions: actions,
+                          t: t,
+                          showLine: roomy,
+                        ),
+                      ),
+                      Expanded(
+                        flex: 5,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: LayoutBuilder(
+                            builder: (context, right) {
+                              final chip =
+                                  format != null &&
+                                  right.maxWidth >=
+                                      miniDesktopFull(actions) + 96;
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (chip) ...[
+                                    AtelierFormatChip(format),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Flexible(
+                                    child: MiniPlayerDesktopControls(
+                                      state: state,
+                                      actions: actions,
+                                      color: t.ink2,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
-            Positioned(
-              left: 0,
-              top: 0,
-              child: Artwork(track: widget.track, size: size, radius: 6),
+            _Scrub(
+              progress: state.progress,
+              canSeek: state.canSeek,
+              onSeek: actions.seek,
+              rule: t.ink,
+              fill: t.accent,
             ),
           ],
         ),
@@ -442,52 +370,79 @@ class _SleeveState extends State<_Sleeve> with SingleTickerProviderStateMixin {
   }
 }
 
-class _VinylPainter extends CustomPainter {
-  const _VinylPainter({
-    required this.rim,
-    required this.label,
-    required this.ink,
+/// Zona central: aleatorio, anterior, play, siguiente y, si cabe, los
+/// tiempos con una línea de posición.
+class _Center extends StatelessWidget {
+  const _Center({
+    required this.state,
+    required this.actions,
+    required this.t,
+    required this.showLine,
   });
 
-  final Color rim, label, ink;
+  final MiniPlayerState state;
+  final MiniPlayerActions actions;
+  final AtelierTokens t;
+  final bool showLine;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2;
-    canvas.drawCircle(c, r, Paint()..color = const Color(0xff12100f));
-    canvas.drawCircle(
-      c,
-      r - .5,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = rim,
+  Widget build(BuildContext context) {
+    final elapsed = state.elapsed, total = state.duration;
+    final controls = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Quiet(
+          tooltip: state.shuffle ? 'Aleatorio (activado)' : 'Aleatorio',
+          icon: Icons.shuffle_rounded,
+          color: state.shuffle ? t.accentText : t.ink2,
+          onPressed: state.canShuffle ? actions.toggleShuffle : null,
+        ),
+        _Quiet(
+          tooltip: state.previousLabel(),
+          icon: StudioSymbols.skipPrevious,
+          color: t.ink,
+          onPressed: state.hasPrevious ? actions.previous : null,
+        ),
+        _PlayButton(state: state, actions: actions, t: t),
+        _Quiet(
+          tooltip: state.nextLabel(),
+          icon: state.jamVoteSkip
+              ? Icons.how_to_vote_outlined
+              : StudioSymbols.skipNext,
+          color: t.ink,
+          onPressed: state.hasNext ? actions.next : null,
+        ),
+      ],
     );
-    final groove = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .6
-      ..color = const Color(0x2effffff);
-    for (final f in const [.86, .74, .62, .5]) {
-      canvas.drawCircle(c, r * f, groove);
-    }
-    // Dos reflejos opuestos: lo que hace visible el giro.
-    final sheen = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = r * .16
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0x1fffffff);
-    final ring = Rect.fromCircle(center: c, radius: r * .68);
-    canvas.drawArc(ring, -.9, .7, false, sheen);
-    canvas.drawArc(ring, math.pi - .9, .7, false, sheen);
-    canvas.drawCircle(c, r * .3, Paint()..color = label);
-    canvas.drawCircle(c + Offset(r * .15, 0), r * .045, Paint()..color = ink);
-    canvas.drawCircle(c, r * .04, Paint()..color = const Color(0xff12100f));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FittedBox(fit: BoxFit.scaleDown, child: controls),
+        if (showLine && total > Duration.zero)
+          ExcludeSemantics(
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 44,
+                  child: Text(atelierClock(elapsed), style: t.mono(size: 10.5)),
+                ),
+                Expanded(
+                  child: AtelierLine(progress: state.progress, height: 12),
+                ),
+                SizedBox(
+                  width: 44,
+                  child: Text(
+                    '-${atelierClock(total - elapsed)}',
+                    textAlign: TextAlign.end,
+                    style: t.mono(size: 10.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
-
-  @override
-  bool shouldRepaint(_VinylPainter old) =>
-      old.rim != rim || old.label != label || old.ink != ink;
 }
 
 /// Franja de la regla, al borde de arriba y por encima del contenido. Con
@@ -640,7 +595,15 @@ class _TimelinePainter extends CustomPainter {
       Rect.fromLTRB(0, y - fillH / 2, x, y + fillH / 2),
       Paint()..color = fill,
     );
-    canvas.drawCircle(Offset(x, y), r, Paint()..color = fill);
+    canvas.drawPath(
+      Path()
+        ..moveTo(x, y - r)
+        ..lineTo(x + r, y)
+        ..lineTo(x, y + r)
+        ..lineTo(x - r, y)
+        ..close(),
+      Paint()..color = fill,
+    );
   }
 
   double _lerp(double a, double b) => a + (b - a) * emphasis;
@@ -691,12 +654,12 @@ class _PlayButton extends StatelessWidget {
   const _PlayButton({
     required this.state,
     required this.actions,
-    required this.ink,
+    required this.t,
   });
 
   final MiniPlayerState state;
   final MiniPlayerActions actions;
-  final _Ink ink;
+  final AtelierTokens t;
 
   @override
   Widget build(BuildContext context) {
@@ -709,7 +672,7 @@ class _PlayButton extends StatelessWidget {
                   dimension: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: ink.onAccent,
+                    color: t.onAccent,
                   ),
                 )
         : Icon(
@@ -731,10 +694,10 @@ class _PlayButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: const CircleBorder(),
-          backgroundColor: ink.accent,
-          foregroundColor: ink.onAccent,
-          disabledBackgroundColor: ink.accent.withValues(alpha: .3),
-          disabledForegroundColor: ink.onAccent.withValues(alpha: .6),
+          backgroundColor: t.accent,
+          foregroundColor: t.onAccent,
+          disabledBackgroundColor: t.accent.withValues(alpha: .3),
+          disabledForegroundColor: t.onAccent.withValues(alpha: .6),
         ),
       ),
     );

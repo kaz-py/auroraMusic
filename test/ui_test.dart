@@ -12,6 +12,7 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/ui/studio/home_introduction.dart';
 import 'package:aurora_music/main.dart';
+import 'package:aurora_music/ui/shell/shell_nav.dart';
 import 'package:aurora_music/ui/artist_mode.dart';
 import 'package:aurora_music/ui/aurora_shell.dart';
 import 'package:aurora_music/ui/jam/jam_page.dart';
@@ -120,6 +121,9 @@ void main() {
     await tester.tap(find.byTooltip('Más vistas'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
+    // A 200 % de texto la hoja desborda la pantalla y se desplaza.
+    await tester.ensureVisible(find.text(view).last);
+    await tester.pump();
     await tester.tap(find.text(view).last);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -177,6 +181,13 @@ void main() {
           ).writeAsBytes(bytes!.buffer.asUint8List());
           snapshot.dispose();
         });
+        // «Personalizar el DJ» vive en la vista DJ (en móvil, en «Más»).
+        if (size.width < 600) {
+          await openFromMoreViews(tester, 'DJ');
+        } else {
+          await tester.tap(find.byTooltip('DJ').first);
+          await tester.pumpAndSettle();
+        }
         await tester.dragUntilVisible(
           find.text('Personalizar el DJ'),
           find.byType(ListView).first,
@@ -206,7 +217,7 @@ void main() {
     'typing never searches; a newer submission supersedes the pending one',
     (tester) async {
       await mount(tester, const Size(800, 900));
-      await tester.tap(find.byTooltip('Buscar música'));
+      await tester.tap(find.byTooltip('Buscar').first);
       await tester.pumpAndSettle();
       final source = controller.source as FakeSource;
       source.pendingSearch = Completer<List<Track>>();
@@ -237,14 +248,19 @@ void main() {
       tester,
     ) async {
       await mount(tester, size);
-      expect(find.text('Inicio').first, findsOneWidget);
+      // El carril de 800 dp solo tiene iconos: el destino se nombra por tooltip.
+      expect(
+        (size.width >= 600 && size.width < 900
+                ? find.byTooltip('Inicio')
+                : find.text('Inicio'))
+            .first,
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
-      if (size.width >= 1200) {
+      if (size.width >= 600) {
         await tester.tap(find.byTooltip('Buscar').first);
-      } else if (size.width >= 600) {
-        await tester.tap(find.byTooltip('Buscar música'));
       } else {
-        await tester.tap(find.byTooltip('Buscar').last);
+        await tester.tap(find.byTooltip('Buscar música').last);
       }
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
@@ -273,19 +289,23 @@ void main() {
   ) async {
     await mount(tester, const Size(800, 900));
 
-    await reveal(tester, find.byKey(const ValueKey('home-recommendations')));
-    expect(find.text('Para ti'), findsOneWidget);
-    expect(
+    final handle = tester.ensureSemantics();
+    // La honestidad del arranque en frío vive en la sección del DJ personal.
+    await reveal(
+      tester,
       find.text('Aún no hay señales personales; elegimos de tu biblioteca'),
-      findsOneWidget,
     );
+    expect(find.text('Tu DJ personal'), findsOneWidget);
     expect(find.textContaining('De tu biblioteca'), findsWidgets);
     final recommended = controller.recommendations.first.track;
-    await tester.tap(find.byTooltip('Reproducir ${recommended.title}'));
+    await tester.tap(
+      find.bySemanticsLabel('Reproducir ${recommended.title}').first,
+    );
     await tester.pumpAndSettle();
 
     expect(controller.currentTrack?.id, recommended.id);
     expect(tester.takeException(), isNull);
+    handle.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -307,11 +327,16 @@ void main() {
 
     expect(controller.recommendations, isEmpty);
     expect(controller.canDiscoverRecommendations, isTrue);
-    await reveal(tester, find.text('Descubrir en YouTube'));
-    await tester.tap(find.text('Descubrir en YouTube'));
+    await tester.tap(find.byTooltip('DJ').first);
+    await tester.pumpAndSettle();
+    await reveal(tester, find.text('Buscar novedades'));
+    await tester.tap(find.text('Buscar novedades'));
     await tester.pumpAndSettle();
 
     expect(source.searchQueries, ['Aurora songs']);
+    await tester.tap(find.byTooltip('Inicio').first);
+    await tester.pumpAndSettle();
+    await reveal(tester, find.text('New pick'));
     expect(find.text('New pick'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -366,6 +391,8 @@ void main() {
       final currentId = controller.currentTrack?.id;
       final audioLoads = audio.loadCount;
       await mount(tester, const Size(800, 900));
+      await tester.tap(find.byTooltip('DJ').first);
+      await tester.pumpAndSettle();
       await reveal(tester, find.text('Iniciar DJ'));
       await tester.tap(find.text('Iniciar DJ'));
       await tester.pumpAndSettle();
@@ -397,12 +424,16 @@ void main() {
         ),
       ];
       expect(source.searchQueries, isEmpty);
-      await reveal(tester, find.text('Personalizar el DJ'));
-      await reveal(tester, find.text('Descubrir en YouTube'));
-      await tester.tap(find.text('Descubrir en YouTube'));
+      await tester.tap(find.byTooltip('DJ').first);
+      await tester.pumpAndSettle();
+      await reveal(tester, find.text('Buscar novedades'));
+      await tester.tap(find.text('Buscar novedades'));
       await tester.pumpAndSettle();
 
       expect(source.searchQueries, ['Aurora songs']);
+      await tester.tap(find.byTooltip('Inicio').first);
+      await tester.pumpAndSettle();
+      await reveal(tester, find.text('Encontradas en YouTube'));
       expect(find.text('Una sugerencia nueva'), findsOneWidget);
       expect(find.text('Encontradas en YouTube'), findsOneWidget);
       expect(controller.tracks.map((track) => track.id).toSet(), {
@@ -489,20 +520,20 @@ void main() {
     tester,
   ) async {
     await mount(tester, const Size(320, 700), scale: 2);
-    expect(find.byType(NavigationDestination), findsNWidgets(5));
-    expect(
-      tester
-          .widgetList<NavigationDestination>(find.byType(NavigationDestination))
-          .map((destination) => destination.label),
-      ['Inicio', 'Buscar', 'DJ', 'Biblioteca', 'Descargas'],
-    );
-    await tester.tap(find.byTooltip('DJ').last);
-    await tester.pumpAndSettle();
+    // Atelier: cuatro pestañas y «Más» (el resto de vistas, en la hoja).
+    for (final tooltip in [
+      'Inicio',
+      'Buscar música',
+      'Biblioteca',
+      'Descargas locales',
+      'Más vistas',
+    ]) {
+      expect(find.byTooltip(tooltip), findsOneWidget, reason: tooltip);
+    }
+    ShellNav shell() => tester.widget<ShellNav>(find.byType(ShellNav));
+    await openFromMoreViews(tester, 'DJ');
     expect(find.text('Descubre tu próxima canción'), findsOneWidget);
-    expect(
-      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
-      2,
-    );
+    expect(shell().section, 8);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byIcon(Icons.more_horiz));
     await tester.pumpAndSettle();
@@ -512,7 +543,11 @@ void main() {
     expect(find.text('Letras'), findsOneWidget);
     await tester.tap(find.text('Modo Vinilo'));
     await tester.pumpAndSettle();
-    expect(find.byType(NavigationDestination), findsNWidgets(5));
+    // El reproductor móvil trae su propio pie: sin barra inferior.
+    expect(shell().section, 4);
+    shell().navigate(0);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Más vistas'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cola de reproducción'));
@@ -523,15 +558,12 @@ void main() {
       const Offset(0, -250),
     );
     expect(find.text('No hay canciones en la cola'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.more_horiz));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Letras'));
-    await tester.pumpAndSettle();
+    await openFromMoreViews(tester, 'Letras');
     expect(find.byType(ArtistModePage), findsOneWidget);
     await tester.tap(find.byTooltip('Salir del modo letra'));
     await tester.pumpAndSettle();
     expect(find.byType(ArtistModePage), findsNothing);
-    await tester.tap(find.byTooltip('Ajustes'));
+    await openFromMoreViews(tester, 'Ajustes');
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Cuenta y servicios').first);
     await tester.pumpAndSettle();
@@ -735,9 +767,11 @@ void main() {
     tester,
   ) async {
     await mount(tester, const Size(360, 740), scale: 2);
-    await tester.tap(find.byIcon(Icons.tune).last);
+    await openFromMoreViews(tester, 'Ajustes');
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('settings-search')), findsOneWidget);
+    await tester.ensureVisible(find.text('Reproducción').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Reproducción').first);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -747,7 +781,7 @@ void main() {
     'YouTube session settings explain local import and disable controls while busy',
     (tester) async {
       await mount(tester, const Size(320, 800), scale: 2);
-      await tester.tap(find.byIcon(Icons.tune).last);
+      await openFromMoreViews(tester, 'Ajustes');
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Avanzado').first);
       await tester.pumpAndSettle();
@@ -1016,7 +1050,13 @@ void main() {
     expect(audio.analysisEnabled, isTrue);
     expect(tester.takeException(), isNull);
     // Letras: modo artista (sección 6) y salida con «Salir del modo letra».
-    await openFromMoreViews(tester, 'Letras');
+    // El reproductor móvil se desplaza a 200 % de texto: sus acciones (EQ,
+    // letra, cola) quedan bajo el pliegue.
+    await tester.ensureVisible(find.text('Letra'));
+    await tester.pump();
+    await tester.tap(find.text('Letra'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
     expect(audio.analysisEnabled, isFalse);
     expect(find.byType(ArtistModePage), findsOneWidget);
     final closeLyrics = find.byTooltip('Salir del modo letra');
@@ -1025,7 +1065,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
     // Ecualizador: sus bandas reales caben en 320 dp a 200 % de texto.
-    await openFromMoreViews(tester, 'Ecualizador');
+    await tester.ensureVisible(find.text('EQ'));
+    await tester.pump();
+    await tester.tap(find.text('EQ'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
     expect(audio.analysisEnabled, isTrue);
     expect(find.text('60'), findsOneWidget);
     expect(find.text('12k'), findsOneWidget);

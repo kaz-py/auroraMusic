@@ -30,6 +30,8 @@ class LyricsSkin {
     this.lineBuilder,
     this.playButton,
     this.controlIconColor,
+    this.topButtonStyle,
+    this.compactCoverRadius,
   });
 
   /// Fondo de toda la página (por defecto, la portada desenfocada). Debe
@@ -78,6 +80,14 @@ class LyricsSkin {
   /// Color de los iconos de transporte (por defecto, el de la portada).
   final Color Function(CoverTone tone, {required bool active})?
   controlIconColor;
+
+  /// Estilo de los botones de la barra superior: [copy] es «Copiar letra»; el
+  /// resto, controles de ventana. Si falta, se usa [iconButtonStyle].
+  final ButtonStyle Function(CoverTone tone, {required bool copy})?
+  topButtonStyle;
+
+  /// Radio de la portada de 72 px de la composición compacta (por defecto 8).
+  final double? compactCoverRadius;
 }
 
 class LyricsExitArgs {
@@ -100,6 +110,7 @@ class LyricsProgressArgs {
     required this.canSeek,
     required this.onChanged,
     required this.onChangeEnd,
+    this.trackId = '',
   });
   final CoverTone tone;
 
@@ -109,6 +120,9 @@ class LyricsProgressArgs {
   final bool canSeek;
   final ValueChanged<double>? onChanged;
   final ValueChanged<double>? onChangeEnd;
+
+  /// Id de la pista (semilla de una onda determinista).
+  final String trackId;
 }
 
 class LyricsLineArgs {

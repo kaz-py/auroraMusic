@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:ui' show PointerDeviceKind;
 
-import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:aurora_music/ui/aurora_states.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
