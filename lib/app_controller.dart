@@ -2032,7 +2032,7 @@ class AppController extends ChangeNotifier {
     _loadedTrackId = null;
     _notify();
     try {
-      await audio.stop();
+      await audio.interrupt();
       if (generation != _playGeneration || _disposed) return;
       _loadedAudioInput = null;
       for (final item in List<Track>.of(queue)) {

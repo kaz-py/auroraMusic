@@ -778,6 +778,51 @@ void main() {
   });
 
   testWidgets(
+    'Discord settings show on desktop and stay disabled without a client id',
+    (tester) async {
+      await mount(tester, const Size(320, 800), scale: 2);
+      await openFromMoreViews(tester, 'Ajustes');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Avanzado').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Avanzado').first);
+      await tester.pumpAndSettle();
+      final settingsScroll = find.byType(ListView).first;
+      await tester.dragUntilVisible(
+        find.text('Discord'),
+        settingsScroll,
+        const Offset(0, -300),
+      );
+      await tester.ensureVisible(find.text('Discord'));
+      await tester.pumpAndSettle();
+      // La primera sección de la categoría ya viene abierta: tocar la cerraría.
+      if (find.text('Mostrar en Discord').evaluate().isEmpty) {
+        await tester.tap(find.text('Discord'));
+        await tester.pumpAndSettle();
+      }
+      await tester.dragUntilVisible(
+        find.text('Mostrar en Discord'),
+        settingsScroll,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+      final toggle = find.ancestor(
+        of: find.text('Mostrar en Discord'),
+        matching: find.byType(SwitchListTile),
+      );
+      // Los tests no pasan AURORA_DISCORD_CLIENT_ID: la compilación sin clave.
+      expect(tester.widget<SwitchListTile>(toggle).onChanged, isNull);
+      expect(
+        find.textContaining('no incluye la clave de Discord'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    // discordSupported mira Platform: solo Windows y Linux muestran el apartado.
+    skip: !(Platform.isWindows || Platform.isLinux),
+  );
+
+  testWidgets(
     'YouTube session settings explain local import and disable controls while busy',
     (tester) async {
       await mount(tester, const Size(320, 800), scale: 2);

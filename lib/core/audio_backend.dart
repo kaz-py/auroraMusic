@@ -25,6 +25,13 @@ abstract class AudioBackend extends ChangeNotifier {
   Future<void> play();
   Future<void> pause();
   Future<void> stop();
+
+  /// Corta la pista actual para cargar otra (cambio de pista). Igual que
+  /// [stop], pero Android conserva viva la sesión del sistema (servicio en
+  /// primer plano y notificación) mientras se resuelve la siguiente: desde
+  /// segundo plano no puede volver a entrar en primer plano y el proceso se
+  /// congela.
+  Future<void> interrupt() => stop();
   Future<void> seek(Duration position);
   void setVolume(double volume);
 

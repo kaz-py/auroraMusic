@@ -83,6 +83,9 @@ pub(crate) struct Shared {
     ended: AtomicBool,
     error: Mutex<Option<String>>,
     consumer: Mutex<Option<Consumer<f32>>>,
+    /// `consumer` tiene fuente. Átomo aparte para que [`Engine::state`] no tome el
+    /// candado: si el hilo de la UI pierde la CPU con él tomado, la salida suena en silencio.
+    has_source: AtomicBool,
     eq_pending: Mutex<Option<EqConfig>>,
     /// El dispositivo de salida falló o desapareció (auriculares desenchufados…).
     device_lost: AtomicBool,
@@ -222,6 +225,7 @@ fn new_shared(sample_rate: u32) -> Arc<Shared> {
         ended: AtomicBool::new(false),
         error: Mutex::new(None),
         consumer: Mutex::new(None),
+        has_source: AtomicBool::new(false),
         eq_pending: Mutex::new(None),
         device_lost: AtomicBool::new(false),
         visualization: AtomicBool::new(true),
@@ -351,6 +355,7 @@ impl Engine {
         shared.decoder_done.store(false, Ordering::SeqCst);
         shared.starved.store(true, Ordering::SeqCst);
         *shared.consumer.lock().unwrap() = Some(consumer);
+        shared.has_source.store(true, Ordering::SeqCst);
         let worker = shared.clone();
         thread::Builder::new()
             .name("aurora-decoder".into())
@@ -361,6 +366,7 @@ impl Engine {
 
     fn reset_state(&self) {
         let shared = &self.shared;
+        shared.has_source.store(false, Ordering::SeqCst);
         *shared.consumer.lock().unwrap() = None;
         shared.consumed_frames.store(0, Ordering::SeqCst);
         shared.decoded_frames.store(0, Ordering::SeqCst);
@@ -413,7 +419,7 @@ impl Engine {
         let s = &self.shared;
         let playing = s.playing.load(Ordering::SeqCst);
         let done = s.decoder_done.load(Ordering::SeqCst);
-        let has_source = s.consumer.lock().unwrap().is_some();
+        let has_source = s.has_source.load(Ordering::SeqCst);
         PlayerState {
             playing,
             buffering: has_source

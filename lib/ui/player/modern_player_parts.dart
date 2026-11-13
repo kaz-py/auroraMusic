@@ -43,18 +43,22 @@ class ModernLyricsFeed extends StatefulWidget {
     super.key,
     required this.controller,
     required this.builder,
+    this.service,
   });
 
   final AppController controller;
   final Widget Function(BuildContext context, List<LyricLine> lines, int active)
   builder;
 
+  /// Servicio de letras (pruebas); por defecto el de la app.
+  final LyricsService? service;
+
   @override
   State<ModernLyricsFeed> createState() => _ModernLyricsFeedState();
 }
 
 class _ModernLyricsFeedState extends State<ModernLyricsFeed> {
-  final LyricsService _service = LyricsService();
+  late final LyricsService _service = widget.service ?? LyricsService();
   LyricsResult? _result;
   String? _id;
   int _request = 0;
@@ -135,6 +139,7 @@ class ModernLyricsPreview extends StatelessWidget {
     this.before = 2,
     this.after = 3,
     this.empty = const SizedBox.shrink(),
+    this.service,
   });
 
   final AppController controller;
@@ -147,12 +152,16 @@ class ModernLyricsPreview extends StatelessWidget {
   /// Qué pintar sin letra (por defecto nada).
   final Widget empty;
 
+  /// Servicio de letras (pruebas); por defecto el de la app.
+  final LyricsService? service;
+
   @override
   Widget build(BuildContext context) {
     final c = Cristal.of(context);
     final instant = modernReduceEffects(context);
     return ModernLyricsFeed(
       controller: controller,
+      service: service,
       builder: (context, lines, active) {
         if (lines.isEmpty) return empty;
         final center = active < 0 ? 0 : active;
@@ -162,7 +171,7 @@ class ModernLyricsPreview extends StatelessWidget {
           for (var i = from; i < to; i++)
             if (lines[i].text.trim().isNotEmpty) i,
         ];
-        Widget column = Column(
+        final column = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -204,7 +213,7 @@ class ModernLyricsPreview extends StatelessWidget {
               ),
           ],
         );
-        column = LayoutBuilder(
+        final centered = LayoutBuilder(
           builder: (context, box) => SingleChildScrollView(
             physics: const NeverScrollableScrollPhysics(),
             child: ConstrainedBox(
@@ -228,7 +237,7 @@ class ModernLyricsPreview extends StatelessWidget {
             ],
             stops: [0, .18, .82, 1],
           ).createShader(rect),
-          child: column,
+          child: centered,
         );
         return Semantics(
           button: onOpen != null,

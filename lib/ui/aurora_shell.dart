@@ -2115,7 +2115,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
           ),
         ],
       ),
-      if (discordAvailable)
+      if (discordSupported)
         (
           title: 'Discord',
           subtitle: 'Presencia enriquecida',
@@ -2123,11 +2123,15 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Mostrar en Discord'),
-              subtitle: const Text(
-                'Muestra la canción que suena en tu perfil.',
+              subtitle: Text(
+                discordAvailable
+                    ? 'Muestra la canción que suena en tu perfil.'
+                    : 'Esta compilación no incluye la clave de Discord, así que '
+                          'no puede mostrar la canción. Instala una versión '
+                          'oficial de Aurora.',
               ),
               value: c.discordPresence,
-              onChanged: c.setDiscordPresence,
+              onChanged: discordAvailable ? c.setDiscordPresence : null,
             ),
           ],
         ),

@@ -210,7 +210,12 @@ class AndroidMusicAudio extends AudioBackend {
   });
 
   @override
-  Future<void> stop() async {
+  Future<void> stop() => _stop(keepSession: false);
+
+  @override
+  Future<void> interrupt() => _stop(keepSession: true);
+
+  Future<void> _stop({required bool keepSession}) async {
     ++_generation;
     _source = null;
     _completedGeneration = null;
@@ -220,7 +225,10 @@ class AndroidMusicAudio extends AudioBackend {
     _position = Duration.zero;
     _duration = Duration.zero;
     notifyListeners();
-    await _invoke('stop', {'generation': _generation});
+    await _invoke('stop', {
+      'generation': _generation,
+      if (keepSession) 'keepSession': true,
+    });
   }
 
   @override

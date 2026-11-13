@@ -312,7 +312,11 @@ class AuroraPlaybackService : MediaSessionService() {
             "stop" -> {
                 player.pause()
                 player.stop()
-                player.clearMediaItems()
+                // Flutter stops before every track change and loads the next one seconds later, often
+                // in the background. An empty timeline makes Media3 drop the notification and leave the
+                // foreground, and Android refuses to re-enter it from the background: the process is then
+                // frozen and the music dies. Keeping the item holds the foreground service for Media3's grace period.
+                if (arguments["keepSession"] != true) player.clearMediaItems()
                 generation = (arguments["generation"] as? Number)?.toLong() ?: generation + 1
                 expectedDuration = 0
                 failure = null

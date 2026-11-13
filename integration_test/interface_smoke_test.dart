@@ -8,6 +8,7 @@ import 'package:aurora_music/ui/artist_mode.dart';
 import 'package:aurora_music/lyrics/lyrics_service.dart';
 import 'package:aurora_music/import/spotify_import.dart';
 import 'package:aurora_music/ui/spotify_import_dialog.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
