@@ -148,6 +148,12 @@ void main() {
     final guest = _jam(app, host: false);
     await tester.pumpWidget(_host(JamSessionPanel(controller: guest)));
     expect(find.text('Ajustes de la Jam'), findsNothing);
+    // Sin autoplay la sugerencia no va a sonar: no ocupa la cola.
+    expect(find.text('Sugerida para Beto'), findsNothing);
+    expect(find.text('Cola · 1'), findsOneWidget);
+    guest.service.rules = guest.service.rules.copyWith(autoplay: true);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(_host(JamSessionPanel(controller: guest)));
     expect(find.text('Sugerida para Beto'), findsOneWidget);
     expect(find.text('Salir de la Jam'), findsOneWidget);
     final host = _jam(app, host: true);
@@ -239,6 +245,8 @@ void _coverTests() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final app = await _app(tester);
       final jam = _jam(app, host: false);
+      // Con autoplay la sugerencia ocupa su sitio en la cola.
+      jam.service.rules = jam.service.rules.copyWith(autoplay: true);
       jam.service.queue = [
         JamQueueEntry(
           id: 'c1',

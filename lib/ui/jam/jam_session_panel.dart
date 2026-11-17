@@ -508,7 +508,7 @@ class _JamSessionPanelState extends State<JamSessionPanel> {
   List<JamQueueEntry> _shownQueue() {
     final playingId = s.playback?.entryId;
     return [
-      for (final e in s.queue)
+      for (final e in s.visibleQueue)
         if (e.id != playingId) e,
     ];
   }

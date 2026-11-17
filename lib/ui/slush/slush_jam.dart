@@ -583,6 +583,7 @@ class SlushJamActive extends StatelessWidget {
       accent,
     ).withSaturation(.7).withLightness(.88).toColor();
     final playingId = s.playback?.entryId;
+    final queue = s.visibleQueue;
     return Container(
       padding: const EdgeInsets.all(SlushSpacing.s16),
       decoration: _box(context, _surface(context, tint), SlushRadius.r24),
@@ -606,7 +607,7 @@ class SlushJamActive extends StatelessWidget {
             ],
           ),
           const SizedBox(height: SlushSpacing.s12),
-          if (s.queue.isEmpty)
+          if (queue.isEmpty)
             Padding(
               padding: const EdgeInsets.all(SlushSpacing.s8),
               child: Text(
@@ -615,7 +616,7 @@ class SlushJamActive extends StatelessWidget {
                 style: TextStyle(color: p.ink2, fontSize: 14, height: 1.45),
               ),
             ),
-          for (final (i, e) in s.queue.indexed)
+          for (final (i, e) in queue.indexed)
             _row(context, i, e, e.id == playingId),
         ],
       ),
