@@ -163,10 +163,12 @@ main() {
     local version="${AURORA_VERSION#v}"
     url="https://github.com/$repo/releases/download/v$version/Aurora-$version-linux-x64.tar.gz"
   else
-    # La API devuelve los releases del más nuevo al más antiguo.
-    url="$(curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=30" |
-      grep -o '"browser_download_url": *"[^"]*-linux-x64\.tar\.gz"' |
-      sed -n '1s/.*"\(https:[^"]*\)"$/\1/p')"
+    # La API no ordena por versión (beta.9 sale antes que beta.10): se elige la
+    # mayor con sort -V; con «~» una beta queda antes que su versión final.
+    url="$(curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=100" |
+      grep -o '"browser_download_url": *"[^"]*/Aurora-[^"/]*-linux-x64\.tar\.gz"' |
+      sed -E 's#.*"(https:[^"]*/Aurora-([^"/]*)-linux-x64\.tar\.gz)"$#\2 \1#; s#^([0-9.]+)-#\1~#' |
+      sort -V -k1,1 | tail -n 1 | cut -d' ' -f2)"
     [ -n "$url" ] || die "no encuentro ningún release de $repo con paquete de Linux."
   fi
 
