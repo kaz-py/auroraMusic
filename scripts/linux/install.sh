@@ -92,6 +92,8 @@ if [ -n "$libs" ]; then
       libgtk-3.so.0) pkgs="libgtk-3-0|gtk3|gtk3" ;;
       libsecret-1.so.0) pkgs="libsecret-1-0|libsecret|libsecret" ;;
       libasound.so.2) pkgs="libasound2t64 (o libasound2)|alsa-lib|alsa-lib" ;;
+      libEGL.so.1) pkgs="libegl1 libegl-mesa0|libglvnd-egl mesa-libEGL|libglvnd mesa" ;;
+      libGLESv2.so.2) pkgs="libgles2|libglvnd-gles|libglvnd" ;;
       *) pkgs="" ;;
     esac
     if [ -n "$pkgs" ]; then
@@ -103,11 +105,10 @@ if [ -n "$libs" ]; then
   done
 fi
 
-for tool in yt-dlp; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "Aviso: $tool no está en el PATH; instálalo para usar todas las funciones."
-  fi
-done
+# Aurora usa primero tools/yt-dlp junto a su ejecutable (lo pone get.sh).
+if [ ! -x "$dest/tools/yt-dlp" ] && ! command -v yt-dlp >/dev/null 2>&1; then
+  echo "Aviso: yt-dlp no está en el PATH; instálalo para usar todas las funciones."
+fi
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) echo "Aviso: añade ~/.local/bin a tu PATH para lanzar aurora-music desde la terminal." ;;

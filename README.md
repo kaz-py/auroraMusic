@@ -131,7 +131,13 @@ Si Windows impide crear los enlaces de plugins, ejecuta `./scripts/prepare_windo
 
 ### Linux
 
-Instalación, compilación, requisitos y diferencias con Windows: [docs/LINUX.md](docs/LINUX.md).
+Instalar con una línea (Debian/Ubuntu, Fedora, Arch, openSUSE; instala también las bibliotecas del sistema):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kaz-py/auroraMusic/rust-migration/scripts/linux/get.sh | bash
+```
+
+Instalación manual, compilación, requisitos y diferencias con Windows: [docs/LINUX.md](docs/LINUX.md).
 
 ### Herramientas Windows
 

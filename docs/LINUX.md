@@ -1,8 +1,33 @@
 # Aurora en Linux
 
-Aurora funciona en Linux x64 (Ubuntu 22.04 o posterior, o una distribución equivalente).
+Aurora funciona en Linux x64 (Ubuntu 22.04 o posterior, Debian, Fedora, Arch, openSUSE o
+una distribución equivalente).
 
-## Instalar desde una versión publicada
+## Instalar con una línea (recomendado)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kaz-py/auroraMusic/rust-migration/scripts/linux/get.sh | bash
+```
+
+Ejecútalo con tu usuario, sin `sudo`. El script:
+
+1. Instala las bibliotecas que falten con apt, dnf, pacman o zypper: GTK 3, libsecret,
+   ALSA, EGL y GLES. Pide la contraseña de `sudo` solo para eso. Si el escritorio usa
+   PipeWire o PulseAudio, añade también el puente de ALSA para que se oiga el audio.
+2. Descarga la versión más reciente que tenga paquete de Linux (las beta incluidas) y
+   comprueba su SHA-256 con el `checksums.txt` del release.
+3. Instala `yt-dlp`: en Arch y Fedora, el paquete del sistema; en el resto, el binario
+   oficial dentro de la app (`tools/yt-dlp`), porque el de apt suele estar desfasado.
+4. Instala la app para tu usuario con `install.sh` (ver más abajo).
+
+Para instalar una versión concreta:
+`curl -fsSL <misma URL> | AURORA_VERSION=v1.6.0-beta.9 bash`. Para actualizar, repite el
+comando.
+
+Probado en WSL con Arch, Ubuntu 24.04 y Fedora 44, partiendo de imágenes limpias.
+openSUSE no está probado.
+
+## Instalar a mano desde una versión publicada
 
 Descarga desde [Releases](https://github.com/kaz-py/auroraMusic/releases) el paquete
 que prefieras y `checksums.txt`. Comprueba la descarga:
@@ -34,20 +59,22 @@ o pacman. También avisa si falta `yt-dlp`.
 
 Para desinstalar: `bash ~/.local/share/aurora-music/install.sh --uninstall`.
 
-Bibliotecas del sistema que necesita la app:
+Bibliotecas del sistema que necesita la app (Debian y Ubuntu):
 
 ```bash
-sudo apt-get install libgtk-3-0 libsecret-1-0 libasound2
+sudo apt-get install libgtk-3-0 libsecret-1-0 libasound2 libegl1 libgles2 libegl-mesa0
 ```
 
-En Ubuntu 24.04, el paquete de audio se llama `libasound2t64`. Los códecs (FLAC, Opus,
-Ogg, Vorbis) van incluidos en la app.
+En Ubuntu 24.04, los paquetes se llaman `libasound2t64` y `libgtk-3-0t64`. Flutter
+carga EGL y GLES al arrancar; sin ellas, la app se cierra con
+`Couldn't open libGLESv2.so.2`. Los códecs (FLAC, Opus, Ogg, Vorbis) van incluidos en la
+app.
 
 Si al abrir Aurora falta una biblioteca, la app muestra cuál es. Instálala, o usa el
 .deb o `install.sh`, que comprueban las dependencias.
 
-Para actualizar, repite estos pasos con la versión nueva. En Linux, Aurora no tiene
-actualizador integrado.
+Para actualizar, repite el comando de una línea o estos pasos con la versión nueva. En
+Linux, Aurora no tiene actualizador integrado.
 
 ## Compilar desde el código
 
