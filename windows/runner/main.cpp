@@ -2,12 +2,15 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include "crash_handler.h"
 #include "desktop_features.h"
 #include "flutter_window.h"
 #include "utils.h"
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  InstallCrashHandler();
+
   // Instancia unica: si ya hay una, le pasa los argumentos (p. ej. aurora://jam/X)
   // y esta sale. Hook de entrada: FlutterWindow recibe WM_COPYDATA.
   if (ForwardToExistingInstance(command_line ? command_line : L"")) {

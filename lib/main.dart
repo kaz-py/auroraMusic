@@ -11,11 +11,15 @@ import 'theme/modern_theme.dart';
 import 'core/window_controls.dart';
 import 'jam/jam_protocol.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'bridge/api/crash.dart';
 import 'bridge/frb_generated.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_controller.dart';
+import 'core/crash_log.dart';
 import 'account/account_service.dart';
 import 'account/account_wiring.dart';
 import 'audio/rust_music_audio.dart';
@@ -29,12 +33,15 @@ import 'terms/terms_acceptance.dart';
 import 'terms/terms_screen.dart';
 import 'ui/aurora_shell.dart';
 
+/// Registro de cierres en `<soporte>/logs`; null si no se pudo abrir.
+CrashLog? _crashLog;
+
 Future<void> main(List<String> args) async {
   // Errores async sin capturar (unawaited) no deben dejar la app inconsistente.
-  await runZonedGuarded(
-    () => _main(args),
-    (e, s) => debugPrint('Error no capturado: $e\n$s'),
-  );
+  await runZonedGuarded(() => _main(args), (e, s) {
+    debugPrint('Error no capturado: $e\n$s');
+    _crashLog?.record('Error no capturado', e, s);
+  });
 }
 
 Future<void> _main(List<String> args) async {
@@ -45,13 +52,21 @@ Future<void> _main(List<String> args) async {
   PaintingBinding.instance.imageCache
     ..maximumSizeBytes = 32 << 20
     ..maximumSize = 300;
-  await RustLib.init();
-  FlutterError.onError = (d) =>
-      debugPrint('FlutterError: ${d.exceptionAsString()}');
+  // Antes de cargar Rust: si la biblioteca nativa falla, también queda anotado.
+  final crashLog = _crashLog = await _openCrashLog();
+  FlutterError.onError = (d) {
+    debugPrint('FlutterError: ${d.exceptionAsString()}');
+    crashLog?.record('FlutterError', d.exceptionAsString(), d.stack);
+  };
   PlatformDispatcher.instance.onError = (e, s) {
     debugPrint('Error de plataforma: $e\n$s');
+    crashLog?.record('Error de plataforma', e, s);
     return true;
   };
+  await RustLib.init();
+  if (crashLog != null) {
+    installCrashLog(dir: crashLog.directory.path, version: crashLog.version);
+  }
   // Puerta de términos: sin aceptar no arranca protocolo, audio, proxy ni red.
   final terms = TermsAcceptance(await SharedPreferences.getInstance());
   if (terms.isAccepted) {
@@ -75,6 +90,20 @@ Future<void> _main(List<String> args) async {
 void _start() {
   unawaited(registerAuroraProtocol()); // aurora://jam/CODIGO (HKCU)
   runApp(const AuroraBootstrap());
+}
+
+Future<CrashLog?> _openCrashLog() async {
+  try {
+    final support = await getApplicationSupportDirectory();
+    final info = await PackageInfo.fromPlatform();
+    return CrashLog(
+      Directory(p.join(support.path, 'logs')),
+      version: '${info.version}+${info.buildNumber}',
+    );
+  } catch (e) {
+    debugPrint('Sin registro de cierres: $e');
+    return null;
+  }
 }
 
 class AuroraBootstrap extends StatefulWidget {

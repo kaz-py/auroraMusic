@@ -5,6 +5,7 @@
 
 import 'api/audio.dart';
 import 'api/cache.dart';
+import 'api/crash.dart';
 import 'api/database.dart';
 import 'api/dj.dart';
 import 'api/lyrics_align.dart';
