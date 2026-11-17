@@ -245,7 +245,8 @@ impl Engine {
     pub fn new() -> Result<Self, String> {
         let rate = crate::device::default_rate()?;
         let shared = new_shared(rate);
-        let device = crate::device::start(new_output(shared.clone()))?;
+        let output = shared.clone();
+        let device = crate::device::start(move || new_output(output.clone()))?;
         Ok(Self::build(shared, None, Some(device)))
     }
 

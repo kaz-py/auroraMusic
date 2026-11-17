@@ -11,6 +11,78 @@ use cpal::{FromSample, SampleFormat, SizedSample};
 
 use crate::engine::OutputState;
 
+/// Búfer de la salida: 1/20 s (50 ms). El de WASAPI por defecto ronda los 20 ms
+/// y, en un equipo lento, cualquier retraso del hilo de salida se oye como un corte.
+const OUTPUT_BUFFER_DIVISOR: u32 = 20;
+
+/// cpal 0.15 intenta subir la prioridad del hilo de salida pasando un id de hilo
+/// donde va un manejador, así que el hilo se queda en prioridad normal y compite
+/// con la interfaz por la CPU. Aquí se registra en MMCSS ("Pro Audio", la
+/// planificación de audio del sistema) y se sube a prioridad crítica.
+#[cfg(windows)]
+mod realtime {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentThread() -> isize;
+        fn SetThreadPriority(thread: isize, priority: i32) -> i32;
+    }
+
+    #[link(name = "avrt")]
+    extern "system" {
+        fn AvSetMmThreadCharacteristicsW(task: *const u16, index: *mut u32) -> isize;
+        fn AvRevertMmThreadCharacteristics(handle: isize) -> i32;
+    }
+
+    const THREAD_PRIORITY_TIME_CRITICAL: i32 = 15;
+    const PRO_AUDIO: [u16; 10] = {
+        let name = b"Pro Audio\0";
+        let mut wide = [0u16; 10];
+        let mut i = 0;
+        while i < name.len() {
+            wide[i] = name[i] as u16;
+            i += 1;
+        }
+        wide
+    };
+
+    /// Vive en la devolución de llamada: se suelta en el mismo hilo al cerrarse el flujo.
+    pub struct Promotion(isize);
+
+    impl Promotion {
+        pub fn current_thread() -> Self {
+            let mut index = 0u32;
+            // SAFETY: llamadas Win32 sobre el hilo actual con una cadena terminada en 0.
+            unsafe {
+                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+                Promotion(AvSetMmThreadCharacteristicsW(
+                    PRO_AUDIO.as_ptr(),
+                    &mut index,
+                ))
+            }
+        }
+    }
+
+    impl Drop for Promotion {
+        fn drop(&mut self) {
+            if self.0 != 0 {
+                // SAFETY: manejador devuelto por AvSetMmThreadCharacteristicsW.
+                unsafe { AvRevertMmThreadCharacteristics(self.0) };
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+mod realtime {
+    pub struct Promotion;
+
+    impl Promotion {
+        pub fn current_thread() -> Self {
+            Promotion
+        }
+    }
+}
+
 pub struct DeviceHandle {
     stop: Option<mpsc::Sender<()>>,
     thread: Option<JoinHandle<()>>,
@@ -39,12 +111,16 @@ pub fn default_rate() -> Result<u32, String> {
     Ok(config.sample_rate().0)
 }
 
-pub fn start(state: OutputState) -> Result<DeviceHandle, String> {
+/// `make_state` crea el estado de la devolución de llamada; se llama otra vez si
+/// el dispositivo rechaza el búfer de [`OUTPUT_BUFFER_DIVISOR`] y se abre con el suyo.
+pub fn start(
+    make_state: impl Fn() -> OutputState + Send + 'static,
+) -> Result<DeviceHandle, String> {
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
     let (stop_tx, stop_rx) = mpsc::channel::<()>();
     let thread = thread::Builder::new()
         .name("aurora-audio-out".into())
-        .spawn(move || match build(state) {
+        .spawn(move || match build(&make_state) {
             Ok(stream) => {
                 let _ = ready_tx.send(Ok(()));
                 // Espera a que se suelte el manejador (el emisor se cierra).
@@ -74,7 +150,11 @@ fn render<T: SizedSample + FromSample<f32>>(
     channels: usize,
     state: &mut OutputState,
     scratch: &mut Vec<f32>,
+    promotion: &mut Option<realtime::Promotion>,
 ) {
+    if promotion.is_none() {
+        *promotion = Some(realtime::Promotion::current_thread());
+    }
     let frames = data.len() / channels;
     if scratch.len() < frames * 2 {
         scratch.resize(frames * 2, 0.0);
@@ -92,44 +172,82 @@ fn render<T: SizedSample + FromSample<f32>>(
     }
 }
 
-fn build(mut state: OutputState) -> Result<cpal::Stream, String> {
+fn build(make_state: &dyn Fn() -> OutputState) -> Result<cpal::Stream, String> {
     let device = default_device()?;
     let supported = device
         .default_output_config()
         .map_err(|e| format!("No se pudo leer la configuración de audio: {e}"))?;
     let format = supported.sample_format();
-    let config: cpal::StreamConfig = supported.into();
+    let roomy = match *supported.buffer_size() {
+        cpal::SupportedBufferSize::Range { min, max } => Some(cpal::BufferSize::Fixed(
+            (supported.sample_rate().0 / OUTPUT_BUFFER_DIVISOR).clamp(min, max),
+        )),
+        cpal::SupportedBufferSize::Unknown => None,
+    };
+    let mut config: cpal::StreamConfig = supported.into();
+    let stream = match roomy {
+        Some(size) => {
+            config.buffer_size = size;
+            match open(&device, &config, format, make_state()) {
+                Ok(stream) => stream,
+                Err(_) => {
+                    config.buffer_size = cpal::BufferSize::Default;
+                    open(&device, &config, format, make_state())?
+                }
+            }
+        }
+        None => open(&device, &config, format, make_state())?,
+    };
+    stream
+        .play()
+        .map_err(|e| format!("No se pudo iniciar la salida de audio: {e}"))?;
+    Ok(stream)
+}
+
+fn open(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    format: SampleFormat,
+    mut state: OutputState,
+) -> Result<cpal::Stream, String> {
     let channels = config.channels as usize;
-    let mut scratch: Vec<f32> = vec![0.0; 16 * 1024];
+    let buffer_frames = match config.buffer_size {
+        cpal::BufferSize::Fixed(frames) => frames as usize,
+        cpal::BufferSize::Default => 0,
+    };
+    let mut scratch: Vec<f32> = vec![0.0; (16 * 1024).max(buffer_frames * 2)];
+    let mut promotion = None;
     let lost = state.device_lost_notifier();
     let fail = move |e: cpal::StreamError| {
         eprintln!("Aurora audio: {e}");
         lost();
     };
-    let stream = match format {
+    match format {
         SampleFormat::F32 => device.build_output_stream(
-            &config,
-            move |data: &mut [f32], _| render(data, channels, &mut state, &mut scratch),
+            config,
+            move |data: &mut [f32], _| {
+                render(data, channels, &mut state, &mut scratch, &mut promotion)
+            },
             fail,
             None,
         ),
         SampleFormat::I16 => device.build_output_stream(
-            &config,
-            move |data: &mut [i16], _| render(data, channels, &mut state, &mut scratch),
+            config,
+            move |data: &mut [i16], _| {
+                render(data, channels, &mut state, &mut scratch, &mut promotion)
+            },
             fail,
             None,
         ),
         SampleFormat::U16 => device.build_output_stream(
-            &config,
-            move |data: &mut [u16], _| render(data, channels, &mut state, &mut scratch),
+            config,
+            move |data: &mut [u16], _| {
+                render(data, channels, &mut state, &mut scratch, &mut promotion)
+            },
             fail,
             None,
         ),
         other => return Err(format!("Formato de salida no admitido: {other:?}")),
     }
-    .map_err(|e| format!("No se pudo abrir la salida de audio: {e}"))?;
-    stream
-        .play()
-        .map_err(|e| format!("No se pudo iniciar la salida de audio: {e}"))?;
-    Ok(stream)
+    .map_err(|e| format!("No se pudo abrir la salida de audio: {e}"))
 }
