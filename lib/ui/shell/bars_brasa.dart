@@ -311,9 +311,15 @@ Widget brasaSidebar(StudioSidebar side, BuildContext context) {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
           child: Column(
             children: [
+              // Filete que separa la navegación del pie.
+              Container(
+                height: 1,
+                margin: const EdgeInsets.only(bottom: 8),
+                color: Brasa.graphite,
+              ),
               tile(7, 'Ajustes', StudioSymbols.settings),
               const SizedBox(height: 8),
               _EngineCard(ready: side.controller.ready),
@@ -334,7 +340,7 @@ class _EngineCard extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: Brasa.graphite,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(4),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -383,8 +389,9 @@ class _EngineCard extends StatelessWidget {
   );
 }
 
-/// Fila de la sidebar: activa = fondo graphite + barra de brasa con brillo en
-/// el borde izquierdo + icono naranja; atajo en mono a la derecha.
+/// Fila de la sidebar: activa = fondo graphite con un barrido de brasa que se
+/// apaga hacia la derecha + línea recta de brasa en el borde izquierdo + icono
+/// naranja; atajo en mono a la derecha. Radios de 4: el tema es de líneas.
 class _BrasaTile extends StatelessWidget {
   const _BrasaTile({
     required this.selected,
@@ -409,43 +416,58 @@ class _BrasaTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Material(
           color: selected ? Brasa.graphite : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(4),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            hoverColor: Brasa.graphite,
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 36),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      icon,
-                      size: 20,
-                      color: selected ? Brasa.ember : Brasa.cloud,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Brasa.sans(
-                          14,
-                          weight: selected ? FontWeight.w600 : FontWeight.w500,
-                          color: selected ? Brasa.cream : Brasa.cloud,
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: selected
+                  ? LinearGradient(
+                      colors: [
+                        Brasa.ember.withValues(alpha: .14),
+                        Brasa.ember.withValues(alpha: 0),
+                      ],
+                      stops: const [0, .7],
+                    )
+                  : null,
+            ),
+            child: InkWell(
+              hoverColor: Brasa.graphite,
+              onTap: onTap,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 36),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        icon,
+                        size: 20,
+                        color: selected ? Brasa.ember : Brasa.cloud,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Brasa.sans(
+                            14,
+                            weight: selected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: selected ? Brasa.cream : Brasa.cloud,
+                          ),
                         ),
                       ),
-                    ),
-                    if (shortcut != null) ...[
-                      const SizedBox(width: 6),
-                      Text(shortcut!, style: Brasa.mono(11, tracking: .02)),
+                      if (shortcut != null) ...[
+                        const SizedBox(width: 6),
+                        Text(shortcut!, style: Brasa.mono(11, tracking: .02)),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -461,17 +483,14 @@ class _BrasaTile extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: Brasa.ember,
-                borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(3),
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Brasa.ember.withValues(alpha: .6),
-                    blurRadius: 10,
+                    color: Brasa.ember.withValues(alpha: .5),
+                    blurRadius: 8,
                   ),
                 ],
               ),
-              child: const SizedBox(width: 4, height: 18),
+              child: const SizedBox(width: 2, height: 22),
             ),
           ),
         ),

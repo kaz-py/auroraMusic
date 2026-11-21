@@ -106,9 +106,11 @@ progreso). Prototipo: `Aurora-prototipos/brasa/` (`DISENO.md`).
   un `RepaintBoundary`, sin blur ni `BackdropFilter`).
 - **Escritorio**: barra superior (`bars_brasa.dart`: marca, búsqueda, Jam,
   perfil, ventana) sobre el tono de la sidebar de 300 px por tono, sin bordes
-  (destinos con atajo en mono, etiquetas con punto de brasa, listas con muestra
-  de color, Ajustes y tarjeta del motor al pie; activo = fondo `graphite` +
-  barra de brasa con brillo + icono naranja).
+  (destinos con atajo en mono, etiquetas con trazo de brasa de 10x2, listas con
+  muestra de color, filete y luego Ajustes y tarjeta del motor al pie; activo =
+  fondo `graphite` con barrido de brasa que se apaga a la derecha + línea recta
+  de brasa de 2 px con brillo + icono naranja). Radios de 4 en filas, tarjeta y
+  buscador de listas: el tema es de líneas, no de pastillas.
 - **Móvil**: pestañas Inicio · Buscar · DJ · Biblioteca · Más (indicador pill
   de brasa al 20 %, etiquetas siempre visibles). «Más» abre una hoja con perfil,
   importar y el resto de vistas (`showBrasaMoreSheet` en `chrome_brasa.dart`).
@@ -143,8 +145,10 @@ progreso); menta `#86E0C1` solo para señal/formato, coral `#FF6B6B` solo para
   `modernPeaks(seed, n)`, no hay análisis de audio real), `ModernSignalChip`
   (formato en menta + mono). `modern_widgets.dart` sigue compartido con Slush
   (siempre `isSlush` antes que `isModern`).
-- **Escritorio**: `modern_sidebar.dart` (248 / riel 76 con tooltip + atajo, activo
-  = píldora azul + barra de 3 px, pie con estado del motor), `modern_top_bar.dart`,
+- **Escritorio**: `modern_sidebar.dart` (248 / riel 76 con tooltip + atajo; cristal
+  de radio 16, filas de radio 8, activo = relleno azul suave + barra recta de 2 px,
+  marcas de colección cuadradas y pie con estado del motor de radio 8; nada de
+  píldoras de 999 en la sidebar), `modern_top_bar.dart`,
   barra flotante `modern_mini_desktop.dart` (88 px: pista · transporte con onda ·
   señal/EQ/letras/cola/volumen; el volumen solo desde ~1120 px). Inicio:
   `modern_home_page.dart` (saludo, hero «Seguir escuchando», tarjeta DJ,
@@ -174,7 +178,7 @@ progreso); menta `#86E0C1` solo para señal/formato, coral `#FF6B6B` solo para
 
 - Tokens y tipografía: `lib/theme/atelier_theme.dart` (`AtelierTokens`; Newsreader, Inter, IBM Plex Mono). Texto terracota `#9C4222` (`accentText`); `#B4532A` solo en botones y elementos gráficos. En Android `mono()` sube a 12 px mínimo. Los estados (hover, selección, foco) usan la receta común de `AuroraStates.from` con terracota fija para cumplir `test/contrast_test.dart`.
 - Piezas comunes: `lib/ui/shell/atelier_widgets.dart` (chip de formato, cabecera «Nº 01», `AtelierLine` = filete de progreso con rombo, sello de calidad).
-- Shell: `chrome_atelier.dart` (sidebar 248, panel derecho 352, bottom nav) y `bars_atelier.dart` (barra de 76 con filete = progreso, mini 60). El panel derecho también se ve en Reproduciendo (sección 4) en escritorio; en móvil esa vista no lleva bottom nav (trae su pie «Cola · N pistas»).
+- Shell: `chrome_atelier.dart` (sidebar 248: el destino activo va en la serif cursiva, como la entrada marcada de un índice; panel derecho 352, bottom nav) y `bars_atelier.dart` (barra de 76 con filete = progreso, mini 60). El panel derecho también se ve en Reproduciendo (sección 4) en escritorio; en móvil esa vista no lleva bottom nav (trae su pie «Cola · N pistas»).
 - Vistas: `home_atelier.dart`, `player_atelier.dart`, `right_panel_atelier.dart`, `lyrics_skin_atelier.dart` (papel con manchas, variante noche), `mini_player/atelier_mini_player.dart`.
 - Móvil: la pestaña «Buscar» lleva el tooltip «Buscar música» mientras no está activa (lo esperan los tests de navegación).
 
@@ -192,7 +196,7 @@ progreso); menta `#86E0C1` solo para señal/formato, coral `#FF6B6B` solo para
 ## Slush 2.0 («Pegatinas, lila y lima»)
 
 - Tokens: `lib/theme/slush_theme.dart` (`Slush`, `SlushPalette` claro/oscuro) y `slush_tokens.dart` (titulares Bricolage Grotesque 800, `slushMono` Geist Mono). Claro: tinta `#14101F`, papel `#FFFDF8`, fondo fijo `#E9E0FF` con trama de puntos (`SlushDotBackdrop`, un `CustomPaint` cacheado), lila `#C4B0FF` (`lilacHero`), violeta `#5B3FE0` (activo y progreso), lima `#D8FF5C` (lo que suena: Play, pista actual, thumb, subrayado de la letra). Oscuro: `SlushPalette.dark` sigue vigente (cremas sobre capas `screen`<`paper`<`raised`).
-- Shell: `chrome_slush.dart` + `bars_slush.dart` (sidebar flotante 272 con logo-pegatina, píldoras de nav —activa violeta—, mosaico 2x3 de tiles de color con `minHeight`, píldora «Música · ruta»; panel derecho `slush_aside.dart` Ahora suena / Cola / Letras solo en la sección 4). Barra superior: `SlushDesktopHeader` (búsqueda en píldora, chip lima de Jam, perfil). El rótulo de Jam solo se muestra con textScale <= 1,5.
+- Shell: `chrome_slush.dart` + `bars_slush.dart` (sidebar flotante 272 de radio 16 con logo-pegatina, nav de radio 12 —activa violeta con sombra dura—, mosaico 2x3 de tiles de color de radio 12 con `minHeight`, recuadro discontinuo «Música · ruta»; dentro de la sidebar nada pasa de r16: la pegatina se nota por el contorno y la sombra, no por el redondeo; panel derecho `slush_aside.dart` Ahora suena / Cola / Letras solo en la sección 4). Barra superior: `SlushDesktopHeader` (búsqueda en píldora, chip lima de Jam, perfil). El rótulo de Jam solo se muestra con textScale <= 1,5.
 - Inicio: `home_slush.dart` + `slush_home.dart` (hero lila con portada 172 y Play lima 60, DJ amarillo con onda, ánimos de color, recomendaciones giradas ±2°). La tarjeta hero no usa `LayoutBuilder` (vive en un `IntrinsicHeight`): el ancho se lo pasa `SlushHome`.
 - Reproduciendo (`slush_player.dart`): escritorio = tarjeta lila con portada + vinilo asomando por detrás (casete: solo la pieza), etiquetas (Ahora suena, FLAC/LOCAL/YOUTUBE, origen), chips Me gusta/EQ/Dormir/Jam, tarjeta de letras (subrayado lima en la línea activa) y tarjeta de transporte (seek violeta, thumb lima, Play lima). Móvil = fondo lila con puntos, cabecera redonda, portada con pegatina de formato, titular + corazón rosa, tres líneas de letra, seek, 5 controles con Play squircle 76 (radio 30), chips y hoja de cola (`queue-peek`, abre la sección 5).
 - Modo letra: `lyrics_skin_slush.dart` (portada borrosa + velo violeta que envuelve el contenido, puntos, botones de papel, «Salir» lima).

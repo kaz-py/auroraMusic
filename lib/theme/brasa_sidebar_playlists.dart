@@ -83,7 +83,7 @@ class _BrasaSidebarPlaylistsState extends State<BrasaSidebarPlaylists> {
                 filled: true,
                 fillColor: Brasa.graphite,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(4),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -104,7 +104,7 @@ class _BrasaSidebarPlaylistsState extends State<BrasaSidebarPlaylists> {
               playlist: p,
               child: Material(
                 color: Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(4),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   hoverColor: Brasa.graphite,
@@ -167,13 +167,13 @@ class _Swatch extends StatelessWidget {
       return DecoratedBox(
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(3),
         ),
         child: const SizedBox.square(dimension: 26),
       );
     }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(3),
       child: PlaylistCover(
         playlist: playlist,
         tracks: playlistCoverTracks(controller, playlist),

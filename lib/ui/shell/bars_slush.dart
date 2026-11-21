@@ -190,7 +190,7 @@ Widget slushSidebar(StudioSidebar side, BuildContext context) {
           color: p.paper,
           shadows: p.shadows,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(SlushRadius.r32),
+            borderRadius: BorderRadius.circular(SlushRadius.r16),
             side: p.borderSoft,
           ),
         ),
@@ -411,12 +411,12 @@ Widget slushSidebar(StudioSidebar side, BuildContext context) {
                     message: 'Ajustes',
                     child: SlushPressable(
                       onTap: () => side.onNavigate(7),
-                      radius: SlushRadius.r16,
+                      radius: SlushRadius.r12,
                       minSize: 48,
                       child: _face(
                         context,
                         color: p.paper,
-                        radius: SlushRadius.r16,
+                        radius: SlushRadius.r12,
                         child: SizedBox.square(
                           dimension: 48,
                           child: Icon(
@@ -532,7 +532,7 @@ class _Kbd extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(4),
       border: Border.all(color: color, width: 1.5),
     ),
     child: Padding(
@@ -546,7 +546,8 @@ class _Kbd extends StatelessWidget {
   );
 }
 
-/// Ítem de navegación en píldora; activo = violeta, texto blanco y sombra.
+/// Ítem de navegación (pegatina de radio 12); activo = violeta, texto blanco
+/// y sombra dura.
 class _NavPill extends StatelessWidget {
   const _NavPill(
     this.side,
@@ -578,11 +579,12 @@ class _NavPill extends StatelessWidget {
           child: SlushPressable(
             onTap: () => side.onNavigate(index),
             elevation: active ? SlushElevation.control : SlushElevation.none,
+            radius: SlushRadius.r12,
             minSize: 44,
             child: _face(
               context,
               color: active ? Slush.violet : p.paper,
-              radius: SlushRadius.pill,
+              radius: SlushRadius.r12,
               border: active,
               child: Container(
                 constraints: const BoxConstraints(minHeight: 44),
@@ -670,7 +672,7 @@ class _Tile extends StatelessWidget {
       child: DecoratedBox(
         position: DecorationPosition.foreground,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(SlushRadius.r16 + 4),
+          borderRadius: BorderRadius.circular(SlushRadius.r12 + 4),
           border: on ? Border.all(color: p.violetAccent, width: 3) : null,
         ),
         child: Padding(
@@ -681,12 +683,12 @@ class _Tile extends StatelessWidget {
             label: label,
             child: SlushPressable(
               onTap: () => side.onNavigate(index),
-              radius: SlushRadius.r16,
+              radius: SlushRadius.r12,
               minSize: 54,
               child: _face(
                 context,
                 color: color,
-                radius: SlushRadius.r16,
+                radius: SlushRadius.r12,
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 60),
                   padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
@@ -752,7 +754,7 @@ class _PlaylistRow extends StatelessWidget {
     final p = context.slush;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(SlushRadius.r16),
+      borderRadius: BorderRadius.circular(SlushRadius.r12),
       child: Container(
         constraints: const BoxConstraints(minHeight: 44),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -761,11 +763,11 @@ class _PlaylistRow extends StatelessWidget {
             DecoratedBox(
               position: DecorationPosition.foreground,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.fromBorderSide(p.border),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(6),
                 child: PlaylistCover(
                   playlist: playlist,
                   tracks: playlistCoverTracks(controller, playlist),
@@ -815,7 +817,7 @@ class _EngineStatus extends StatelessWidget {
       decoration: ShapeDecoration(
         color: dark ? p.raised : Slush.lilac,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SlushRadius.r16),
+          borderRadius: BorderRadius.circular(SlushRadius.r12),
           side: p.border,
         ),
       ),
@@ -874,7 +876,7 @@ class _DashedPill extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final r = RRect.fromRectAndRadius(
       (Offset.zero & size).deflate(1),
-      Radius.circular(size.height / 2),
+      const Radius.circular(SlushRadius.r12),
     );
     final path = Path()..addRRect(r);
     final paint = Paint()

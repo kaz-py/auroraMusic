@@ -562,12 +562,12 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AtelierTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 0, 2),
+      padding: const EdgeInsets.fromLTRB(12, 16, 0, 4),
       child: Container(
         decoration: BoxDecoration(
           border: Border(top: BorderSide(color: t.rule)),
         ),
-        padding: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.only(top: 10),
         child: Row(
           children: [
             Expanded(child: Text(text, maxLines: 2, style: t.mono(size: 10.5))),
@@ -625,15 +625,15 @@ class _NavItem extends StatelessWidget {
                   Icon(icon, size: 17, color: active ? t.accentText : t.ink2),
                   const SizedBox(width: 12),
                   Expanded(
+                    // El destino activo se compone en la serif cursiva, como
+                    // la entrada marcada de un índice impreso.
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: t.ui(
-                        14,
-                        weight: active ? FontWeight.w600 : FontWeight.w400,
-                        color: active ? t.ink : t.ink2,
-                      ),
+                      style: active
+                          ? t.serif(16, italic: true, height: 1.15)
+                          : t.ui(14, color: t.ink2),
                     ),
                   ),
                   if (showKey) Text(shortcut, style: t.mono(size: 10.5)),

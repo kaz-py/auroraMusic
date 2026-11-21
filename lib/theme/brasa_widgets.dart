@@ -184,9 +184,10 @@ class BrasaSectionLabel extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(14, 18, 6, 6),
     child: Row(
       children: [
-        const DecoratedBox(
-          decoration: BoxDecoration(color: Brasa.ember, shape: BoxShape.circle),
-          child: SizedBox.square(dimension: 6),
+        // Trazo de brasa (acento lineal, no un punto).
+        const ColoredBox(
+          color: Brasa.ember,
+          child: SizedBox(width: 10, height: 2),
         ),
         const SizedBox(width: 8),
         Expanded(

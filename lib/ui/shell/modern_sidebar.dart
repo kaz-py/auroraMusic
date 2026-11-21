@@ -77,7 +77,7 @@ class ModernSidebar extends StatelessWidget {
       child: SizedBox(
         width: width,
         child: ModernGlass(
-          radius: 24,
+          radius: 16,
           clip: true,
           child: Column(
             children: [
@@ -185,9 +185,9 @@ class ModernSidebar extends StatelessWidget {
             children: [
               Material(
                 color: active ? c.accentSoft : Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(8),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                   onTap: () => onNavigate(e.id),
                   child: ConstrainedBox(
                     // Panel expandido = escritorio con puntero (prototipo ~32 px
@@ -251,16 +251,9 @@ class ModernSidebar extends StatelessWidget {
                 Positioned(
                   left: 0,
                   child: IgnorePointer(
-                    child: Container(
-                      width: 3,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: c.accent,
-                        borderRadius: const BorderRadius.horizontal(
-                          right: Radius.circular(3),
-                        ),
-                      ),
-                    ),
+                    // Barra recta: el activo se marca con una línea, no
+                    // con otra píldora.
+                    child: Container(width: 2, height: 18, color: c.accent),
                   ),
                 ),
             ],
@@ -274,11 +267,11 @@ class ModernSidebar extends StatelessWidget {
     final c = Cristal.of(context);
     final dot = [c.signal, c.accent, c.vu, c.like][i % 4];
     final mark = Container(
-      width: 12,
-      height: 12,
+      width: 10,
+      height: 10,
       decoration: BoxDecoration(
         color: dot,
-        borderRadius: BorderRadius.circular(collapsed ? 4 : 6),
+        borderRadius: BorderRadius.circular(2),
       ),
     );
     return Padding(
@@ -290,9 +283,9 @@ class ModernSidebar extends StatelessWidget {
           message: playlist.name,
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             child: InkWell(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(8),
               onTap: () => onPlaylist(playlist),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: collapsed ? 44 : 38),
@@ -347,7 +340,7 @@ class _Count extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: c.accent,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         '$n',
@@ -430,7 +423,7 @@ class _Footer extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: c.glass,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: c.border),
           ),
           child: collapsed
