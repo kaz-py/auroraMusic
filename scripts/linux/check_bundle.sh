@@ -27,9 +27,4 @@ for lib in libEGL.so.1 libGLESv2.so.2; do
   fi
 done
 
-# La bandeja del sistema es opcional (también se abre con dlopen): solo se avisa.
-if ! grep -qE "[[:space:]](libayatana-appindicator3|libappindicator3)\.so\.1 " <<<"$cache"; then
-  echo "Aviso: sin libayatana-appindicator3 no habrá icono en la bandeja del sistema." >&2
-fi
-
 exit "$status"

@@ -115,26 +115,24 @@ main() {
   # GTK 3 (ventana), libsecret (llavero de la sesión), ALSA (audio) y EGL/GLES
   # con su controlador Mesa: Flutter los abre al arrancar y ldd no los ve.
   # En dnf y zypper se piden por biblioteca, sin depender de nombres.
-  local libs=() bridges=() extras=() ytdlp_pkg="" tray_pkg=""
+  local libs=() bridges=() extras=() ytdlp_pkg=""
   # install.sh usa awk, que falta en imágenes mínimas de Fedora y openSUSE.
   local sonames=('libgtk-3.so.0()(64bit)' 'libsecret-1.so.0()(64bit)' 'libasound.so.2()(64bit)'
     'libEGL.so.1()(64bit)' 'libGLESv2.so.2()(64bit)' 'libEGL_mesa.so.0()(64bit)' /usr/bin/awk)
   pm="" apt_updated=""
   if command -v pacman >/dev/null; then
-    pm=pacman ytdlp_pkg=yt-dlp tray_pkg=libayatana-appindicator
+    pm=pacman ytdlp_pkg=yt-dlp
     libs=(gtk3 libsecret alsa-lib libglvnd mesa)
     bridges=(pipewire-alsa pulseaudio-alsa)
   elif command -v apt-get >/dev/null; then
-    pm=apt tray_pkg="libayatana-appindicator3-1|libappindicator3-1"
+    pm=apt
     libs=("libgtk-3-0t64|libgtk-3-0" libsecret-1-0 "libasound2t64|libasound2" libegl1 libgles2 libegl-mesa0)
     bridges=(pipewire-alsa libasound2-plugins)
   elif command -v dnf >/dev/null; then
     pm=dnf ytdlp_pkg=yt-dlp libs=("${sonames[@]}")
-    tray_pkg='libayatana-appindicator3.so.1()(64bit)'
     bridges=(pipewire-alsa alsa-plugins-pulseaudio)
   elif command -v zypper >/dev/null; then
     pm=zypper libs=("${sonames[@]}")
-    tray_pkg='libayatana-appindicator3.so.1()(64bit)'
     bridges=(pipewire-alsa alsa-plugins-pulse)
   fi
 
@@ -155,8 +153,6 @@ main() {
       extras+=("${bridges[1]}")
     fi
     [ -z "$ytdlp_pkg" ] || extras+=("$ytdlp_pkg")
-    # Opcional: el icono en la bandeja del sistema (cerrar con X la deja ahí).
-    [ -z "$tray_pkg" ] || extras+=("$tray_pkg")
     if [ "${#extras[@]}" -gt 0 ] && ! install_missing "${extras[@]}"; then
       warn "no se pudo instalar: ${extras[*]}"
     fi

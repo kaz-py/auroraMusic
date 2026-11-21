@@ -13,8 +13,7 @@ Ejecútalo con tu usuario, sin `sudo`. El script:
 
 1. Instala las bibliotecas que falten con apt, dnf, pacman o zypper: GTK 3, libsecret,
    ALSA, EGL y GLES. Pide la contraseña de `sudo` solo para eso. Si el escritorio usa
-   PipeWire o PulseAudio, añade también el puente de ALSA para que se oiga el audio, y
-   libayatana-appindicator para el icono de la bandeja.
+   PipeWire o PulseAudio, añade también el puente de ALSA para que se oiga el audio.
 2. Descarga la versión más reciente que tenga paquete de Linux (las beta incluidas) y
    comprueba su SHA-256 con el `checksums.txt` del release.
 3. Instala `yt-dlp`: en Arch y Fedora, el paquete del sistema; en el resto, el binario
@@ -150,9 +149,9 @@ en un archivo JSON fuera del repositorio y pásalo con
   `xdg-desktop-portal` (por ejemplo, `xdg-desktop-portal-gtk`).
 - **Audio**: sale por ALSA. Con PipeWire instala `pipewire-alsa`; con PulseAudio, el
   plugin ALSA de PulseAudio.
-- **Bandeja del sistema** (opcional): `libayatana-appindicator3` y un escritorio o una
-  barra con bandeja StatusNotifierItem (KDE, Waybar, quickshell…). GNOME necesita la
-  extensión AppIndicator. Sin ellas la app funciona igual y la X la cierra.
+- **Bandeja del sistema** (opcional): un escritorio o una barra con bandeja
+  StatusNotifierItem (KDE, Waybar, quickshell…). GNOME necesita la extensión
+  AppIndicator. Sin bandeja la app funciona igual y la X la cierra.
 
 ## Diferencias con Windows
 
@@ -187,13 +186,14 @@ Por defecto, cerrar con la X oculta la ventana y la música sigue: Aurora queda 
 bandeja del sistema. Para cerrarla del todo, usa «Salir» en el menú del icono. En
 Ajustes → «Ventana y bandeja» puedes hacer que la X cierre la app.
 
-El menú del icono muestra la canción que suena, «Mostrar Aurora», Pausa o Reproducir,
-Siguiente, Anterior y Salir. En las barras que admiten el clic central, ese clic
-también devuelve la ventana.
+Clic izquierdo en el icono: muestra y enfoca la ventana. Clic derecho: el menú, con la
+canción que suena, «Mostrar Aurora», Pausa o Reproducir, Siguiente, Anterior y Salir.
+Clic central (en las barras que lo admiten): reproducir o pausar.
 
-- La bandeja usa `libayatana-appindicator3`, que se carga al arrancar si está
-  instalada. Si falta, o si el escritorio no tiene bandeja (no hay
-  `org.kde.StatusNotifierWatcher` en el bus de sesión), la X cierra la app.
+- El icono es un StatusNotifierItem propio sobre D-Bus (`linux/runner/tray_linux.cc`),
+  sin libayatana-appindicator, que ignoraba el clic izquierdo. Si el escritorio no
+  tiene bandeja (no hay `org.kde.StatusNotifierWatcher` en el bus de sesión), la X
+  cierra la app.
 - Solo hay una instancia: abrir Aurora otra vez (desde el menú o con `aurora-music`)
   muestra la ventana que ya estaba, aunque esté en la bandeja. Con
   `AURORA_MULTI_INSTANCE=1` se puede abrir otra (útil para pruebas).

@@ -3,9 +3,10 @@
 
 #include <gtk/gtk.h>
 
-// Icono de Aurora en la bandeja del sistema (StatusNotifierItem) mediante
-// libayatana-appindicator3, cargada con dlopen: si no está instalada, la app
-// arranca igual y la X cierra de verdad.
+// Icono de Aurora en la bandeja del sistema: StatusNotifierItem y menú
+// dbusmenu propios sobre GDBus (sin libayatana-appindicator). Clic izquierdo
+// muestra la ventana, clic central reproduce/pausa y el derecho abre el menú.
+// Sin anfitrión de bandeja la X cierra de verdad.
 
 typedef struct _AuroraTray AuroraTray;
 
@@ -19,7 +20,7 @@ typedef enum {
 
 typedef void (*AuroraTrayCallback)(AuroraTrayCommand command, gpointer data);
 
-// NULL si no hay biblioteca de AppIndicator.
+// NULL si no hay bus de sesión.
 // [icon_dir] contiene [icon_name].png.
 AuroraTray* aurora_tray_new(const gchar* icon_dir, const gchar* icon_name,
                             AuroraTrayCallback callback, gpointer data);

@@ -47,3 +47,8 @@ jobs:
 
       - name: Probar la selección de GPU de Linux
         run: bash scripts/linux/test_gpu_select.sh
+
+      - name: Probar la bandeja de Linux
+        run: |
+          sudo apt-get install -y dbus libglib2.0-bin
+          bash scripts/linux/test_tray.sh

@@ -140,8 +140,9 @@ borra también los datos y conserva las descargas). Detalle y paquetes .deb en
 `docs/LINUX.md`.
 
 En Linux no hay controles multimedia (audio_service/MPRIS) ni actualizador. La bandeja es
-nativa (`linux/runner/tray_linux.cc`: GTK y libayatana-appindicator3 cargada con
-`dlopen`) y usa el mismo canal `aurora/window` que Windows; sin bandeja, la X cierra.
+nativa (`linux/runner/tray_linux.cc`: StatusNotifierItem y dbusmenu propios sobre
+GDBus; clic izquierdo muestra la ventana) y usa el mismo canal `aurora/window` que
+Windows; sin bandeja, la X cierra.
 
 ## Reglas
 
