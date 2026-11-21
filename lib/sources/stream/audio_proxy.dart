@@ -187,6 +187,10 @@ class AudioProxy {
       // HttpServer cannot see a client leaving while we wait on upstream, so
       // the raw socket is owned from here on (one response per connection).
       socket = ctx.socket = await response.detachSocket(writeHeaders: false);
+      // Si el reproductor corta la conexión (RST al cambiar de pista), el error
+      // de escritura también llega a `done`, que nadie espera: sin esto sale
+      // como error no capturado. Los fallos ya se tratan en flush/close.
+      socket.done.ignore();
       _active.add(ctx);
       socket.listen(
         (_) {},

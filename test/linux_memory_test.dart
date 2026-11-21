@@ -159,4 +159,93 @@ void main() {
     },
     skip: Platform.isLinux ? false : 'solo en Linux con glibc',
   );
+
+  group('runWhenSchedulerIdle', () {
+    testWidgets('sin animaciones la tarea se ejecuta en el acto, una vez', (
+      tester,
+    ) async {
+      var runs = 0;
+      expect(tester.binding.transientCallbackCount, 0);
+      LinuxMemoryTuning.runWhenSchedulerIdle(tester.binding, () => runs++);
+      expect(runs, 1);
+      await tester.pump(const Duration(seconds: 1));
+      expect(runs, 1);
+    });
+
+    testWidgets('con una animación en marcha espera a que termine', (
+      tester,
+    ) async {
+      final controller = AnimationController(
+        vsync: const TestVSync(),
+        duration: const Duration(seconds: 1),
+      );
+      addTearDown(controller.dispose);
+      controller.forward();
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+      expect(tester.binding.framesEnabled, isTrue);
+
+      var runs = 0;
+      LinuxMemoryTuning.runWhenSchedulerIdle(tester.binding, () => runs++);
+      expect(runs, 0);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(runs, 0, reason: 'la animación sigue en marcha');
+
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(controller.isCompleted, isTrue);
+      expect(runs, 1);
+      await tester.pump(const Duration(seconds: 1));
+      expect(runs, 1, reason: 'una sola ejecución');
+    });
+
+    testWidgets(
+      'con fotogramas desactivados y una animación pendiente corre en el acto '
+      'y no deja Timers reintentando (CPU al 100 % en la bandeja)',
+      (tester) async {
+        final controller = AnimationController(
+          vsync: const TestVSync(),
+          duration: const Duration(seconds: 1),
+        );
+        addTearDown(controller.dispose);
+        controller.repeat();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(tester.binding.transientCallbackCount, greaterThan(0));
+
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        addTearDown(() {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        });
+        expect(tester.binding.framesEnabled, isFalse);
+        expect(tester.binding.transientCallbackCount, greaterThan(0));
+
+        var runs = 0;
+        LinuxMemoryTuning.runWhenSchedulerIdle(tester.binding, () => runs++);
+        expect(runs, 1, reason: 'ventana oculta: no hay que esperar');
+
+        // Ningún reintento: ni por Timer ni por fotogramas.
+        await tester.pump(const Duration(seconds: 1));
+        await tester.idle();
+        expect(runs, 1);
+
+        controller.stop();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pump();
+        // testWidgets falla por sí mismo si queda algún Timer pendiente.
+      },
+    );
+  });
 }

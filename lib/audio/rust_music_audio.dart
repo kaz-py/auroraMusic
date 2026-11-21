@@ -27,6 +27,8 @@ class RustMusicAudio extends AudioBackend {
   final _spectrum = ValueNotifier<List<double>>(List.filled(48, 0));
   final _completed = StreamController<void>.broadcast();
   Timer? _timer;
+  Duration _tickEvery = Duration.zero;
+  Duration _notifiedPosition = Duration.zero;
   ResolvedAudio? _resolved;
   Future<void> _operations = Future.value();
   int _generation = 0, _seekGeneration = 0, _ticks = 0;
@@ -64,7 +66,31 @@ class RustMusicAudio extends AudioBackend {
   @override
   Future<void> initialize() async {
     _openEngine();
-    _timer = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
+    _adaptTicker();
+  }
+
+  /// Ritmo del sondeo del motor: 30 por segundo mientras suena o carga (espectro
+  /// y posición fluidos); 4 por segundo en pausa o sin pista, donde solo hace
+  /// falta notar un dispositivo perdido o un error.
+  static const activeTick = Duration(milliseconds: 33);
+  static const idleTick = Duration(milliseconds: 250);
+
+  /// Intervalo actual del sondeo (diagnóstico y pruebas).
+  @visibleForTesting
+  Duration get tickInterval => _tickEvery;
+
+  void _adaptTicker() {
+    if (_disposed) return;
+    final active = _playing || _buffering || _playIntent || _completing;
+    final every = active ? activeTick : idleTick;
+    if (every == _tickEvery && _timer != null) return;
+    _timer?.cancel();
+    _tickEvery = every;
+    _ticks = 0;
+    _timer = Timer.periodic(every, (_) {
+      _tick();
+      _adaptTicker();
+    });
   }
 
   /// Abre la salida de audio; `false` (con el motivo en [rustUnavailableReason])
@@ -156,6 +182,7 @@ class RustMusicAudio extends AudioBackend {
       _playing = false;
       _buffering = true;
       notifyListeners();
+      _adaptTicker();
       final result = await engine.load(
         input: source.input,
         headers: [
@@ -213,7 +240,13 @@ class RustMusicAudio extends AudioBackend {
     if (_playing && _visualization && !_buffering) {
       _spectrum.value = spectrumBars(engine.spectrum());
     }
-    if (++_ticks % 6 == 0) notifyListeners();
+    // Unos 5 avisos por segundo mientras suena; en pausa, solo si algo cambió
+    // (p. ej. tras un salto), para no reconstruir la interfaz sin motivo.
+    final every = _tickEvery == activeTick ? 6 : 1;
+    if (++_ticks % every == 0 && (_playing || _position != _notifiedPosition)) {
+      _notifiedPosition = _position;
+      notifyListeners();
+    }
   }
 
   /// La salida de audio desapareció (auriculares desenchufados, dispositivo
@@ -294,6 +327,7 @@ class RustMusicAudio extends AudioBackend {
   @override
   Future<void> play() async {
     _playIntent = true;
+    _adaptTicker();
     if (!_loaded) return;
     _engine?.play();
     _playing = true;

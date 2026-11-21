@@ -349,7 +349,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       }
     }
 
-    if (WindowControls.supported) {
+    if (WindowControls.traySupported) {
       WindowControls.onArguments = open;
       WindowControls.launchArguments.forEach(open);
     } else if (Platform.isAndroid) {
@@ -2181,11 +2181,13 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
             ),
           ],
         ),
-      if (WindowControls.supported || DuvetPresence.platformSupported)
+      if (WindowControls.traySupported || DuvetPresence.platformSupported)
         (
-          title: WindowControls.supported ? 'Ventana y bandeja' : 'Duvet',
+          title: WindowControls.traySupported ? 'Ventana y bandeja' : 'Duvet',
           subtitle: WindowControls.supported
               ? 'Cierre, bandeja del sistema e inicio'
+              : WindowControls.traySupported
+              ? 'Cierre y bandeja del sistema'
               : 'Lo que escuchas, en tu perfil',
           children: () => [
             DesktopSettingsTiles(shell: _desktop, duvet: _duvet),

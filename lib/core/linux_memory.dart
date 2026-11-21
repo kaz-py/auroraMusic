@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
@@ -138,8 +139,30 @@ class LinuxMemoryTuning {
       .skia
       .invokeMethod<void>('Skia.setResourceCacheMaxBytes', bytes);
 
-  static void _runWhenSchedulerIdle(VoidCallback task) {
-    SchedulerBinding.instance.scheduleTask<void>(task, Priority.idle);
+  static void _runWhenSchedulerIdle(VoidCallback task) =>
+      runWhenSchedulerIdle(SchedulerBinding.instance, task);
+
+  /// Ejecuta [task] cuando no hay animaciones en marcha, o ya mismo si no se
+  /// dibujan fotogramas (ventana oculta o en la bandeja).
+  ///
+  /// No usa `scheduleTask(Priority.idle)`: con la ventana oculta el motor deja
+  /// de pedir fotogramas, una animación a medias no termina nunca y el
+  /// planificador reintenta la tarea en bucle con `Timer.run`, con un núcleo al
+  /// 100 % mientras la app está en la bandeja.
+  @visibleForTesting
+  static void runWhenSchedulerIdle(
+    SchedulerBinding scheduler,
+    VoidCallback task,
+  ) {
+    if (!scheduler.framesEnabled || scheduler.transientCallbackCount == 0) {
+      task();
+      return;
+    }
+    // Hay animaciones y se dibujan fotogramas: se mira de nuevo tras el
+    // siguiente, sin sondear entre medias.
+    scheduler.addPostFrameCallback(
+      (_) => runWhenSchedulerIdle(scheduler, task),
+    );
   }
 
   /// `malloc_trim(0)` de glibc, o null si la libc no lo tiene (p. ej. musl).

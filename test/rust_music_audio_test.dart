@@ -19,6 +19,7 @@ Future<void> _until(bool Function() done, {int seconds = 10}) async {
 void main() {
   _bufferingAfterSeek();
   _deviceLoss();
+  _tickRate();
   late RustMusicAudio audio;
 
   setUp(() async {
@@ -288,5 +289,88 @@ void _deviceLoss() {
     await _until(() => audio.lastError != null);
     expect(audio.lastError, contains('dispositivo de salida'));
     expect(audio.isPlaying, isFalse);
+  });
+}
+
+/// Ritmo del sondeo: 33 ms mientras suena, 250 ms en pausa, y avisos a la
+/// interfaz solo cuando hace falta (unos 5 por segundo sonando, ninguno en
+/// pausa con la posición quieta).
+void _tickRate() {
+  late RustMusicAudio audio;
+  late int notifications;
+  setUp(() async {
+    audio = RustMusicAudio(
+      engineFactory: () => rust.PlayerEngine.createSilent(sampleRate: 48000),
+    );
+    await audio.initialize();
+    notifications = 0;
+    audio.addListener(() => notifications++);
+  });
+  tearDown(() => audio.dispose());
+
+  Future<void> loadTone() => audio.load(
+    ResolvedAudio(input: _file('tone.wav'), duration: Duration.zero),
+  );
+
+  test('el sondeo es de 33 ms sonando y de 250 ms en pausa', () async {
+    expect(RustMusicAudio.activeTick, const Duration(milliseconds: 33));
+    expect(RustMusicAudio.idleTick, const Duration(milliseconds: 250));
+    await loadTone();
+    await _until(() => audio.tickInterval == RustMusicAudio.idleTick);
+    expect(audio.tickInterval, RustMusicAudio.idleTick, reason: 'sin sonar');
+
+    await audio.play();
+    expect(
+      audio.tickInterval,
+      RustMusicAudio.activeTick,
+      reason: 'play() lo acelera en el acto',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(audio.tickInterval, RustMusicAudio.activeTick);
+
+    await audio.pause();
+    await _until(() => audio.tickInterval == RustMusicAudio.idleTick);
+    expect(audio.tickInterval, RustMusicAudio.idleTick);
+
+    await audio.play();
+    expect(audio.tickInterval, RustMusicAudio.activeTick);
+  });
+
+  test(
+    'en pausa con la posición quieta no se notifica a la interfaz',
+    () async {
+      await loadTone();
+      await audio.play();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await audio.pause();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final held = audio.position;
+      notifications = 0;
+      await Future<void>.delayed(const Duration(seconds: 2));
+      expect(audio.position, held);
+      expect(notifications, 0);
+    },
+  );
+
+  test('un salto en pausa que cambia la posición sí notifica', () async {
+    await loadTone();
+    await audio.play();
+    await audio.pause();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    notifications = 0;
+    await audio.seek(const Duration(milliseconds: 1500));
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    expect(audio.position.inMilliseconds, closeTo(1500, 100));
+    expect(notifications, greaterThan(0));
+  });
+
+  test('sonando notifica unas 5 veces por segundo, no 30', () async {
+    await loadTone();
+    await audio.play();
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    notifications = 0;
+    await Future<void>.delayed(const Duration(seconds: 1));
+    expect(audio.isPlaying, isTrue);
+    expect(notifications, inInclusiveRange(3, 8));
   });
 }

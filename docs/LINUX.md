@@ -13,7 +13,8 @@ Ejecútalo con tu usuario, sin `sudo`. El script:
 
 1. Instala las bibliotecas que falten con apt, dnf, pacman o zypper: GTK 3, libsecret,
    ALSA, EGL y GLES. Pide la contraseña de `sudo` solo para eso. Si el escritorio usa
-   PipeWire o PulseAudio, añade también el puente de ALSA para que se oiga el audio.
+   PipeWire o PulseAudio, añade también el puente de ALSA para que se oiga el audio, y
+   libayatana-appindicator para el icono de la bandeja.
 2. Descarga la versión más reciente que tenga paquete de Linux (las beta incluidas) y
    comprueba su SHA-256 con el `checksums.txt` del release.
 3. Instala `yt-dlp`: en Arch y Fedora, el paquete del sistema; en el resto, el binario
@@ -106,6 +107,9 @@ en un archivo JSON fuera del repositorio y pásalo con
   `xdg-desktop-portal` (por ejemplo, `xdg-desktop-portal-gtk`).
 - **Audio**: sale por ALSA. Con PipeWire instala `pipewire-alsa`; con PulseAudio, el
   plugin ALSA de PulseAudio.
+- **Bandeja del sistema** (opcional): `libayatana-appindicator3` y un escritorio o una
+  barra con bandeja StatusNotifierItem (KDE, Waybar, quickshell…). GNOME necesita la
+  extensión AppIndicator. Sin ellas la app funciona igual y la X la cierra.
 
 ## Diferencias con Windows
 
@@ -118,6 +122,7 @@ Funciona igual que en Windows:
 - Amigos.
 - Last.fm.
 - Jam.
+- La bandeja del sistema y cerrar a la bandeja (ver «Bandeja y ventana»).
 
 Discord muestra lo que escuchas si su app de escritorio está abierta, incluso en Flatpak
 o Snap.
@@ -129,15 +134,66 @@ para Linux.
 En Linux no están disponibles:
 
 - Los controles multimedia del sistema (MPRIS) y las teclas multimedia.
-- La bandeja del sistema, cerrar a la bandeja y el inicio automático.
+- El inicio automático con la sesión.
 - Los enlaces `aurora://`. Para unirte a una Jam, escribe su código.
 - El actualizador integrado y el actualizador de yt-dlp.
 
+## Bandeja y ventana
+
+Por defecto, cerrar con la X oculta la ventana y la música sigue: Aurora queda en la
+bandeja del sistema. Para cerrarla del todo, usa «Salir» en el menú del icono. En
+Ajustes → «Ventana y bandeja» puedes hacer que la X cierre la app.
+
+El menú del icono muestra la canción que suena, «Mostrar Aurora», Pausa o Reproducir,
+Siguiente, Anterior y Salir. En las barras que admiten el clic central, ese clic
+también devuelve la ventana.
+
+- La bandeja usa `libayatana-appindicator3`, que se carga al arrancar si está
+  instalada. Si falta, o si el escritorio no tiene bandeja (no hay
+  `org.kde.StatusNotifierWatcher` en el bus de sesión), la X cierra la app.
+- Solo hay una instancia: abrir Aurora otra vez (desde el menú o con `aurora-music`)
+  muestra la ventana que ya estaba, aunque esté en la bandeja. Con
+  `AURORA_MULTI_INSTANCE=1` se puede abrir otra (útil para pruebas).
+- Con la ventana oculta la app no dibuja nada: en pausa no gasta CPU y sonando solo
+  gasta lo del audio.
+
+## Consumo de recursos
+
+Medido en Arch Linux (niri en Wayland, PipeWire, Mesa) con el tema Modern y la
+ventana visible sin foco, 20 s por estado (CPU de `/proc/<pid>/stat`, memoria sucia
+de `smaps_rollup`). «Antes» es la versión de `a5670ad`.
+
+| Estado | CPU antes | CPU ahora | Memoria sucia antes | Memoria sucia ahora |
+|---|---|---|---|---|
+| Reposo | 0,6 % | 0,0 % | 108,5 MiB | 83,4 MiB |
+| Sonando | 11,0 % | 3,8 % | 128,8 MiB | 93,5 MiB |
+| En pausa | 10,1 % | 0,4 % | 123,6 MiB | 81,9 MiB |
+| En la bandeja, sonando | — | 2,1 % | — | 104,6 MiB |
+| En la bandeja, en pausa | — | 0,4 % | — | 86,7 MiB |
+
+La RSS ronda los 390-405 MiB en los dos casos; casi toda es compartida (motor de
+Flutter, Skia y bibliotecas del sistema).
+
+Qué cambió:
+
+- El fondo del tema Modern reiniciaba un fundido de 700 ms cada vez que llegaba la
+  posición (5 veces por segundo) y la pantalla se redibujaba a unos 38 fps sin parar.
+  Ahora solo se anima al cambiar de pista: sonando hay unos 5 fotogramas por segundo
+  (Modern y Atelier) o 1 (Brasa y Slush), y en pausa ninguno.
+- En pausa el motor se consulta 4 veces por segundo en vez de 30, y la interfaz no se
+  reconstruye si nada cambió.
+- La salida de audio se suspende tras 5 s sin sonar (PipeWire la pasa a `idle`) y
+  vuelve al reproducir.
+- Con la ventana oculta, una tarea de limpieza de memoria podía reintentarse en bucle
+  y dejar un núcleo al 100 %. Ahora se ejecuta en cuanto no hay fotogramas.
+
+Para medir: `scripts/linux/measure_memory.sh` (memoria) y, para los fotogramas,
+`WAYLAND_DEBUG=client` contando las líneas `wl_surface.commit`.
+
 ## Problemas conocidos
 
-- No se ha probado el sonido en un equipo Linux real. La compilación se probó en WSL,
-  que no tiene tarjeta de audio.
-- Un test del proxy de audio (cliente que se va durante un vaciado pendiente) falla en
-  Linux. Si una canción larga se corta, avísanos.
+- Probado en Arch Linux con niri (Wayland), PipeWire y una barra quickshell con
+  bandeja: sonido real por `pipewire-alsa`, bandeja, instancia única y cierre. No se ha
+  probado en un equipo físico con Ubuntu o Debian, X11 ni GNOME.
 - Sin llavero activo, la app avisa de que no puede guardar la sesión y tendrás que
   iniciar sesión cada vez.

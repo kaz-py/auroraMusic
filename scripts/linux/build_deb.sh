@@ -27,7 +27,7 @@ Version: $version
 Architecture: amd64
 Maintainer: Aurora <noreply@users.noreply.github.com>
 Depends: libgtk-3-0 | libgtk-3-0t64, libsecret-1-0, libasound2 | libasound2t64, libegl1, libgles2, libegl-mesa0
-Recommends: yt-dlp, gnome-keyring | kwalletmanager, xdg-desktop-portal-gtk | xdg-desktop-portal, pipewire-alsa | pulseaudio
+Recommends: yt-dlp, gnome-keyring | kwalletmanager, xdg-desktop-portal-gtk | xdg-desktop-portal, pipewire-alsa | pulseaudio, libayatana-appindicator3-1 | libappindicator3-1
 Description: Reproductor de música Aurora
 EOF
 

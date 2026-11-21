@@ -375,6 +375,16 @@ class _ModernAuraState extends State<ModernAura> {
 class _AuraPair {
   const _AuraPair(this.a, this.b);
   final Color a, b;
+
+  // Igualdad por valor: TweenAnimationBuilder compara el destino con `==` y,
+  // por identidad, cada reconstrucción (la posición avisa varias veces por
+  // segundo) reiniciaba el fundido de 700 ms y repintaba la pantalla sin parar.
+  @override
+  bool operator ==(Object other) =>
+      other is _AuraPair && other.a == a && other.b == b;
+
+  @override
+  int get hashCode => Object.hash(a, b);
 }
 
 class _AuraTween extends Tween<_AuraPair> {

@@ -30,7 +30,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 | Descargas sin MP3 | Desktop guarda Opus (`.opus`) o M4A tal cual; Android sigue entregando MP3 (FFmpeg de `youtubedl-android`). No se probó una descarga real de YouTube de principio a fin con este cambio ni reproducirla en otros reproductores. | Descargar una canción real y abrirla en Aurora y en otro reproductor. |
 | FFmpeg en Android | `youtubedl-android` lo trae y se usa en descargas/caché de Android (MP3). Retirarlo exige otro camino nativo. | Aplazado; fuera de Rust de escritorio. |
 | Validación de descargas: resincronización | El desmultiplexor salta fotogramas dañados sin error; solo se detecta si cambia la duración total. | Contar fotogramas saltados si Symphonia lo expone. |
-| Linux | `cpal` enlaza ALSA (`libasound2-dev` ya está en CI y `libasound2` en el `.deb`); no se ha compilado ni probado. | Compilar y probar en una máquina Linux. |
+| Linux | Compilado y probado el 21/11/2026 en Arch Linux x64 (niri en Wayland, PipeWire): sonido real por `pipewire-alsa`, bandeja, instancia única y consumo medido (`docs/LINUX.md`). Falta Ubuntu/Debian en un equipo físico, X11 y GNOME (bandeja con la extensión AppIndicator). | Probar el `.deb` en Ubuntu con GNOME. |
 | Arranque del `.exe` con el motor nuevo | La instancia instalada de Aurora estaba abierta (instancia única). | Lanzarlo con la otra cerrada. |
 
 ## Partes de fases ya hechas que se dejaron en Dart
@@ -61,7 +61,7 @@ Estados: **Pendiente** (no empezado), **Aplazado** (decidido no portar aún, con
 | Arranque de la versión de Windows (`aurora_music.exe`) con `rust_lib_aurora_music.dll` | La instancia instalada de Aurora estaba abierta y la nueva cede el control y sale. Pendiente de lanzarla con la otra cerrada. |
 | APK release en dispositivo (rendimiento, base de datos, DJ, EQ) | No hay dispositivo conectado a esta máquina. |
 | Pasos de CI (`cargo build --release` antes de `flutter test`) | No se han ejecutado en GitHub Actions. |
-| Linux | No se puede compilar en este equipo. |
+| Linux en Ubuntu/Debian, X11 y GNOME | Solo se probó en Arch Linux con niri (Wayland) y PipeWire. |
 | Rendimiento percibido en el celular | Se reportó lento con un APK debug sobre 1.4.0; el release sobre 1.5.2 no se ha medido. |
 | Coste de volver a serializar JSON para los analizadores de InnerTube | Sin medir en dispositivo. |
 | Arranque con la base real tras migrar (`aurora.sqlite` abierta por código nuevo en la app) | Solo se probó con una copia desde Rust, no desde la app. Copia de seguridad en `%LOCALAPPDATA%\\Temp\\aurora.sqlite.backup`. |

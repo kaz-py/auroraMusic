@@ -3,7 +3,13 @@ import 'package:flutter/services.dart';
 
 /// Desktop title-bar operations stay outside widgets.
 abstract final class WindowControls {
+  /// Barra de título propia, modo mini e inicio con el sistema: solo Windows.
   static bool get supported => Platform.isWindows;
+
+  /// Ejecutables con canal nativo `aurora/window` (bandeja, cierre real y
+  /// segunda instancia): Windows y Linux. En Linux, lo que no existe (mini,
+  /// pantalla completa, fondo…) responde «no implementado» y da `false`.
+  static bool get traySupported => Platform.isWindows || Platform.isLinux;
   static const _channel = MethodChannel('aurora/window');
 
   /// Se ejecuta tras confirmar un cierre real (Alt+F4 / Salir): detener audio.
@@ -22,7 +28,7 @@ abstract final class WindowControls {
 
   /// Instala el canal nativo (cierre real, bandeja y segunda instancia).
   static void install() {
-    if (_installed || !Platform.isWindows) return;
+    if (_installed || !traySupported) return;
     _installed = true;
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
@@ -69,7 +75,7 @@ abstract final class WindowControls {
   }
 
   static Future<bool> invoke(String operation, [Object? arguments]) async {
-    if (!Platform.isWindows) return false;
+    if (!traySupported) return false;
     install();
     try {
       await _channel.invokeMethod<void>(operation, arguments);
@@ -83,7 +89,7 @@ abstract final class WindowControls {
 
   /// Cierre real de la app (ignora «minimizar a la bandeja»): detiene el audio,
   /// cierra la bandeja y termina el proceso. Es la única vía que debe usar el
-  /// actualizador antes de lanzar el instalador. No hace nada fuera de Windows.
+  /// actualizador antes de lanzar el instalador. Solo Windows y Linux.
   static Future<bool> requestHardExit() => invoke('hardExit');
 
   static int? _background;
@@ -97,7 +103,8 @@ abstract final class WindowControls {
   }
 
   static Future<bool> query(String operation) async {
-    if (!Platform.isWindows) return false;
+    if (!traySupported) return false;
+    install();
     try {
       return await _channel.invokeMethod<bool>(operation) ?? false;
     } on PlatformException {

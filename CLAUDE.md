@@ -137,7 +137,9 @@ Instalación para usuarios: `scripts/linux/get.sh`, en una línea con curl. Inst
 bibliotecas y yt-dlp, comprueba el SHA-256 y elige la versión más alta. Detalle y
 paquetes .deb en `docs/LINUX.md`.
 
-En Linux no hay controles multimedia (audio_service/MPRIS), bandeja ni actualizador.
+En Linux no hay controles multimedia (audio_service/MPRIS) ni actualizador. La bandeja es
+nativa (`linux/runner/tray_linux.cc`: GTK y libayatana-appindicator3 cargada con
+`dlopen`) y usa el mismo canal `aurora/window` que Windows; sin bandeja, la X cierra.
 
 ## Reglas
 

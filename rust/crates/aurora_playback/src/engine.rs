@@ -207,7 +207,7 @@ pub struct Engine {
     output: Option<Arc<Mutex<OutputState>>>,
     load_lock: Mutex<()>,
     fft: Mutex<(Arc<dyn rustfft::Fft<f32>>, Vec<f32>)>,
-    _device: Option<crate::device::DeviceHandle>,
+    device: Option<crate::device::DeviceHandle>,
 }
 
 fn new_shared(sample_rate: u32) -> Arc<Shared> {
@@ -246,7 +246,15 @@ impl Engine {
         let rate = crate::device::default_rate()?;
         let shared = new_shared(rate);
         let output = shared.clone();
-        let device = crate::device::start(move || new_output(output.clone()))?;
+        let active = shared.clone();
+        let lost = shared.clone();
+        let device = crate::device::start(
+            move || new_output(output.clone()),
+            crate::device::Activity {
+                active: Box::new(move || active.playing.load(Ordering::SeqCst)),
+                lost: Box::new(move || lost.device_lost.store(true, Ordering::SeqCst)),
+            },
+        )?;
         Ok(Self::build(shared, None, Some(device)))
     }
 
@@ -287,7 +295,7 @@ impl Engine {
             output,
             load_lock: Mutex::new(()),
             fft: Mutex::new((fft, hann(SPECTRUM_WINDOW))),
-            _device: device,
+            device,
         }
     }
 
@@ -386,6 +394,9 @@ impl Engine {
 
     pub fn play(&self) {
         self.shared.playing.store(true, Ordering::SeqCst);
+        if let Some(device) = &self.device {
+            device.wake();
+        }
     }
 
     pub fn pause(&self) {

@@ -3,8 +3,9 @@
 //! `cpal::Stream` no es `Send` en todas las plataformas, así que vive en un
 //! hilo propio hasta que se suelta el [`DeviceHandle`].
 
-use std::sync::mpsc;
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample};
@@ -83,14 +84,81 @@ mod realtime {
     }
 }
 
+/// En pausa, la salida sigue pidiendo audio (silencio) al sistema: en Linux
+/// mantiene despierto el hilo de PipeWire/ALSA y el dispositivo sin suspender.
+/// Tras este tiempo sin reproducir se detiene el flujo; `play` lo reanuda al
+/// momento con [`DeviceHandle::wake`].
+const IDLE_SUSPEND: Duration = Duration::from_secs(5);
+/// Cada cuánto el hilo del dispositivo revisa si toca suspender.
+const IDLE_POLL: Duration = Duration::from_millis(1000);
+
+/// Qué hacer con el flujo según la actividad del reproductor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IdleAction {
+    Suspend,
+    Resume,
+}
+
+/// Decide cuándo suspender y reanudar el flujo (lógica pura, probada aparte).
+#[derive(Debug)]
+pub(crate) struct IdleGate {
+    delay: Duration,
+    running: bool,
+    idle_since: Option<Instant>,
+}
+
+impl IdleGate {
+    pub(crate) fn new(delay: Duration) -> Self {
+        Self {
+            delay,
+            running: true,
+            idle_since: None,
+        }
+    }
+
+    pub(crate) fn update(&mut self, active: bool, now: Instant) -> Option<IdleAction> {
+        if active {
+            self.idle_since = None;
+            if self.running {
+                return None;
+            }
+            self.running = true;
+            return Some(IdleAction::Resume);
+        }
+        let since = *self.idle_since.get_or_insert(now);
+        if self.running && now.duration_since(since) >= self.delay {
+            self.running = false;
+            return Some(IdleAction::Suspend);
+        }
+        None
+    }
+}
+
+/// Lo que el hilo del dispositivo necesita saber del motor.
+pub(crate) struct Activity {
+    /// Hay que sonar (reproduciendo o esperando datos para hacerlo).
+    pub active: Box<dyn Fn() -> bool + Send>,
+    /// El flujo no pudo reanudarse: el motor debe tratarlo como dispositivo perdido.
+    pub lost: Box<dyn Fn() + Send>,
+}
+
 pub struct DeviceHandle {
-    stop: Option<mpsc::Sender<()>>,
+    wake: Option<mpsc::Sender<()>>,
     thread: Option<JoinHandle<()>>,
+}
+
+impl DeviceHandle {
+    /// Reanuda el flujo si estaba suspendido (se llama al dar a reproducir).
+    pub fn wake(&self) {
+        if let Some(wake) = &self.wake {
+            let _ = wake.send(());
+        }
+    }
 }
 
 impl Drop for DeviceHandle {
     fn drop(&mut self) {
-        drop(self.stop.take());
+        drop(self.wake.take());
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -113,18 +181,38 @@ pub fn default_rate() -> Result<u32, String> {
 
 /// `make_state` crea el estado de la devolución de llamada; se llama otra vez si
 /// el dispositivo rechaza el búfer de [`OUTPUT_BUFFER_DIVISOR`] y se abre con el suyo.
-pub fn start(
+pub(crate) fn start(
     make_state: impl Fn() -> OutputState + Send + 'static,
+    activity: Activity,
 ) -> Result<DeviceHandle, String> {
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
-    let (stop_tx, stop_rx) = mpsc::channel::<()>();
+    let (wake_tx, wake_rx) = mpsc::channel::<()>();
     let thread = thread::Builder::new()
         .name("aurora-audio-out".into())
         .spawn(move || match build(&make_state) {
             Ok(stream) => {
                 let _ = ready_tx.send(Ok(()));
-                // Espera a que se suelte el manejador (el emisor se cierra).
-                let _ = stop_rx.recv();
+                let mut gate = IdleGate::new(IDLE_SUSPEND);
+                // Hasta que se suelte el manejador (el emisor se cierra).
+                loop {
+                    match wake_rx.recv_timeout(IDLE_POLL) {
+                        Ok(()) | Err(RecvTimeoutError::Timeout) => {}
+                        Err(RecvTimeoutError::Disconnected) => break,
+                    }
+                    match gate.update((activity.active)(), Instant::now()) {
+                        Some(IdleAction::Suspend) => {
+                            // Si el sistema no admite pausa, el flujo sigue en silencio.
+                            let _ = stream.pause();
+                        }
+                        Some(IdleAction::Resume) => {
+                            if let Err(e) = stream.play() {
+                                eprintln!("Aurora audio: {e}");
+                                (activity.lost)();
+                            }
+                        }
+                        None => {}
+                    }
+                }
                 drop(stream);
             }
             Err(e) => {
@@ -134,7 +222,7 @@ pub fn start(
         .map_err(|e| e.to_string())?;
     match ready_rx.recv() {
         Ok(Ok(())) => Ok(DeviceHandle {
-            stop: Some(stop_tx),
+            wake: Some(wake_tx),
             thread: Some(thread),
         }),
         Ok(Err(e)) => {
@@ -250,4 +338,65 @@ fn open(
         other => return Err(format!("Formato de salida no admitido: {other:?}")),
     }
     .map_err(|e| format!("No se pudo abrir la salida de audio: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DELAY: Duration = Duration::from_secs(5);
+
+    #[test]
+    fn keeps_running_while_active() {
+        let mut gate = IdleGate::new(DELAY);
+        let t0 = Instant::now();
+        for s in 0..20 {
+            assert_eq!(gate.update(true, t0 + Duration::from_secs(s)), None);
+        }
+    }
+
+    #[test]
+    fn suspends_only_after_the_delay_without_activity() {
+        let mut gate = IdleGate::new(DELAY);
+        let t0 = Instant::now();
+        assert_eq!(gate.update(false, t0), None);
+        assert_eq!(gate.update(false, t0 + Duration::from_secs(4)), None);
+        assert_eq!(
+            gate.update(false, t0 + Duration::from_secs(5)),
+            Some(IdleAction::Suspend)
+        );
+        // Ya suspendido: no se repite.
+        assert_eq!(gate.update(false, t0 + Duration::from_secs(60)), None);
+    }
+
+    #[test]
+    fn resumes_at_once_when_playback_returns() {
+        let mut gate = IdleGate::new(DELAY);
+        let t0 = Instant::now();
+        gate.update(false, t0);
+        assert_eq!(
+            gate.update(false, t0 + DELAY),
+            Some(IdleAction::Suspend)
+        );
+        assert_eq!(
+            gate.update(true, t0 + DELAY + Duration::from_millis(1)),
+            Some(IdleAction::Resume)
+        );
+        assert_eq!(gate.update(true, t0 + DELAY * 3), None);
+    }
+
+    #[test]
+    fn a_short_pause_restarts_the_count() {
+        let mut gate = IdleGate::new(DELAY);
+        let t0 = Instant::now();
+        gate.update(false, t0);
+        gate.update(true, t0 + Duration::from_secs(4));
+        // La cuenta empieza de nuevo en la segunda pausa.
+        assert_eq!(gate.update(false, t0 + Duration::from_secs(6)), None);
+        assert_eq!(gate.update(false, t0 + Duration::from_secs(10)), None);
+        assert_eq!(
+            gate.update(false, t0 + Duration::from_secs(11)),
+            Some(IdleAction::Suspend)
+        );
+    }
 }
