@@ -619,8 +619,8 @@ class YtDlpSource extends SourceBackend {
   }
 
   Future<void> _killTree(Process process) async {
+    if (!Platform.isWindows) return _killTreePosix(process);
     try {
-      if (!Platform.isWindows) return;
       final taskkill = p.join(
         Platform.environment['SystemRoot'] ?? r'C:\Windows',
         'System32',
@@ -637,6 +637,32 @@ class YtDlpSource extends SourceBackend {
     } finally {
       process.kill();
     }
+  }
+
+  /// Linux/macOS: yt-dlp's children (deno for the JS player) get the signal
+  /// first so none is orphaned, then yt-dlp itself; SIGKILL after 2 s if it
+  /// ignored SIGTERM. `pkill` missing (minimal images) only skips children.
+  Future<void> _killTreePosix(Process process) async {
+    Future<void> signalChildren(String signal) async {
+      try {
+        await Process.run('pkill', [
+          '-$signal',
+          '-P',
+          '${process.pid}',
+        ], runInShell: false);
+      } on ProcessException {
+        // No pkill: the parent is still signalled below.
+      }
+    }
+
+    await signalChildren('TERM');
+    process.kill(ProcessSignal.sigterm);
+    final exited = await process.exitCode
+        .then((_) => true)
+        .timeout(const Duration(seconds: 2), onTimeout: () => false);
+    if (exited) return;
+    await signalChildren('KILL');
+    process.kill(ProcessSignal.sigkill);
   }
 
   Track _track(Map<String, dynamic> json) {

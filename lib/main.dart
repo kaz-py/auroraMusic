@@ -29,6 +29,7 @@ import 'lastfm/lastfm_service.dart';
 import 'lastfm/lastfm_storage.dart';
 import 'sources/yt_dlp_source.dart';
 import 'sources/innertube_source.dart';
+import 'sources/stream/upstream_network.dart';
 import 'terms/terms_acceptance.dart';
 import 'terms/terms_screen.dart';
 import 'ui/aurora_shell.dart';
@@ -67,6 +68,10 @@ Future<void> _main(List<String> args) async {
   if (crashLog != null) {
     installCrashLog(dir: crashLog.directory.path, version: crashLog.version);
   }
+  // Diagnóstico del audio de YouTube (cliente, itag, latencia y ruta de red)
+  // en la consola; un proxy SOCKS que no se puede usar se avisa al arrancar.
+  UpstreamNetwork.log = (line) => debugPrint(line);
+  debugPrint('[aurora.stream] red: ${UpstreamNetwork.describe()}');
   // Puerta de términos: sin aceptar no arranca protocolo, audio, proxy ni red.
   final terms = TermsAcceptance(await SharedPreferences.getInstance());
   if (terms.isAccepted) {

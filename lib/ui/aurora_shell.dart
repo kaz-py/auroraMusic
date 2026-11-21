@@ -24,6 +24,7 @@ import '../core/models.dart';
 import '../core/source_backend.dart';
 import '../core/desktop_shell.dart';
 import '../core/duvet_presence.dart';
+import '../core/linux_memory.dart';
 import '../core/window_controls.dart';
 import '../discord/discord_presence.dart';
 import '../jam/jam_protocol.dart';
@@ -202,6 +203,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   late final AudioBackend _audio;
   late final DesktopShell _desktop;
   late final DuvetPresence _duvet;
+  final _memory = LinuxMemoryTuning();
   late final RemoteControlService _remote;
   late final VoiceCommandService _voice;
   late final LyricsService _lyricsSyncService;
@@ -226,6 +228,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     WindowControls.install();
     _desktop = DesktopShell(ref.read(controllerProvider))..start();
     _duvet = DuvetPresence(ref.read(controllerProvider))..start();
+    _memory.start();
     final app = ref.read(controllerProvider);
     final remoteActions = AuroraRemoteActions(
       app,
@@ -375,6 +378,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     _syncVisualization();
+    _memory.didChangeAppLifecycleState(state);
   }
 
   void _eqSheetChanged() {
@@ -403,6 +407,7 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
     _friendsSub?.cancel();
     _desktop.dispose();
     _duvet.dispose();
+    _memory.dispose();
     _remote.dispose();
     _voice.dispose();
     _syncOwner.lyricsAutoSync = null;

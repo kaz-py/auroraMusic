@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'resolved_stream.dart';
+import 'upstream_network.dart';
 
 /// Loopback range proxy in front of googlevideo (127.0.0.1 only).
 ///
@@ -57,11 +58,12 @@ class AudioProxy {
   }) async {
     if (chunkBytes <= 0 || maxUpstream <= 0) throw ArgumentError('limits');
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    // Same egress as the player request (UpstreamNetwork): the CDN rejects a
+    // URL fetched from another IP than the one that resolved it.
     final http =
         client ??
-        (HttpClient()
-          ..userAgent = null
-          ..connectionTimeout = headerTimeout);
+        (UpstreamNetwork.client(connectionTimeout: headerTimeout)
+          ..userAgent = null);
     final proxy = AudioProxy._(
       server,
       http,

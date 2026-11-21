@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:aurora_music/sources/stream/player_clients.dart';
 import 'package:aurora_music/sources/stream/resolved_stream.dart';
@@ -55,7 +56,7 @@ class _Harness {
     orch = StreamOrchestrator(
       clients: clients,
       quality: quality,
-      now: () => now,
+      now: () => clock?.call() ?? now,
       post: (url, headers, body) async {
         final client =
             (body['context'] as Map)['client']['clientName'] as String;
@@ -83,6 +84,9 @@ class _Harness {
 
   late final StreamOrchestrator orch;
   var now = DateTime.utc(2026, 1, 1);
+
+  /// A real-looking clock (overrides [now]): may tick between two reads.
+  DateTime Function()? clock;
   Completer<void>? gate;
   final posts =
       <
@@ -369,6 +373,51 @@ void main() {
     expect(await h.firstClient('v3'), 'B');
     h.now = h.now.add(const Duration(minutes: 2));
     expect(await h.firstClient('v4'), 'A');
+  });
+
+  test(
+    'a clock that ticks between reads never drops the only client',
+    () async {
+      // Regression (Linux): _ordered read the clock twice per client, so a
+      // never-marked client could fall out of both the good and bad lists and
+      // resolve failed with "No YouTube client available" without a request.
+      final random = Random(7);
+      var t = DateTime.utc(2026, 1, 1);
+      final h = _Harness(clients: [_a])
+        ..clock = () =>
+            t = random.nextBool() ? t.add(const Duration(microseconds: 1)) : t;
+      for (var i = 0; i < 40; i++) {
+        expect((await h.orch.resolve('v$i')).client, 'A');
+      }
+    },
+  );
+
+  test('tail probe 5xx marks the client bad for 2 min only', () async {
+    final h = _Harness()..probe = (ua) => ua == 'UA-A' ? 503 : 206;
+    expect((await h.orch.resolve('v1')).client, 'B');
+    h.probe = (_) => 206;
+    expect(await h.firstClient('v2'), 'B');
+    h.now = h.now.add(const Duration(minutes: 3));
+    expect(await h.firstClient('v3'), 'A');
+  });
+
+  test('errors keep the playability reason and where they happened', () async {
+    final h = _Harness(clients: [_a])
+      ..respond = (_, _) => {
+        'playabilityStatus': {
+          'status': 'UNPLAYABLE',
+          'reason': 'This video is not available\n in your app',
+        },
+      };
+    final e = await _failure(h.orch.resolve('v'));
+    expect(
+      e.message,
+      'Video unavailable: This video is not available in your app',
+    );
+    h.respond = (_, _) => _ok([_fmt(1)]);
+    h.probe = (_) => 503;
+    final p = await _failure(h.orch.resolve('w'));
+    expect(p.message, 'HTTP 503 (audio probe)');
   });
 
   test('network error marks the client bad for 2 min only', () async {

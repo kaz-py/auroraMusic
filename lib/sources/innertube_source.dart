@@ -10,6 +10,7 @@ import '../follow/follow_models.dart';
 import 'stream/audio_proxy.dart';
 import 'stream/resolved_stream.dart';
 import 'stream/stream_orchestrator.dart';
+import 'stream/upstream_network.dart';
 import 'youtube_request_policy.dart';
 
 typedef InnerTubePost =
@@ -68,7 +69,7 @@ class InnerTubeSource extends SourceBackend {
     String endpoint,
     Map<String, Object?> body,
   ) async {
-    final client = HttpClient()..connectionTimeout = _timeout;
+    final client = UpstreamNetwork.client(connectionTimeout: _timeout);
     try {
       final request = await client.postUrl(
         Uri.https('music.youtube.com', '/youtubei/v1/$endpoint', {
