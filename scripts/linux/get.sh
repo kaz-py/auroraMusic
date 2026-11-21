@@ -9,7 +9,7 @@
 # 3. La instala para tu usuario en ~/.local con install.sh (sin root), con un
 #    yt-dlp al día si tu distribución no lo trae.
 # Versión concreta: ... | AURORA_VERSION=v1.6.0-beta.9 bash
-# Desinstalar: bash ~/.local/share/aurora-music/install.sh --uninstall
+# Desinstalar: bash ~/.local/share/aurora-music/uninstall.sh (--purge borra también los datos)
 set -euo pipefail
 
 repo="kaz-py/auroraMusic"

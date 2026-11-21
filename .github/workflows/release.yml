@@ -184,7 +184,7 @@ jobs:
           mkdir -p dist/out
           dir="dist/Aurora-$version-linux-x64"
           cp -r build/linux/x64/release/bundle "$dir"
-          cp scripts/linux/install.sh scripts/linux/check_bundle.sh linux/packaging/com.aurora.aurora_music.desktop linux/packaging/com.aurora.aurora_music.png "$dir/"
+          cp scripts/linux/install.sh scripts/linux/uninstall.sh scripts/linux/check_bundle.sh linux/packaging/com.aurora.aurora_music.desktop linux/packaging/com.aurora.aurora_music.png "$dir/"
           tar -C dist -czf "dist/out/Aurora-$version-linux-x64.tar.gz" "Aurora-$version-linux-x64"
           bash scripts/linux/build_deb.sh "$dir" "$version" dist/out
 

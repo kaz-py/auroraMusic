@@ -134,8 +134,10 @@ de apt del README (`libasound2-dev` para CPAL). Comando: `flutter build linux --
 que deja el paquete en `build/linux/x64/release/bundle`.
 
 Instalación para usuarios: `scripts/linux/get.sh`, en una línea con curl. Instala las
-bibliotecas y yt-dlp, comprueba el SHA-256 y elige la versión más alta. Detalle y
-paquetes .deb en `docs/LINUX.md`.
+bibliotecas y yt-dlp, comprueba el SHA-256 y elige la versión más alta. Desinstalar:
+`scripts/linux/uninstall.sh` (solo borra lo que reconoce como de Aurora; `--purge`
+borra también los datos y conserva las descargas). Detalle y paquetes .deb en
+`docs/LINUX.md`.
 
 En Linux no hay controles multimedia (audio_service/MPRIS) ni actualizador. La bandeja es
 nativa (`linux/runner/tray_linux.cc`: GTK y libayatana-appindicator3 cargada con

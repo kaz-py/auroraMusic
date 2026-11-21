@@ -41,3 +41,6 @@ jobs:
 
       - name: Comprobar bibliotecas del bundle
         run: bash scripts/linux/check_bundle.sh build/linux/x64/release/bundle
+
+      - name: Probar el desinstalador
+        run: bash scripts/linux/test_uninstall.sh

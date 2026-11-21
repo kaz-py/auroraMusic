@@ -58,7 +58,7 @@ bash Aurora-<versión>-linux-x64/install.sh
 las bibliotecas del sistema y, si falta alguna, dice qué paquete instalar con apt, dnf
 o pacman. También avisa si falta `yt-dlp`.
 
-Para desinstalar: `bash ~/.local/share/aurora-music/install.sh --uninstall`.
+Para desinstalar, ver «Desinstalar».
 
 Bibliotecas del sistema que necesita la app (Debian y Ubuntu):
 
@@ -76,6 +76,49 @@ Si al abrir Aurora falta una biblioteca, la app muestra cuál es. Instálala, o 
 
 Para actualizar, repite el comando de una línea o estos pasos con la versión nueva. En
 Linux, Aurora no tiene actualizador integrado.
+
+## Desinstalar
+
+Si instalaste con el comando de una línea o con `install.sh`:
+
+```bash
+bash ~/.local/share/aurora-music/uninstall.sh
+```
+
+Si esa carpeta no trae `uninstall.sh` (instalaciones antiguas):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kaz-py/auroraMusic/rust-migration/scripts/linux/uninstall.sh | bash
+```
+
+Antes de borrar, enseña la lista de lo que va a quitar y pide confirmación. Si Aurora
+está abierta (también en la bandeja), la cierra primero.
+
+- Por defecto quita solo la app, el comando `aurora-music`, la entrada del menú y el
+  icono. Tu biblioteca, tus ajustes y tus descargas se quedan.
+- `--purge` borra también tus datos (biblioteca, ajustes, letras, registros y caché de
+  portadas) y la sesión guardada en el llavero. La música descargada en la carpeta por
+  defecto se conserva, y las descargas que guardaste en otra carpeta no se tocan nunca.
+- `--dry-run` muestra lo que borraría sin tocar nada. `--yes` no pregunta; con
+  `curl … | bash` sin terminal hace falta. Las opciones van tras `bash -s --`, por
+  ejemplo `curl … | bash -s -- --purge`.
+
+Es seguro:
+- Solo borra lo que reconoce como de Aurora: la carpeta de la app tiene que tener
+  `aurora_music`, `data/flutter_assets` y `lib/libapp.so`; el comando tiene que
+  apuntar a esa app y el menú tiene que tener su línea `Exec`. Lo demás lo deja y
+  avisa.
+- No sigue enlaces: si algo es un enlace, quita el enlace y no su destino.
+- No borra carpetas estándar como `~/.local/bin`, aunque queden vacías.
+- Si algo no cuadra, se detiene sin haber borrado nada.
+- No usa `sudo` y no se puede ejecutar como root, así que no puede tocar archivos del
+  sistema. Tampoco actúa si `XDG_DATA_HOME` o `XDG_CACHE_HOME` apuntan a una carpeta
+  del sistema (`/usr`, `/etc`, `/opt`…).
+- No desinstala yt-dlp ni las bibliotecas que instaló `get.sh`, porque otros programas
+  pueden usarlas.
+
+Con el paquete .deb: `sudo apt remove aurora-music`. Para borrar después tus datos,
+usa `--purge` con el comando de `curl` de arriba.
 
 ## Compilar desde el código
 
