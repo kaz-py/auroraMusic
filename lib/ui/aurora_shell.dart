@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'aurora_states.dart';
 import '../theme/aurora_tokens.dart';
+import 'shell/panel_visibility.dart';
 import 'shell/shell_chrome.dart';
 import 'shell/shell_nav.dart';
 import '../theme/brasa_theme.dart';
@@ -104,6 +105,12 @@ class AuroraShell extends ConsumerStatefulWidget {
 class _AuroraShellState extends ConsumerState<AuroraShell>
     with WidgetsBindingObserver {
   int _section = 0;
+
+  /// Paneles laterales plegados u ocultos por el usuario (se recuerda).
+  late final ShellPanels _panels;
+  void _panelsChanged() {
+    if (mounted) setState(() {});
+  }
 
   /// Chrome y alcance de la última disposición: los fija el `LayoutBuilder` de
   /// `build` y los leen `_content`/`_page` dentro de ese mismo build.
@@ -222,6 +229,8 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       if (mounted) setState(() {});
     });
     WidgetsBinding.instance.addObserver(this);
+    _panels = ShellPanels(ref.read(controllerProvider).preferences)
+      ..addListener(_panelsChanged);
     _audio = ref.read(controllerProvider).audio;
     _updates = UpdateController(ref.read(controllerProvider).preferences)
       ..start();
@@ -403,6 +412,9 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _panels
+      ..removeListener(_panelsChanged)
+      ..dispose();
     _spotifyMatchController?.onSpotifyMatchFinished = null;
     _friendsSub?.cancel();
     _desktop.dispose();
@@ -571,6 +583,10 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
       case ShortcutId.addToQueue:
       case ShortcutId.addToJam:
         break; // las atiende la fila enfocada (TrackActionsRegion)
+      case ShortcutId.toggleSidebar:
+        _panels.toggle(PanelSide.left);
+      case ShortcutId.toggleAside:
+        _panels.toggle(PanelSide.right);
     }
   }
 
@@ -652,11 +668,17 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                 onCreatePlaylist: () => _createPlaylist(c),
                 onOpenLibrary: (playlist) => _openLibrary(playlist: playlist),
                 miniPlayer: (placement) => _miniPlayer(c, rail, placement),
+                sidebarCollapsed: _panels.sidebarCollapsed,
               );
               final topBar = chrome.topBar(context, scope);
               final sidebar = rail ? chrome.sidebar(context, scope) : null;
               final header = chrome.header(context, scope);
               final aside = chrome.aside(context, scope);
+              final sidebarSeam =
+                  sidebar != null && chrome.sidebarCollapsible(scope);
+              final motion = c.reducedMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220);
               return Scaffold(
                 body: chrome.backdrop(
                   context,
@@ -668,7 +690,23 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                         Expanded(
                           child: Row(
                             children: [
-                              ?sidebar,
+                              if (sidebar != null)
+                                AnimatedSize(
+                                  duration: motion,
+                                  curve: Curves.easeOutCubic,
+                                  alignment: Alignment.centerLeft,
+                                  child: sidebar,
+                                ),
+                              if (sidebarSeam)
+                                PanelSeam(
+                                  side: PanelSide.left,
+                                  open: !_panels.sidebarCollapsed,
+                                  shortcutLabel: scope.shortcuts.labelOf(
+                                    ShortcutId.toggleSidebar,
+                                  ),
+                                  onToggle: () =>
+                                      _panels.toggle(PanelSide.left),
+                                ),
                               Expanded(
                                 child: Column(
                                   children: [
@@ -693,7 +731,25 @@ class _AuroraShellState extends ConsumerState<AuroraShell>
                                   ],
                                 ),
                               ),
-                              ?aside,
+                              if (aside != null) ...[
+                                PanelSeam(
+                                  side: PanelSide.right,
+                                  open: !_panels.asideHidden,
+                                  shortcutLabel: scope.shortcuts.labelOf(
+                                    ShortcutId.toggleAside,
+                                  ),
+                                  onToggle: () =>
+                                      _panels.toggle(PanelSide.right),
+                                ),
+                                AnimatedSize(
+                                  duration: motion,
+                                  curve: Curves.easeOutCubic,
+                                  alignment: Alignment.centerLeft,
+                                  child: _panels.asideHidden
+                                      ? const SizedBox(width: 0)
+                                      : aside,
+                                ),
+                              ],
                             ],
                           ),
                         ),

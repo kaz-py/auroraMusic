@@ -57,7 +57,7 @@ class SlushChrome extends ShellChrome {
   @override
   Widget? sidebar(BuildContext context, ShellScope scope) {
     if (!scope.rail) return null;
-    if (scope.wide) {
+    if (scope.wide && !scope.sidebarCollapsed) {
       return StudioSidebar(
         controller: scope.controller,
         selected: scope.section,

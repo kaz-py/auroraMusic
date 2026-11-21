@@ -45,6 +45,22 @@ ensambla. Un tema implementa `ShellChrome`:
 - La sección 6 (modo letras) **queda fuera** de todo chrome: `AuroraShell` la
   resuelve antes y no se debe mover dentro de `ShellChrome`.
 
+### Paneles plegables (escritorio, ancho ≥ 900)
+
+- Estado en `shell/panel_visibility.dart` (`ShellPanels`): `sidebarCollapsed` y
+  `asideHidden`, guardados en las preferencias `shellSidebarCollapsed` y
+  `shellAsideHidden`.
+- Entre cada panel y el contenido hay un `PanelSeam`: costura de 14 px con un asa
+  que muestra un chevron al pasar el ratón. Usa el `colorScheme` del tema.
+- Atajos configurables: `Ctrl+B` (`ShortcutId.toggleSidebar`) y `Ctrl+Alt+B`
+  (`ShortcutId.toggleAside`).
+- Plegada, la barra izquierda pasa al carril de iconos: el tema lee
+  `scope.sidebarCollapsed`. Modern reutiliza `ModernSidebar(collapsed:)`.
+- El panel derecho oculto queda en ancho 0 y la animación es un `AnimatedSize`
+  de 220 ms (0 con movimiento reducido).
+- `ShellChrome.sidebarCollapsible(scope)` decide si hay costura izquierda. Modern
+  la quita en la sección 4, que ya va con el carril.
+
 ## Añadir un tema nuevo
 
 1. Valor nuevo en `AuroraThemeKind` y su rama en `themeKindOf`.

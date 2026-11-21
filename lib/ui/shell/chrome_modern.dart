@@ -66,9 +66,12 @@ class ModernChrome extends ShellChrome {
       shortcuts: scope.shortcuts,
       friendsBadge: scope.friendsBadge,
       // Carril de iconos en anchos medios y en el reproductor (4).
-      collapsed: !scope.wide || scope.section == 4,
+      collapsed: !scope.wide || scope.sidebarCollapsed || scope.section == 4,
     );
   }
+
+  @override
+  bool sidebarCollapsible(ShellScope scope) => scope.wide && scope.section != 4;
 
   @override
   Widget? aside(BuildContext context, ShellScope scope) {

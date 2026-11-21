@@ -41,6 +41,7 @@ class ShellScope {
     required this.onCreatePlaylist,
     required this.onOpenLibrary,
     required this.miniPlayer,
+    this.sidebarCollapsed = false,
   });
 
   final AppController controller;
@@ -83,6 +84,10 @@ class ShellScope {
   /// Mini reproductor del shell para la ubicación pedida.
   final Widget Function(MiniPlayerPlacement placement) miniPlayer;
 
+  /// El usuario plegó la barra izquierda: los temas muestran su carril de
+  /// iconos aunque haya ancho para la barra completa.
+  final bool sidebarCollapsed;
+
   Uint8List? get avatar => controller.profileAvatar;
 }
 
@@ -99,6 +104,10 @@ abstract class ShellChrome {
 
   /// Barra lateral (`null`: ninguna). El shell solo la pide con carril.
   Widget? sidebar(BuildContext context, ShellScope scope);
+
+  /// La barra izquierda se puede plegar a mano en esta disposición (con ancho
+  /// para la barra completa). Modern la pliega sola en el reproductor.
+  bool sidebarCollapsible(ShellScope scope) => scope.wide;
 
   /// Panel lateral derecho (`null`: ninguno); solo existe en escritorio
   /// (`scope.desktop`).
