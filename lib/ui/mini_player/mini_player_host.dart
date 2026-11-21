@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import '../../app_controller.dart';
 import '../../core/models.dart';
 import '../../jam/jam_controller.dart';
-import '../../theme/brasa_theme.dart';
-import '../../theme/modern_theme.dart';
-import '../../theme/slush_theme.dart';
+import '../../theme/aurora_tokens.dart';
 import 'song_card.dart';
 import 'atelier_mini_player.dart';
 import 'brasa_mini_player.dart';
@@ -48,8 +46,7 @@ enum MiniPlayerPlacement {
 /// (columna del cuerpo o zona inferior), el shell reserva su altura sin
 /// medir nada.
 ///
-/// Visibilidad: oculto sin pista, en la sección 4 (reproductor completo) y en
-/// la página oficial de YouTube Music (sección 10). Con Jam se ve el mismo mini
+/// Visibilidad: oculto sin pista y en la sección 4 (reproductor completo). Con Jam se ve el mismo mini
 /// del tema: el estado ya limita «anterior», «siguiente» y reproducir según los
 /// permisos de la Jam.
 class MiniPlayerHost extends StatelessWidget {
@@ -71,7 +68,7 @@ class MiniPlayerHost extends StatelessWidget {
 
   final AppController controller;
 
-  /// Sección activa del shell (4 = reproductor completo, 10 = YouTube Music).
+  /// Sección activa del shell (4 = reproductor completo).
   final int section;
 
   /// Diseño con carril lateral (ancho ≥ 600).
@@ -99,20 +96,11 @@ class MiniPlayerHost extends StatelessWidget {
   final Map<String, MiniPlayerTheme> themes;
 
   /// Clave del tema vigente según el `ThemeData` activo.
-  static String kindOf(BuildContext context) => isSlush(context)
-      ? 'slush'
-      : isBrasa(context)
-      ? 'brasa'
-      : isModern(context)
-      ? 'modern'
-      : 'atelier';
+  static String kindOf(BuildContext context) => themeKindOf(context).name;
 
   /// Reglas de los temas nuevos.
-  static bool isVisible({
-    required bool hasTrack,
-    required int section,
-    required bool officialMusicPage,
-  }) => hasTrack && section != 4 && section != 6 && !officialMusicPage;
+  static bool isVisible({required bool hasTrack, required int section}) =>
+      hasTrack && section != 4 && section != 6;
 
   /// Slush en móvil lleva el mini dentro de su barra inferior (también con
   /// Jam); el resto, en el cuerpo.
@@ -138,9 +126,6 @@ class MiniPlayerHost extends StatelessWidget {
       listenable: Listenable.merge([controller, controller.eq, ?jam]),
       builder: (context, _) {
         final c = controller;
-        if (section == 10 && c.usesOfficialYouTubeMusic) {
-          return const SizedBox.shrink();
-        }
         final slush = kind == 'slush';
         final mine = placementFor(slush: slush, rail: rail);
         if (mine != placement) return const SizedBox.shrink();
@@ -148,11 +133,7 @@ class MiniPlayerHost extends StatelessWidget {
         final openVinyl = onOpenPlayer;
         final state = MiniPlayerState.fromController(c, jam: jam);
 
-        if (!isVisible(
-          hasTrack: state.hasTrack,
-          section: section,
-          officialMusicPage: false,
-        )) {
+        if (!isVisible(hasTrack: state.hasTrack, section: section)) {
           return const SizedBox.shrink();
         }
         final track = state.track!;

@@ -61,33 +61,44 @@ void main() {
   final library = [for (var i = 0; i < 12; i++) song(i)];
 
   test(
-    'la pista actual entra a la Jam y los 3 suenan igual y sincronizados',
+    'la Jam empieza en silencio y, al añadir, los 3 suenan igual y sincronizados',
     () async {
       final backend = FakeJamBackend();
       final host = await peer(backend, library: library);
       await host.app.playTrack(library[0], context: library);
-      host.audio.position = const Duration(seconds: 42);
       await host.jam.hostOnline('Ana');
+      // Lo que sonaba se pausa y la cola queda vacía: nada se añade solo.
+      expect(host.audio.isPlaying, isFalse);
+      expect(host.jam.service.upcomingQueued, 0);
+      expect(host.jam.autoplayEnabled, isFalse);
       final code = host.jam.service.invite!.code;
       final g1 = await peer(backend);
       final g2 = await peer(backend);
       await g1.jam.join(code, 'Beto');
       await g2.jam.join(code, 'Cris');
+      // Las sugerencias del grupo se ven, pero no pasan a la cola solas.
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      expect(host.jam.service.upcomingQueued, 0);
+      expect([host, g1, g2].every((p) => !p.audio.isPlaying), isTrue);
 
+      host.jam.add(library[0]);
       await eventually(
         () =>
             [host, g1, g2].every((p) => input(p) != null && p.audio.isPlaying),
         'los tres suenan',
       );
-      expect(host.jam.service.queue.first.track.title, 'Song 0');
+      expect(
+        host.jam.service.queue
+            .firstWhere((e) => e.status == JamEntryStatus.queued)
+            .track
+            .title,
+        'Song 0',
+      );
       expect(host.jam.service.mode, JamMode.synchronized);
       final want = 'https://example.test/${library[0].id}';
       for (final p in [host, g1, g2]) {
         expect(input(p), want);
-        expect(
-          (p.audio.position - const Duration(seconds: 42)).inMilliseconds.abs(),
-          lessThan(1000),
-        );
+        expect(p.audio.position.inMilliseconds.abs(), lessThan(1000));
       }
     },
   );
@@ -148,6 +159,7 @@ void main() {
           ),
         );
         await host.jam.hostOnline('Ana');
+        await host.jam.setAutoplay(true);
         host.jam.add(song(100));
         await eventually(() => input(host) != null);
         final service = host.jam.service;
@@ -175,6 +187,7 @@ void main() {
     final host = await peer(backend, library: small);
     await host.app.toggleFavorite(small[0]);
     await host.jam.hostOnline('Ana');
+    await host.jam.setAutoplay(true);
     host.jam.addTracks(small);
     await eventually(() => input(host) != null);
     for (var i = 0; i < 12; i++) {
@@ -191,13 +204,13 @@ void main() {
     () async {
       final backend = FakeJamBackend();
       final host = await peer(backend, library: library);
-      await host.app.playTrack(library[0], context: library);
       await host.jam.hostOnline('Ana');
       final code = host.jam.service.invite!.code;
       final g1 = await peer(backend);
       final g2 = await peer(backend);
       await g1.jam.join(code, 'Beto');
       await g2.jam.join(code, 'Cris');
+      host.jam.add(library[0]);
       await eventually(() => g1.audio.isPlaying && g2.audio.isPlaying);
 
       // Cris elige solo añadir: no reproduce, pero puede añadir.
@@ -231,10 +244,10 @@ void main() {
   test('si el anfitrión se cae, el invitado sigue sonando', () async {
     final backend = FakeJamBackend();
     final host = await peer(backend, library: library);
-    await host.app.playTrack(library[0], context: library);
     await host.jam.hostOnline('Ana');
     final g1 = await peer(backend);
     await g1.jam.join(host.jam.service.invite!.code, 'Beto');
+    host.jam.add(library[0]);
     await eventually(() => g1.audio.isPlaying);
     await g1.jam.service.disconnect();
     await Future<void>.delayed(const Duration(milliseconds: 100));

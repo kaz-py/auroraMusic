@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Aurora</title>
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <section id="jam-section" hidden>
+      <label for="jam-mode">Dónde abrir la Jam</label>
+      <select id="jam-mode">
+        <option value="auto">Automático (en línea si hay servidor, si no, red local)</option>
+        <option value="online">En línea</option>
+        <option value="lan">Red local</option>
+      </select>
+    </section>
+
+    <section>
+      <h2>Conexión con Aurora</h2>
+      <p class="hint">Es común a todas las teclas de Aurora.</p>
+      <label><input type="radio" name="mode" value="auto" checked /> Automática (recomendado)</label>
+      <p class="hint">
+        Aurora debe estar abierta con «Control remoto (Stream Deck)» activado en Ajustes.
+      </p>
+      <label><input type="radio" name="mode" value="manual" /> Manual</label>
+      <div id="manual" hidden>
+        <label for="url">URL</label>
+        <input id="url" type="text" spellcheck="false" placeholder="http://127.0.0.1:47890/v1" />
+        <label for="token">Token</label>
+        <input id="token" type="password" spellcheck="false" placeholder="Cópialo desde Ajustes de Aurora" />
+      </div>
+      <button id="test" type="button">Probar conexión</button>
+      <p id="result" role="status"></p>
+    </section>
+    <script src="settings.js"></script>
+  </body>
+</html>

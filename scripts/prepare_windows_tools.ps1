@@ -6,14 +6,14 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
 $project = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $source = Join-Path $project 'tools/windows'
-$names = @('yt-dlp.exe','deno.exe','ffmpeg.exe','ffprobe.exe','tools.lock.json','binaries.sha256.json','licenses')
+$names = @('yt-dlp.exe','deno.exe','tools.lock.json','binaries.sha256.json','licenses')
 $missing = @($names | Where-Object { -not (Test-Path -LiteralPath (Join-Path $source $_)) })
 if ($missing.Count) {
     Write-Host 'Preparando las herramientas de Aurora con versiones y SHA-256 fijados...'
     & (Join-Path $PSScriptRoot 'setup_tools.ps1') -ToolDirectory $source
 }
 $hashes = Get-Content -LiteralPath (Join-Path $source 'binaries.sha256.json') -Raw | ConvertFrom-Json
-foreach ($name in @('yt-dlp.exe','deno.exe','ffmpeg.exe','ffprobe.exe')) {
+foreach ($name in @('yt-dlp.exe','deno.exe')) {
     if ($hashes.$name -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -LiteralPath (Join-Path $source $name) -Algorithm SHA256).Hash -ne $hashes.$name) {
         throw "Herramienta modificada o sin verificar: $name"
     }

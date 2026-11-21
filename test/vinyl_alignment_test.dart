@@ -1,3 +1,4 @@
+import 'package:aurora_music/theme/modern_theme.dart';
 import 'package:aurora_music/ui/vinyl_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +17,9 @@ void main() {
     Future<void> pumpAt(Size size, double textScale) async {
       await tester.binding.setSurfaceSize(size);
       await tester.pumpWidget(
+        // Atelier solo pinta la portada; Modern pinta el disco (sin pista, siempre).
         MaterialApp(
+          theme: modernTheme(Brightness.dark, const Color(0xff6ea8ff)),
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,

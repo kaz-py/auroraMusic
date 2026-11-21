@@ -1,4 +1,3 @@
-import 'package:aurora_music/audio/audio_math.dart';
 import 'package:aurora_music/audio/stream_guard.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,18 +29,5 @@ void main() {
     ]) {
       assertNotRawYouTube(ok);
     }
-  });
-
-  test('FFmpeg options: loopback http gets timeout/reconnect, no TLS flag', () {
-    final loop = ffmpegHttpsOptions('http://127.0.0.1:4000/t/a/i');
-    expect(loop, containsAllInOrder(['-rw_timeout', '15000000', '-reconnect']));
-    expect(loop, isNot(contains('-tls_verify')));
-    expect(
-      ffmpegHttpsOptions('https://example.test/a'),
-      contains('-tls_verify'),
-    );
-    expect(ffmpegHttpsOptions('http://example.test/a'), isEmpty);
-    expect(ffmpegHttpsOptions('http://localhost:4000/a'), isEmpty);
-    expect(ffmpegHttpsOptions('/music/a.mp3'), isEmpty);
   });
 }

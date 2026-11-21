@@ -504,7 +504,9 @@ class JamService extends ChangeNotifier {
       );
       _pingTimer?.cancel();
       _pingTimer = Timer.periodic(
-        Duration(seconds: _transport == null ? 2 : 8),
+        // En línea cada ping es una llamada al servidor (3 escrituras y un
+        // mensaje): 20 s bastan para mantener el reloj sincronizado.
+        Duration(seconds: _transport == null ? 2 : 20),
         (_) => _ping(),
       );
       _sendMyAvatar();

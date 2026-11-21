@@ -82,6 +82,9 @@ jobs:
       - name: Analizar código Dart
         run: flutter analyze
 
+      - name: Compilar el motor Rust
+        run: cargo build --release --manifest-path rust/Cargo.toml
+
       - name: Ejecutar pruebas
         run: flutter test
 
@@ -200,6 +203,9 @@ jobs:
 
       - name: Analizar código Dart
         run: flutter analyze
+
+      - name: Compilar el motor Rust
+        run: cargo build --release --manifest-path rust/Cargo.toml
 
       - name: Ejecutar pruebas
         run: flutter test

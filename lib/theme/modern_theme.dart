@@ -1,171 +1,159 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../ui/aurora_states.dart';
+import 'modern_cristal.dart';
 
 /// Tiñe una superficie con el color de portada (sin cambiar su luminosidad base).
 Color coverTint(Color base, Color accent, [double amount = .05]) =>
     Color.lerp(base, accent, amount)!;
 
-/// Tema «Modern»: lienzo cálido, tinta azul marino, acentos coral y menta,
-/// radios 8/16/24 y sombras cálidas. Misma firma que `auroraTheme`.
+/// Tema «Modern · Cristal y aura»: lienzo casi negro, cristal fino, un solo
+/// acento azul, menta solo para la señal y coral para «me gusta». Manrope +
+/// Geist Mono. Misma firma que `auroraTheme`; [accent] ya no tiñe el tema (el
+/// color viene de la portada vía `ModernAura`).
 ThemeData modernTheme(Brightness brightness, Color accent) {
-  final dark = brightness == Brightness.dark;
-  const navy = Color(0xff151b31);
-  const canvas = Color(0xfff2f2f2);
-  const mint = Color(0xff86e0c1);
+  final c = brightness == Brightness.dark
+      ? Cristal.darkPalette
+      : Cristal.lightPalette;
+  final dark = c.dark;
+  Color over(Color glass) => Color.alphaBlend(glass, c.canvas);
+  final low = over(c.glass);
+  final mid = over(c.glass.withValues(alpha: dark ? .09 : .07));
+  final high = over(c.glassHover.withValues(alpha: dark ? .13 : .1));
+  final highest = over(c.glassHover.withValues(alpha: dark ? .18 : .14));
 
-  Color t(Color c) => coverTint(c, accent);
-  final surface = t(dark ? const Color(0xff0e1222) : canvas);
-
-  double contrast(Color a, Color b) {
-    final x = a.computeLuminance(), y = b.computeLuminance();
-    return (math.max(x, y) + .05) / (math.min(x, y) + .05);
-  }
-
-  // El acento de Ajustes/portada (sliders, progreso) conserva contraste >= 3.
-  var tint = accent;
-  for (var i = 0; i < 100 && contrast(tint, surface) < 3; i++) {
-    final hsl = HSLColor.fromColor(tint);
-    tint = hsl
-        .withLightness((hsl.lightness + (dark ? .01 : -.01)).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  final primary = dark ? canvas : navy;
-  final onPrimary = dark ? navy : Colors.white;
-  final scheme = ColorScheme.fromSeed(seedColor: navy, brightness: brightness)
-      .copyWith(
-        primary: primary,
-        onPrimary: onPrimary,
-        primaryContainer: dark ? const Color(0xff262e4f) : navy,
-        onPrimaryContainer: dark ? canvas : Colors.white,
-        secondary: mint,
-        onSecondary: navy,
-        secondaryContainer: dark ? const Color(0xff1f3a37) : mint,
-        onSecondaryContainer: dark ? mint : navy,
-        tertiary: tint,
-        onTertiary: contrast(tint, Colors.white) > contrast(tint, navy)
-            ? Colors.white
-            : navy,
-        error: dark ? const Color(0xffff8a8a) : const Color(0xffc62828),
-        surface: surface,
-        surfaceDim: dark ? const Color(0xff0a0d19) : const Color(0xffe3e3e3),
-        surfaceBright: dark ? const Color(0xff2a3254) : Colors.white,
-        surfaceContainerLowest: dark ? const Color(0xff0a0d19) : Colors.white,
-        surfaceContainerLow: t(dark ? const Color(0xff151b31) : Colors.white),
-        surfaceContainer: t(
-          dark ? const Color(0xff1a213b) : const Color(0xfff7f7f7),
-        ),
-        surfaceContainerHigh: t(
-          dark ? const Color(0xff222a48) : const Color(0xffeeeeee),
-        ),
-        surfaceContainerHighest: t(
-          dark ? const Color(0xff2b3456) : const Color(0xffe8e7e5),
-        ),
-        onSurface: dark ? canvas : navy,
-        onSurfaceVariant: dark
-            ? const Color(0xffb4b7c4)
-            : const Color(0xff4d5160),
-        outline: dark ? const Color(0xff8a91b3) : const Color(0xff6d6f75),
-        outlineVariant: dark
-            ? const Color(0xff6a739b)
-            : const Color(0xff8c8a85),
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: c.accent,
+        brightness: brightness,
+      ).copyWith(
+        primary: c.accent,
+        onPrimary: c.onAccent,
+        primaryContainer: over(c.accentSoft),
+        onPrimaryContainer: c.text,
+        secondary: c.signal,
+        onSecondary: dark ? const Color(0xff06130f) : Colors.white,
+        secondaryContainer: over(c.signalFill),
+        onSecondaryContainer: c.signal,
+        tertiary: c.accent,
+        onTertiary: c.onAccent,
+        error: c.like,
+        onError: c.onAccent,
+        surface: c.canvas,
+        surfaceDim: dark ? const Color(0xff07080c) : const Color(0xffe6e9f2),
+        surfaceBright: highest,
+        surfaceContainerLowest: dark
+            ? const Color(0xff07080c)
+            : const Color(0xffffffff),
+        surfaceContainerLow: low,
+        surfaceContainer: mid,
+        surfaceContainerHigh: high,
+        surfaceContainerHighest: highest,
+        onSurface: c.text,
+        onSurfaceVariant: c.text2,
+        outline: c.text3,
+        outlineVariant: c.border,
       );
 
-  // Guía Tracky: GRIFTER (sustituta libre: Bagel Fat One) solo en títulos
-  // grandes; Inter con tracking -0.01em en toda la interfaz.
-  const font = 'Inter';
-  const display = 'Bagel Fat One';
-  TextStyle head(double size, double height, {bool brand = true}) => TextStyle(
-    fontFamily: brand ? display : font,
-    fontSize: size,
-    height: height,
-    fontWeight: brand ? FontWeight.w400 : FontWeight.w700,
-    letterSpacing: brand ? size * .03 : -size * .01,
-    color: scheme.onSurface,
-  );
+  TextStyle ui(double size, int w, {double tracking = 0, double? height}) =>
+      Cristal.ui(
+        size,
+        weight: w,
+        color: c.text,
+        tracking: tracking,
+        height: height,
+      );
   final textTheme = (dark ? ThemeData.dark() : ThemeData.light()).textTheme
-      .apply(
-        fontFamily: font,
-        bodyColor: scheme.onSurface,
-        displayColor: scheme.onSurface,
-      )
+      .apply(fontFamily: 'Manrope', bodyColor: c.text, displayColor: c.text)
       .copyWith(
-        displayLarge: head(56, 1.1),
-        headlineLarge: head(36, 1.2),
-        headlineMedium: head(28, 1.2),
-        headlineSmall: head(24, 1.3),
-        titleLarge: head(22, 1.3, brand: false),
-        titleMedium: const TextStyle(
-          fontFamily: font,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -.16,
-        ),
-        bodyLarge: const TextStyle(fontFamily: font, letterSpacing: -.18),
-        bodyMedium: const TextStyle(fontFamily: font, letterSpacing: -.14),
-        bodySmall: const TextStyle(fontFamily: font, letterSpacing: -.12),
+        displayLarge: ui(56, 800, tracking: -.03, height: 1.1),
+        displayMedium: ui(44, 800, tracking: -.03, height: 1.1),
+        displaySmall: ui(34, 800, tracking: -.03, height: 1.15),
+        headlineLarge: ui(34, 800, tracking: -.03, height: 1.15),
+        headlineMedium: ui(28, 800, tracking: -.03, height: 1.2),
+        headlineSmall: ui(22, 800, tracking: -.03, height: 1.25),
+        titleLarge: ui(18, 700, tracking: -.02, height: 1.3),
+        titleMedium: ui(15, 700, tracking: -.01),
+        titleSmall: ui(13.5, 700),
+        bodyLarge: ui(15, 500),
+        bodyMedium: ui(13.5, 500),
+        bodySmall: ui(12, 500),
+        labelLarge: ui(13.5, 700),
+        labelMedium: Cristal.mono(12, color: c.text2),
+        labelSmall: Cristal.mono(10.5, color: c.text3),
       );
 
   final states = AuroraStates.from(scheme);
   final overlay = WidgetStateProperty.resolveWith<Color?>(
     (s) => s.contains(WidgetState.pressed)
-        ? states.pressed
+        ? c.glassHover
         : s.contains(WidgetState.focused)
-        ? states.focusRing.withValues(alpha: .28)
+        ? c.accent.withValues(alpha: .22)
         : s.contains(WidgetState.hovered)
-        ? states.hover
+        ? c.glass
         : null,
   );
   RoundedRectangleBorder shape(double r) =>
       RoundedRectangleBorder(borderRadius: BorderRadius.circular(r));
-  OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
-    borderRadius: BorderRadius.circular(8),
-    borderSide: BorderSide(color: c, width: w),
+  const pill = StadiumBorder();
+  OutlineInputBorder border(Color color, [double w = 1]) => OutlineInputBorder(
+    borderRadius: BorderRadius.circular(16),
+    borderSide: BorderSide(color: color, width: w),
   );
+  final label = Cristal.ui(13.5, weight: 700);
 
   return ThemeData(
     useMaterial3: true,
+    brightness: brightness,
     extensions: [states, const ModernMarker()],
-    hoverColor: states.hover,
-    focusColor: states.focusRing.withValues(alpha: .22),
-    highlightColor: states.pressed,
-    splashColor: states.pressed,
+    hoverColor: c.glass,
+    focusColor: c.accent.withValues(alpha: .22),
+    highlightColor: c.glass,
+    splashColor: c.glassHover,
     disabledColor: states.disabledText,
     colorScheme: scheme,
-    fontFamily: font,
+    fontFamily: 'Manrope',
     textTheme: textTheme,
-    scaffoldBackgroundColor: scheme.surface,
-    // Las líneas finas siguen suaves; los bordes de controles usan outline.
-    dividerTheme: DividerThemeData(
-      color: dark ? const Color(0xff4a5275) : const Color(0xffc4c2be),
-      thickness: 1,
-    ),
+    scaffoldBackgroundColor: c.canvas,
+    canvasColor: c.canvas,
+    dividerTheme: DividerThemeData(color: c.border, thickness: 1, space: 1),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 44),
-        backgroundColor: scheme.primary,
-        foregroundColor: scheme.onPrimary,
-        shape: shape(8),
+        backgroundColor: c.accent,
+        foregroundColor: c.onAccent,
+        shape: pill,
+        textStyle: label,
+      ).copyWith(overlayColor: overlay),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        elevation: 0,
+        backgroundColor: c.glassHover,
+        foregroundColor: c.text,
+        shape: pill,
+        textStyle: label,
       ).copyWith(overlayColor: overlay),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style:
           OutlinedButton.styleFrom(
             minimumSize: const Size(0, 44),
-            backgroundColor: scheme.surfaceContainerLow,
-            shape: shape(8),
+            backgroundColor: c.glass,
+            foregroundColor: c.text,
+            shape: pill,
+            textStyle: label,
           ).copyWith(
             overlayColor: overlay,
             side: WidgetStateProperty.resolveWith(
               (s) => BorderSide(
                 color: s.contains(WidgetState.disabled)
-                    ? states.disabledText
+                    ? c.border
                     : s.contains(WidgetState.focused)
-                    ? states.focusRing
-                    : scheme.outline,
-                width: s.contains(WidgetState.focused) ? 2 : 1.5,
+                    ? c.accent
+                    : c.border,
+                width: s.contains(WidgetState.focused) ? 2 : 1,
               ),
             ),
           ),
@@ -173,104 +161,109 @@ ThemeData modernTheme(Brightness brightness, Color accent) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(0, 44),
-        shape: shape(8),
+        foregroundColor: c.accent,
+        shape: pill,
+        textStyle: label,
       ).copyWith(overlayColor: overlay),
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: scheme.surfaceContainerHighest,
-      selectedColor: scheme.primary,
-      checkmarkColor: scheme.onPrimary,
-      // Seleccionado el fondo es primary: el texto pasa a onPrimary (también
-      // en FilterChip, que no usa secondaryLabelStyle).
-      labelStyle: TextStyle(
-        color: WidgetStateColor.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? scheme.onPrimary
-              : scheme.onSurface,
-        ),
-        fontWeight: FontWeight.w500,
-      ),
-      secondaryLabelStyle: TextStyle(
-        color: scheme.onPrimary,
-        fontWeight: FontWeight.w500,
-      ),
-      // Alto >= 40 para el toque en móvil (el texto mide 14: 14 + 2 * 13 = 40).
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-      side: BorderSide(color: scheme.outline, width: 1.5),
-      shape: shape(8),
+      backgroundColor: c.glass,
+      selectedColor: c.chip,
+      checkmarkColor: c.onChip,
+      labelStyle: Cristal.ui(
+        13.5,
+        weight: 600,
+        color: c.text2,
+      ).copyWith(color: _selectedAware(c.onChip, c.text2)),
+      secondaryLabelStyle: Cristal.ui(13.5, weight: 600, color: c.onChip),
+      // Alto >= 40 para el toque en móvil (texto 13,5 * 1,4 + 2 * 11).
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+      side: BorderSide(color: c.border),
+      shape: pill,
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
-        side: WidgetStateProperty.all(
-          BorderSide(color: scheme.outline, width: 1.5),
-        ),
+        side: WidgetStateProperty.all(BorderSide(color: c.border)),
         overlayColor: overlay,
+        textStyle: WidgetStateProperty.all(label),
         foregroundColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? scheme.onPrimary
-              : scheme.onSurface,
+          (s) => s.contains(WidgetState.selected) ? c.onChip : c.text,
         ),
         backgroundColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? scheme.primary
-              : scheme.surfaceContainerHighest,
+          (s) => s.contains(WidgetState.selected) ? c.chip : c.glass,
         ),
       ),
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.selected)
-            ? scheme.onPrimary
-            : scheme.outline,
+        (s) => s.contains(WidgetState.selected) ? c.onAccent : c.text2,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (s) => s.contains(WidgetState.selected)
-            ? scheme.primary
-            : scheme.surfaceContainerHighest,
+        (s) => s.contains(WidgetState.selected) ? c.accent : c.glassHover,
       ),
       trackOutlineColor: WidgetStateProperty.resolveWith(
-        (s) =>
-            s.contains(WidgetState.selected) ? scheme.primary : scheme.outline,
+        (s) => s.contains(WidgetState.selected) ? c.accent : c.text3,
       ),
-      trackOutlineWidth: WidgetStateProperty.all(1.5),
+      trackOutlineWidth: WidgetStateProperty.all(1),
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      titleTextStyle: ui(18, 800, tracking: -.02),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
-      color: scheme.surfaceContainerLow,
-      shadowColor: const Color(0xff8a857d),
-      shape: shape(16),
+      color: low,
+      shadowColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: c.border),
+      ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surfaceContainerLow,
-      border: border(scheme.outline),
-      enabledBorder: border(scheme.outline),
-      focusedBorder: border(scheme.primary, 2),
+      fillColor: c.glass,
+      hintStyle: Cristal.ui(13.5, weight: 500, color: c.text3),
+      border: border(c.border),
+      enabledBorder: border(c.border),
+      focusedBorder: border(c.accent, 1.5),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surfaceContainerLow,
+      backgroundColor: highest,
       surfaceTintColor: Colors.transparent,
-      shape: shape(24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: c.border),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: over(c.glass.withValues(alpha: dark ? .09 : .07)),
+      surfaceTintColor: Colors.transparent,
+      modalBackgroundColor: highest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
     ),
     drawerTheme: DrawerThemeData(
-      backgroundColor: scheme.surfaceContainerLow,
+      backgroundColor: mid,
       surfaceTintColor: Colors.transparent,
     ),
     listTileTheme: ListTileThemeData(
-      selectedColor: scheme.onSecondaryContainer,
-      selectedTileColor: scheme.secondaryContainer,
-      iconColor: scheme.onSurfaceVariant,
-      shape: shape(8),
+      selectedColor: c.text,
+      selectedTileColor: over(c.accentSoft),
+      iconColor: c.text2,
+      textColor: c.text,
+      shape: shape(16),
     ),
     popupMenuTheme: PopupMenuThemeData(
-      color: scheme.surfaceContainerLow,
+      color: highest,
       surfaceTintColor: Colors.transparent,
-      shape: shape(16),
-      textStyle: TextStyle(color: scheme.onSurface),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: c.border),
+      ),
+      textStyle: Cristal.ui(13.5, weight: 600, color: c.text),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
@@ -279,35 +272,50 @@ ThemeData modernTheme(Brightness brightness, Color accent) {
               ? states.disabledText
               : s.contains(WidgetState.hovered) ||
                     s.contains(WidgetState.focused)
-              ? scheme.onSurface
-              : scheme.onSurfaceVariant,
+              ? c.text
+              : c.text2,
         ),
         overlayColor: overlay,
       ),
     ),
     sliderTheme: SliderThemeData(
-      activeTrackColor: scheme.tertiary,
-      thumbColor: scheme.tertiary,
-      inactiveTrackColor: scheme.outline.withValues(alpha: .5),
-      overlayColor: scheme.tertiary.withValues(alpha: .14),
+      activeTrackColor: c.accent,
+      thumbColor: c.accent,
+      inactiveTrackColor: c.text.withValues(alpha: .24),
+      overlayColor: c.accent.withValues(alpha: .14),
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: c.accent,
+      linearTrackColor: c.text.withValues(alpha: .12),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       elevation: 0,
-      backgroundColor: navy,
-      contentTextStyle: const TextStyle(
-        color: Colors.white,
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
+      backgroundColor: highest,
+      contentTextStyle: Cristal.ui(14, weight: 600, color: c.text),
+      actionTextColor: c.accent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: c.border),
       ),
-      actionTextColor: mint,
-      shape: shape(8),
     ),
-    tooltipTheme: const TooltipThemeData(
-      waitDuration: Duration(milliseconds: 500),
+    tooltipTheme: TooltipThemeData(
+      waitDuration: const Duration(milliseconds: 500),
+      decoration: BoxDecoration(
+        color: highest,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: c.border),
+      ),
+      textStyle: Cristal.ui(12, weight: 600, color: c.text),
     ),
   );
 }
+
+/// Color de etiqueta que pasa a [selected] cuando el chip está seleccionado.
+WidgetStateColor _selectedAware(Color selected, Color normal) =>
+    WidgetStateColor.resolveWith(
+      (s) => s.contains(WidgetState.selected) ? selected : normal,
+    );
 
 /// Marca del tema Modern: los paneles Studio cambian radio y sombra con ella.
 class ModernMarker extends ThemeExtension<ModernMarker> {

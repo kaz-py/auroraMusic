@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Instala Aurora Music para el usuario actual, sin root.
 # Uso: install.sh [bundle_dir]   (por defecto, la carpeta de este script)
-#      install.sh --uninstall
+#      install.sh --uninstall [--purge] [--yes] [--dry-run]   (ver uninstall.sh)
 set -euo pipefail
 
 app_id="com.aurora.aurora_music"
@@ -18,29 +18,15 @@ refresh_menu() {
   fi
 }
 
-# Quita un directorio y sus padres vacíos hasta $HOME, para no dejar rastro.
-prune_up() {
-  local dir="$1"
-  while [ "$dir" != "$HOME" ] && [ -d "$dir" ] && rmdir "$dir" 2>/dev/null; do
-    dir="$(dirname "$dir")"
-  done
-}
-
+# La desinstalación vive en uninstall.sh: comprueba cada ruta antes de borrarla.
 if [ "${1:-}" = "--uninstall" ]; then
-  rm -rf "$dest"
-  rm -f "$bin_link" "$desktop_file" "$icon_file"
-  if compgen -G "$data_home/applications/*.desktop" >/dev/null; then
-    refresh_menu
-  else
-    # Era la única aplicación: la caché la creó este instalador.
-    rm -f "$data_home/applications/mimeinfo.cache"
+  shift
+  if [ ! -f "$here/uninstall.sh" ]; then
+    echo "Falta uninstall.sh junto a install.sh. Desinstala con:" >&2
+    echo "  curl -fsSL https://raw.githubusercontent.com/kaz-py/auroraMusic/rust-migration/scripts/linux/uninstall.sh | bash" >&2
+    exit 1
   fi
-  prune_up "$(dirname "$bin_link")"
-  prune_up "$(dirname "$desktop_file")"
-  prune_up "$(dirname "$icon_file")"
-  prune_up "$data_home"
-  echo "Aurora Music desinstalado."
-  exit 0
+  exec bash "$here/uninstall.sh" "$@"
 fi
 
 src="$(cd "${1:-$here}" && pwd)"
@@ -64,10 +50,27 @@ desktop_src="$(find_asset "$app_id.desktop")"
 icon_src="$(find_asset "$app_id.png")"
 
 if [ "$src" != "$dest" ]; then
-  rm -rf "$dest"
+  # Solo se reemplaza una instalación anterior de Aurora, nunca otra carpeta.
+  if [ -L "$dest" ]; then
+    rm -f "$dest"
+  elif [ -e "$dest" ]; then
+    if [ ! -f "$dest/aurora_music" ] || [ ! -d "$dest/data/flutter_assets" ] ||
+      [ ! -f "$dest/lib/libapp.so" ]; then
+      echo "$dest existe y no parece una instalación de Aurora; no la reemplazo. Muévela y repite." >&2
+      exit 1
+    fi
+    rm -rf --one-file-system "$dest"
+  fi
   mkdir -p "$(dirname "$dest")"
   cp -a "$src" "$dest"
 fi
+# Los scripts van con la app para poder desinstalarla después
+# (el tar.gz ya los trae; una compilación local, no).
+for script in install.sh uninstall.sh check_bundle.sh; do
+  if [ -f "$here/$script" ] && [ ! -e "$dest/$script" ]; then
+    install -m 755 "$here/$script" "$dest/$script"
+  fi
+done
 mkdir -p "$(dirname "$bin_link")" "$(dirname "$desktop_file")" "$(dirname "$icon_file")"
 ln -sfn "$dest/aurora_music" "$bin_link"
 while IFS= read -r line; do
@@ -92,6 +95,8 @@ if [ -n "$libs" ]; then
       libgtk-3.so.0) pkgs="libgtk-3-0|gtk3|gtk3" ;;
       libsecret-1.so.0) pkgs="libsecret-1-0|libsecret|libsecret" ;;
       libasound.so.2) pkgs="libasound2t64 (o libasound2)|alsa-lib|alsa-lib" ;;
+      libEGL.so.1) pkgs="libegl1 libegl-mesa0|libglvnd-egl mesa-libEGL|libglvnd mesa" ;;
+      libGLESv2.so.2) pkgs="libgles2|libglvnd-gles|libglvnd" ;;
       *) pkgs="" ;;
     esac
     if [ -n "$pkgs" ]; then
@@ -103,11 +108,10 @@ if [ -n "$libs" ]; then
   done
 fi
 
-for tool in ffmpeg yt-dlp; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "Aviso: $tool no está en el PATH; instálalo para usar todas las funciones."
-  fi
-done
+# Aurora usa primero tools/yt-dlp junto a su ejecutable (lo pone get.sh).
+if [ ! -x "$dest/tools/yt-dlp" ] && ! command -v yt-dlp >/dev/null 2>&1; then
+  echo "Aviso: yt-dlp no está en el PATH; instálalo para usar todas las funciones."
+fi
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) echo "Aviso: añade ~/.local/bin a tu PATH para lanzar aurora-music desde la terminal." ;;

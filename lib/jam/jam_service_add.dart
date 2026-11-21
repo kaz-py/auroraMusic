@@ -40,6 +40,16 @@ extension JamServiceAdd on JamService {
         ),
   ];
 
+  /// Cola que se muestra: lo que añadió la gente. Sin autoplay las sugerencias
+  /// automáticas nunca suenan, así que solo salen en «Recomendado».
+  List<JamQueueEntry> get visibleQueue => [
+    for (final e in queue)
+      if (rules.autoplay ||
+          e.suggestedFor == null ||
+          e.status == JamEntryStatus.queued)
+        e,
+  ];
+
   int get _currentIndex => queue.indexWhere((e) => e.id == playback?.entryId);
 
   /// Pistas en cola normal (no sugeridas) que faltan por sonar.

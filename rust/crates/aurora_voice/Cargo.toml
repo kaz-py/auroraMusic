@@ -1,0 +1,13 @@
+[package]
+name = "aurora_voice"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cpal = "0.15"
+rtrb = "0.3"
+rubato = "0.16"
+whisper-rs = "0.16"
+
+[dev-dependencies]
+tempfile = "3.27.0"

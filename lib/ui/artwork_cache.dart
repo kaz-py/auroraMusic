@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../bridge/api/cache.dart' as rust;
+
 /// Sube la resolución de miniaturas de Google/YouTube (`=w60-h60`, `=s120`,
 /// `/hqdefault.jpg`) al cubo [px] más cercano por encima. Otras URLs intactas.
 /// Los cubos fijos evitan una entrada de caché por cada tamaño de widget.
@@ -117,22 +119,11 @@ class ArtworkDiskCache {
   Future<void> _prune() async {
     final dir = await _resolve();
     if (dir == null) return;
-    final entries = <({File file, int size, DateTime at})>[];
-    var total = 0;
-    await for (final e in dir.list()) {
-      if (e is! File) continue;
-      final stat = await e.stat();
-      entries.add((file: e, size: stat.size, at: stat.modified));
-      total += stat.size;
-    }
-    entries.sort((a, b) => a.at.compareTo(b.at));
-    for (final e in entries) {
-      if (total <= maxBytes) break;
-      try {
-        await e.file.delete();
-        total -= e.size;
-      } catch (_) {}
-    }
+    rust.pruneDirectory(
+      dir: dir.path,
+      maxBytes: maxBytes,
+      excludeNames: const [],
+    );
   }
 
   static Future<Uint8List> _httpFetch(String url) async {

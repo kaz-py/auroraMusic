@@ -113,7 +113,9 @@ class _Avatar extends StatelessWidget {
             ? Text(
                 initial,
                 style: const TextStyle(
-                  fontFamily: 'Bagel Fat One',
+                  fontFamily: 'Bricolage Grotesque',
+                  fontWeight: FontWeight.w800,
+                  fontVariations: [FontVariation('wght', 800)],
                   fontSize: 18,
                   color: Slush.ink,
                 ),
@@ -298,7 +300,9 @@ class SlushJamActive extends StatelessWidget {
                           const Text(
                             'ESCANEA PARA UNIRTE',
                             style: TextStyle(
-                              fontFamily: 'Bagel Fat One',
+                              fontFamily: 'Bricolage Grotesque',
+                              fontWeight: FontWeight.w800,
+                              fontVariations: [FontVariation('wght', 800)],
                               fontSize: 22,
                               height: 1.2,
                               color: Slush.onViolet,
@@ -579,6 +583,7 @@ class SlushJamActive extends StatelessWidget {
       accent,
     ).withSaturation(.7).withLightness(.88).toColor();
     final playingId = s.playback?.entryId;
+    final queue = s.visibleQueue;
     return Container(
       padding: const EdgeInsets.all(SlushSpacing.s16),
       decoration: _box(context, _surface(context, tint), SlushRadius.r24),
@@ -602,16 +607,16 @@ class SlushJamActive extends StatelessWidget {
             ],
           ),
           const SizedBox(height: SlushSpacing.s12),
-          if (s.queue.isEmpty)
+          if (queue.isEmpty)
             Padding(
               padding: const EdgeInsets.all(SlushSpacing.s8),
               child: Text(
-                'La cola está vacía. Pulsa «Agregar» para buscar canciones'
-                '${''} o deja que el autoplay añada música al grupo.',
+                'La Jam empieza en silencio. Pulsa «Agregar» para buscar '
+                'canciones o usar una playlist; solo suena lo que añade la gente.',
                 style: TextStyle(color: p.ink2, fontSize: 14, height: 1.45),
               ),
             ),
-          for (final (i, e) in s.queue.indexed)
+          for (final (i, e) in queue.indexed)
             _row(context, i, e, e.id == playingId),
         ],
       ),
@@ -938,7 +943,9 @@ class SlushJamIdle extends StatelessWidget {
               const Text(
                 'EMPIEZA UNA JAM',
                 style: TextStyle(
-                  fontFamily: 'Bagel Fat One',
+                  fontFamily: 'Bricolage Grotesque',
+                  fontWeight: FontWeight.w800,
+                  fontVariations: [FontVariation('wght', 800)],
                   fontSize: 24,
                   height: 1.2,
                   color: Slush.onViolet,

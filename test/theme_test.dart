@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -84,7 +84,8 @@ void main() {
             reason: '$brightness selected navigation text',
           );
         }
-        final surfaceVariants = brightness == Brightness.dark ? 1 : 6;
+        // Atelier: papel y tinta fijos, el acento no tiñe las superficies.
+        const surfaceVariants = 1;
         expect(
           schemes.map((scheme) => scheme.surface).toSet(),
           hasLength(surfaceVariants),
@@ -98,15 +99,13 @@ void main() {
             ((a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs()) * 255;
         expect(
           surfaceTintDistance(schemes.first.surface, schemes.last.surface),
-          brightness == Brightness.dark ? equals(0) : greaterThanOrEqualTo(8),
+          equals(0),
           reason:
               '$brightness artwork palettes should retain neutral studio surfaces',
         );
         expect(themes[0].cardTheme.color, schemes[0].surfaceContainerLow);
-        expect(
-          themes[0].inputDecorationTheme.fillColor,
-          schemes[0].surfaceContainer,
-        );
+        // Atelier: los campos solo llevan subrayado de tinta, sin relleno.
+        expect(themes[0].inputDecorationTheme.fillColor, isNull);
         expect(
           themes[0].dialogTheme.backgroundColor,
           schemes[0].surfaceContainerHigh,

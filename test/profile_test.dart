@@ -6,7 +6,6 @@ import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/library/library_database.dart';
 import 'package:aurora_music/profile/avatar_image.dart';
 import 'package:aurora_music/profile/profile_settings.dart';
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -56,7 +55,7 @@ void main() {
     final c2 = AppController(
       audio: FakeAudio(),
       source: FakeSource(),
-      database: LibraryDatabase(NativeDatabase.memory()),
+      database: LibraryDatabase.memory(),
       preferences: c.preferences,
       supportDirectory: c.supportDirectory,
     );

@@ -25,14 +25,13 @@ class _FailingAudio extends FakeAudio {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     if (failedLoadsRemaining > 0) {
       failedLoadsRemaining--;
       throw Exception('socket timeout');
     }
-    await super.load(source, ffmpegExecutable: ffmpegExecutable, start: start);
+    await super.load(source, start: start);
   }
 }
 
@@ -43,12 +42,11 @@ class _PendingAudio extends FakeAudio {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     if (!loadStarted.isCompleted) loadStarted.complete();
     await loadGate.future;
-    await super.load(source, ffmpegExecutable: ffmpegExecutable, start: start);
+    await super.load(source, start: start);
   }
 }
 

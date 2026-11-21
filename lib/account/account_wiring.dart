@@ -9,6 +9,9 @@ import 'sync_service.dart';
 /// Crea cuenta + sincronización y las enlaza al controlador: con sesión, el
 /// nombre mostrado es el usuario y el avatar de la nube sustituye al local.
 Future<void> connectAccount(AppController c) async {
+  // Servicios en línea desactivados (kSupabaseEnabled): no se crea ni el
+  // cliente de Supabase; el resto de Aurora no depende de ello.
+  if (!c.online.enabled) return;
   final accounts = AccountService();
   final sync = SyncService(
     accounts: accounts,
@@ -33,8 +36,19 @@ Future<void> connectAccount(AppController c) async {
       );
     }
   });
-  await accounts.init();
-  sync.start();
+  // Nada de esto espera a la red: sin servidor (proyecto pausado, sin cuota o
+  // sin conexión) Aurora arranca igual y lo reintenta sola cuando vuelva.
+  Future<void> connect() async {
+    if (!await c.online.available()) return;
+    await accounts.init().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {},
+    );
+    sync.start();
+  }
+
+  c.online.onRecovered(() => unawaited(connect()));
+  unawaited(connect());
 }
 
 /// Descarga el PNG público del avatar (solo https, ≤ 64 KiB).

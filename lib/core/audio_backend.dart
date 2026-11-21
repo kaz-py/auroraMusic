@@ -14,24 +14,24 @@ abstract class AudioBackend extends ChangeNotifier {
   ValueListenable<List<double>> get spectrum;
   Stream<void> get completed;
   Stream<String> get mediaActions => const Stream.empty();
-  Track? get currentTrackMetadata => null;
+
+  /// Lo que está cargado ahora (archivo o proxy local), si el motor puede
+  /// decodificarlo aparte; `null` si no (Android).
+  ResolvedAudio? get currentSource => null;
   Future<void> updateTrackMetadata(Track track) async {}
 
-  /// True while the web player is showing an advertisement.
-  bool get adPlaying => false;
-
-  /// Lets a native media session reflect [playback] owned by another engine;
-  /// null returns the session to this backend.
-  Future<void> mirrorExternalPlayback(AudioBackend? playback) async {}
   Future<void> initialize();
-  Future<void> load(
-    ResolvedAudio source, {
-    String? ffmpegExecutable,
-    Duration start = Duration.zero,
-  });
+  Future<void> load(ResolvedAudio source, {Duration start = Duration.zero});
   Future<void> play();
   Future<void> pause();
   Future<void> stop();
+
+  /// Corta la pista actual para cargar otra (cambio de pista). Igual que
+  /// [stop], pero Android conserva viva la sesión del sistema (servicio en
+  /// primer plano y notificación) mientras se resuelve la siguiente: desde
+  /// segundo plano no puede volver a entrar en primer plano y el proceso se
+  /// congela.
+  Future<void> interrupt() => stop();
   Future<void> seek(Duration position);
   void setVolume(double volume);
 

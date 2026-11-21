@@ -127,19 +127,14 @@ class DownloadJob {
   String? destinationRoot;
 }
 
-/// Which engine plays a [ResolvedAudio]; chosen by the source, never by host.
-enum AudioEngine { native, web }
-
 class ResolvedAudio {
   const ResolvedAudio({
     required this.input,
     this.headers = const {},
     this.duration = Duration.zero,
     this.validateCompletion,
-    this.engine = AudioEngine.native,
   });
   final String input;
-  final AudioEngine engine;
   final Map<String, String> headers;
 
   /// Progressive input must finish validation before a decoder EOF is trusted.

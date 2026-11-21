@@ -12,14 +12,14 @@ abstract final class CloseBehavior {
   static bool read(SharedPreferences p) => p.getBool(key) ?? true;
 }
 
-/// Une la ventana nativa de Windows (bandeja, cierre) con el reproductor.
+/// Une la ventana nativa de Windows y Linux (bandeja, cierre) con el reproductor.
 /// No toca el motor de audio: solo llama a los métodos públicos existentes.
 class DesktopShell {
   DesktopShell(this.controller);
   final AppController controller;
   String? _lastState;
 
-  static bool get supported => Platform.isWindows;
+  static bool get supported => WindowControls.traySupported;
 
   void start() {
     if (!supported) return;

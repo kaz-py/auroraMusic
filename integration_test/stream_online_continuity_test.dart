@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:aurora_music/audio/music_audio.dart';
+import 'package:aurora_music/audio/rust_music_audio.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/sources/yt_dlp_source.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +15,7 @@ void main() {
       final passed = await tester.runAsync(() async {
         SharedPreferences.setMockInitialValues({});
         final source = YtDlpSource(await SharedPreferences.getInstance());
-        final audio = MusicAudio();
+        final audio = RustMusicAudio();
         var completions = 0;
         final subscription = audio.completed.listen((_) => completions++);
         try {
@@ -52,11 +52,7 @@ void main() {
           const initialPosition = Duration(
             milliseconds: int.fromEnvironment('AURORA_INITIAL_POSITION_MS'),
           );
-          await audio.load(
-            resolved,
-            ffmpegExecutable: source.ffmpegExecutable,
-            start: initialPosition,
-          );
+          await audio.load(resolved, start: initialPosition);
           await audio.play();
           const fullTrack = bool.fromEnvironment('AURORA_FULL_TRACK');
           const minimumPlayback = Duration(
@@ -91,10 +87,7 @@ void main() {
           if (fullTrack) {
             // Repeat pointer-like seek bursts on the same resolved song. Pause
             // while a seek is outstanding must win over its asynchronous load.
-            await audio.load(
-              resolved,
-              ffmpegExecutable: source.ffmpegExecutable,
-            );
+            await audio.load(resolved);
             await audio.play();
             await Future.wait([
               audio.seek(const Duration(seconds: 35)),

@@ -7,9 +7,7 @@ import '../jam/jam_flows.dart';
 import '../jam/jam_add_sheet.dart';
 import '../jam/jam_qr_code.dart';
 import '../jam/jam_widgets.dart';
-import '../../theme/brasa_theme.dart';
-import '../../theme/modern_theme.dart';
-import '../../theme/modern_widgets.dart';
+import '../right_panel/right_panel_theme.dart';
 import 'equalizer_panel.dart';
 import 'studio_components.dart';
 import 'studio_symbols.dart';
@@ -40,25 +38,10 @@ class StudioSessionAside extends StatelessWidget {
               .take(3)
               .toList()
         : null;
-    final brasa = isBrasa(context);
-    final modern = isModern(context) || brasa;
-    Widget panel(Widget child) => brasa
-        ? DecoratedBox(
-            decoration: BoxDecoration(
-              color: Brasa.obsidian,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Padding(padding: const EdgeInsets.all(16), child: child),
-          )
-        : modern
-        ? ModernCard(child: child)
-        : StudioPanel(child: child);
-    final titleFont = modern ? 'Inter' : 'Newsreader';
-    final titleWeight = brasa
-        ? FontWeight.w700
-        : modern
-        ? FontWeight.w600
-        : FontWeight.w500;
+    final theme = rightPanelThemeOf(context);
+    final panel = theme.asidePanel;
+    final titleFont = theme.asideTitleFont;
+    final titleWeight = theme.asideTitleWeight;
     return SizedBox(
       width: 340,
       child: ListView(
@@ -226,7 +209,7 @@ class StudioSessionAside extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(height: modern ? 20 : 24),
+          SizedBox(height: theme.asideSectionGap),
           panel(
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,7 +224,7 @@ class StudioSessionAside extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: titleFont,
                           fontSize: 16,
-                          fontWeight: modern ? FontWeight.w600 : null,
+                          fontWeight: theme.asideQueueTitleWeight,
                         ),
                       ),
                     ),
@@ -289,7 +272,7 @@ class StudioSessionAside extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(height: modern ? 20 : 24),
+          SizedBox(height: theme.asideSectionGap),
           panel(EqualizerPanel(controller: c)),
         ],
       ),

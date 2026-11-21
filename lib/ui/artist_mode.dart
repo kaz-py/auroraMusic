@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../core/models.dart';
+import '../theme/aurora_tokens.dart';
+import 'lyrics/lyrics_skin.dart';
 import '../core/window_controls.dart';
 import '../jam/jam_controller.dart';
 import '../lyrics/lyrics_service.dart';
@@ -52,6 +54,9 @@ class ArtistModePage extends StatefulWidget {
 
 class _ArtistModePageState extends State<ArtistModePage> {
   late final LyricsService _service = widget.service ?? LyricsService();
+  // La letra tal como llegó (`_raw`) y la que se muestra con su ajuste de
+  // tiempos aplicado (`_result`).
+  LyricsResult? _raw;
   LyricsResult? _result;
   bool _loading = false;
   String? _trackId;
@@ -66,7 +71,6 @@ class _ArtistModePageState extends State<ArtistModePage> {
   int _lineCount = 0;
   double? _drag;
   bool _fullscreen = false;
-  int _offsetMs = 0;
   final Map<int, GlobalKey> _lineKeys = {};
   final _lineScroll = ScrollController();
   final _plainScroll = ScrollController();
@@ -97,33 +101,33 @@ class _ArtistModePageState extends State<ArtistModePage> {
     _revealing = false;
     _revealGen++;
     _lineKeys.clear();
-    _offsetMs = 0;
+    _raw = null;
     _result = null;
     _loading = false;
-    if (track != null) {
-      unawaited(_load(track));
-      unawaited(
-        _service.readOffset(track, widget.controller.supportDirectory).then((
-          v,
-        ) {
-          if (mounted && _trackId == track.id) setState(() => _offsetMs = v);
-        }),
-      );
-    }
+    if (track != null) unawaited(_load(track));
   }
 
   Future<void> _load(Track track) async {
     final request = _request;
     setState(() => _loading = true);
     try {
-      final result = await _service.load(
+      final raw = await _service.load(
         track,
         widget.controller.supportDirectory,
       );
       if (!mounted || request != _request) return;
-      setState(() => _result = result);
-      if (result.kind == LyricsKind.plain) {
+      _raw = raw;
+      final shown = await _service.adjusted(
+        track,
+        widget.controller.supportDirectory,
+        raw,
+      );
+      if (!mounted || request != _request) return;
+      setState(() => _result = shown);
+      if (raw.kind == LyricsKind.plain) {
         unawaited(_upgrade(track, request));
+      } else if (raw.kind == LyricsKind.synced) {
+        unawaited(_autoSync(track, raw, request));
       }
     } catch (_) {
       // Sin letra: se muestra el aviso de siempre.
@@ -132,23 +136,52 @@ class _ArtistModePageState extends State<ArtistModePage> {
     }
   }
 
+  /// Muestra [result] desde el principio de la lista.
+  void _show(LyricsResult result) => setState(() {
+    _result = result;
+    _lastActive = -1;
+    _placed = false;
+    _revealing = false;
+    _revealGen++;
+    _lineKeys.clear();
+  });
+
+  /// Mide cuándo suena cada línea en el audio real (una vez por pista, en
+  /// segundo plano) y, si saca una corrección, la aplica.
+  Future<void> _autoSync(Track track, LyricsResult raw, int request) async {
+    final changed = await widget.controller.lyricsAutoSync?.run(
+      track,
+      raw,
+      widget.controller.audio.currentSource,
+      widget.controller.supportDirectory,
+    );
+    if (changed != true || !mounted || request != _request) return;
+    final shown = await _service.adjusted(
+      track,
+      widget.controller.supportDirectory,
+      raw,
+    );
+    if (mounted && request == _request) _show(shown);
+  }
+
   /// La letra llegó sin sincronizar: se busca una versión sincronizada que
-  /// case (ver [LyricsService.upgradeToSynced]) y, si hay, se usa.
+  /// case (ver [LyricsService.upgradeToSynced]); si no la hay, se le pone hora
+  /// con el audio.
   Future<void> _upgrade(Track track, int request) async {
+    final root = widget.controller.supportDirectory;
+    final plain = _raw;
     try {
-      final result = await _service.upgradeToSynced(
-        track,
-        widget.controller.supportDirectory,
-      );
-      if (result == null || !mounted || request != _request) return;
-      setState(() {
-        _result = result;
-        _lastActive = -1;
-        _placed = false;
-        _revealing = false;
-        _revealGen++;
-        _lineKeys.clear();
-      });
+      final synced = await _service.upgradeToSynced(track, root);
+      if (!mounted || request != _request) return;
+      if (synced == null) {
+        if (plain != null) unawaited(_autoSync(track, plain, request));
+        return;
+      }
+      _raw = synced;
+      final shown = await _service.adjusted(track, root, synced);
+      if (!mounted || request != _request) return;
+      _show(shown);
+      unawaited(_autoSync(track, synced, request));
     } catch (_) {
       // Se queda la letra aproximada.
     }
@@ -209,15 +242,16 @@ class _ArtistModePageState extends State<ArtistModePage> {
           openPlayer: widget.onClose,
           togglePlay: widget.onTogglePlay,
         );
-        return BlurredCoverBackdrop(
-          track: state.track,
-          child: MediaQuery.withClampedTextScaling(
-            maxScaleFactor: 1.3,
-            child: Builder(
-              builder: (context) => _content(context, state, actions),
-            ),
+        final body = MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.3,
+          child: Builder(
+            builder: (context) => _content(context, state, actions),
           ),
         );
+        final backdrop = _skin(context).backdrop;
+        return backdrop != null
+            ? backdrop(context, state.track, body)
+            : BlurredCoverBackdrop(track: state.track, child: body);
       },
     );
   }
@@ -243,14 +277,20 @@ class _ArtistModePageState extends State<ArtistModePage> {
     );
   }
 
+  LyricsSkin _skin(BuildContext context) => lyricsSkinFor(themeKindOf(context));
+
   /// Barra superior: zona de arrastre (la ventana no tiene marco), salir del
   /// modo y, en Windows, minimizar / maximizar / cerrar la ventana.
   Widget _topBar(BuildContext context, CoverTone tone, bool compact) {
-    ButtonStyle style() => IconButton.styleFrom(
-      minimumSize: const Size.square(44),
-      fixedSize: const Size.square(44),
-      padding: EdgeInsets.zero,
-    );
+    ButtonStyle style() =>
+        _skin(context).iconButtonStyle?.call(tone) ??
+        IconButton.styleFrom(
+          minimumSize: const Size.square(44),
+          fixedSize: const Size.square(44),
+          padding: EdgeInsets.zero,
+        );
+    ButtonStyle top({required bool copy}) =>
+        _skin(context).topButtonStyle?.call(tone, copy: copy) ?? style();
     return Row(
       children: [
         _exit(context, tone, compact),
@@ -259,7 +299,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
           tooltip: 'Copiar letra',
           icon: const Icon(Icons.copy_rounded),
           onPressed: _copyText() == null ? null : _copy,
-          style: style(),
+          style: top(copy: true),
         ),
         Expanded(
           child: GestureDetector(
@@ -284,7 +324,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
                   ? Icons.fullscreen_exit_rounded
                   : Icons.fullscreen_rounded,
             ),
-            style: style(),
+            style: top(copy: false),
           ),
         if (WindowControls.supported) ...[
           // En ventana estrecha no caben todos los botones: minimizar y
@@ -294,21 +334,21 @@ class _ArtistModePageState extends State<ArtistModePage> {
               tooltip: 'Minimizar',
               onPressed: () => WindowControls.invoke('minimize'),
               icon: const Icon(Icons.remove_rounded),
-              style: style(),
+              style: top(copy: false),
             ),
             if (!_fullscreen)
               IconButton(
                 tooltip: 'Maximizar o restaurar',
                 onPressed: () => WindowControls.invoke('maximize'),
                 icon: const Icon(Icons.crop_square_rounded, size: 20),
-                style: style(),
+                style: top(copy: false),
               ),
           ],
           IconButton(
             tooltip: 'Cerrar la ventana',
             onPressed: () => WindowControls.invoke('close'),
             icon: const Icon(Icons.close_rounded),
-            style: style(),
+            style: top(copy: false),
           ),
         ],
       ],
@@ -317,46 +357,70 @@ class _ArtistModePageState extends State<ArtistModePage> {
 
   /// Botón de salir: con texto y flecha, arriba a la izquierda, donde se busca
   /// el «volver» (un icono suelto no se entiende). Esc hace lo mismo.
-  Widget _exit(BuildContext context, CoverTone tone, bool compact) => Tooltip(
-    message: 'Salir del modo letra',
-    child: Semantics(
-      button: true,
-      label: 'Salir del modo letra',
-      excludeSemantics: true,
-      child: Material(
-        color: tone.foreground.withValues(alpha: .16),
-        shape: const StadiumBorder(),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
-          onTap: widget.onClose,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.arrow_back_rounded,
-                    size: 20,
-                    color: tone.foreground,
+  Widget _exit(BuildContext context, CoverTone tone, bool compact) {
+    final custom = _skin(context).exitButton;
+    if (custom != null) {
+      return Tooltip(
+        message: 'Salir del modo letra',
+        child: Semantics(
+          button: true,
+          label: 'Salir del modo letra',
+          excludeSemantics: true,
+          child: custom(
+            context,
+            LyricsExitArgs(
+              tone: tone,
+              compact: compact,
+              onPressed: widget.onClose,
+            ),
+          ),
+        ),
+      );
+    }
+    return _classicExit(context, tone, compact);
+  }
+
+  Widget _classicExit(BuildContext context, CoverTone tone, bool compact) =>
+      Tooltip(
+        message: 'Salir del modo letra',
+        child: Semantics(
+          button: true,
+          label: 'Salir del modo letra',
+          excludeSemantics: true,
+          child: Material(
+            color: tone.foreground.withValues(alpha: .16),
+            shape: const StadiumBorder(),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: widget.onClose,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.arrow_back_rounded,
+                        size: 20,
+                        color: tone.foreground,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        compact ? 'Salir' : 'Salir del modo letra',
+                        style: TextStyle(
+                          color: tone.foreground,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    compact ? 'Salir' : 'Salir del modo letra',
-                    style: TextStyle(
-                      color: tone.foreground,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 
   Widget _frame(
     BuildContext context,
@@ -479,7 +543,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
               track: track,
               size: 72,
               artworkContext: ArtworkContext.thumbnailDetail,
-              radius: 8,
+              radius: _skin(context).compactCoverRadius ?? 8,
             ),
             const SizedBox(width: 12),
             Expanded(child: _titles(context, state, track, tone)),
@@ -507,18 +571,26 @@ class _ArtistModePageState extends State<ArtistModePage> {
     children: [
       Semantics(
         label: 'Portada de ${track.title}',
-        child: Artwork(
-          track: track,
-          size: cover,
-          artworkContext: ArtworkContext.playerDetail,
-          radius: 6,
+        child: _coverFrame(
+          context,
+          Artwork(
+            track: track,
+            size: cover,
+            artworkContext: ArtworkContext.playerDetail,
+            radius: _skin(context).cover == null ? 6 : 0,
+          ),
+          cover,
         ),
       ),
       const SizedBox(height: 4),
       _progress(context, state, actions, tone),
       _titles(context, state, track, tone, center: true),
+      ?_skin(context).meta?.call(context, tone),
     ],
   );
+
+  Widget _coverFrame(BuildContext context, Widget artwork, double size) =>
+      _skin(context).cover?.call(context, artwork, size) ?? artwork;
 
   Widget _titles(
     BuildContext context,
@@ -539,17 +611,21 @@ class _ArtistModePageState extends State<ArtistModePage> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: center ? TextAlign.center : TextAlign.start,
-          style: text.titleMedium?.copyWith(
-            color: tone.foreground,
-            fontWeight: FontWeight.w700,
-          ),
+          style:
+              _skin(context).title?.call(context, tone) ??
+              text.titleMedium?.copyWith(
+                color: tone.foreground,
+                fontWeight: FontWeight.w700,
+              ),
         ),
         Text(
           miniSubtitle(state),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: center ? TextAlign.center : TextAlign.start,
-          style: text.bodyMedium?.copyWith(color: tone.secondary),
+          style:
+              _skin(context).subtitle?.call(context, tone) ??
+              text.bodyMedium?.copyWith(color: tone.secondary),
         ),
       ],
     );
@@ -563,6 +639,27 @@ class _ArtistModePageState extends State<ArtistModePage> {
   ) {
     final value = (_drag ?? state.progress).clamp(0.0, 1.0);
     final shown = state.duration * value;
+    final custom = _skin(context).progress;
+    if (custom != null) {
+      return custom(
+        context,
+        LyricsProgressArgs(
+          tone: tone,
+          value: value,
+          position: shown,
+          duration: state.duration,
+          canSeek: state.canSeek,
+          trackId: state.track?.id ?? '',
+          onChanged: state.canSeek ? (v) => setState(() => _drag = v) : null,
+          onChangeEnd: state.canSeek
+              ? (v) {
+                  setState(() => _drag = null);
+                  actions.seek(v);
+                }
+              : null,
+        ),
+      );
+    }
     final small = Theme.of(context).textTheme.labelSmall?.copyWith(
       color: tone.secondary,
       fontFeatures: const [FontFeature.tabularFigures()],
@@ -729,7 +826,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
     final lines = isApprox ? approx : result.lines;
     final position = widget.controller.audio.position;
     final active = lines.lastIndexWhere(
-      (line) => line.at.inMilliseconds <= position.inMilliseconds + _offsetMs,
+      (line) => line.at.inMilliseconds <= position.inMilliseconds,
     );
     _lineCount = lines.length;
     // Antes de la primera línea no hay nada que centrar: el inicio es correcto.
@@ -785,42 +882,53 @@ class _ArtistModePageState extends State<ArtistModePage> {
                     : null,
                 // La línea activa va en blanco, grande y en negrita; el resto se
                 // atenúa y se encoge, para que se vea de un vistazo por dónde va.
-                child: AnimatedDefaultTextStyle(
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
-                  style: TextStyle(
-                    color: on
-                        ? tone.foreground
-                        : tone.secondary.withValues(alpha: .55),
-                    fontSize: on ? size * 1.12 : size * .88,
-                    height: 1.25,
-                    fontWeight: on ? FontWeight.w800 : FontWeight.w500,
-                  ),
-                  child: Text(line.text.isEmpty ? '♪' : line.text),
-                ),
+                child: _line(context, tone, line.text, on, size),
               ),
             );
           },
         ),
       ),
     );
-    if (!isApprox) return list;
-    return Stack(
-      children: [
-        list,
-        Positioned(
-          top: 0,
-          left: 0,
-          child: Text(
-            'Sincronización aproximada',
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: tone.secondary),
-          ),
+    return list;
+  }
+
+  Widget _line(
+    BuildContext context,
+    CoverTone tone,
+    String text,
+    bool on,
+    double size,
+  ) {
+    final skin = _skin(context);
+    final shown = text.isEmpty ? '♪' : text;
+    final style =
+        skin.lineStyle?.call(context, tone, active: on, size: size) ??
+        TextStyle(
+          color: on ? tone.foreground : tone.secondary.withValues(alpha: .55),
+          fontSize: on ? size * 1.12 : size * .88,
+          height: 1.25,
+          fontWeight: on ? FontWeight.w800 : FontWeight.w500,
+        );
+    final custom = skin.lineBuilder;
+    if (custom != null) {
+      return custom(
+        context,
+        LyricsLineArgs(
+          text: shown,
+          active: on,
+          size: size,
+          tone: tone,
+          style: style,
         ),
-      ],
+      );
+    }
+    return AnimatedDefaultTextStyle(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      style: style,
+      child: Text(shown),
     );
   }
 
@@ -831,12 +939,18 @@ class _ArtistModePageState extends State<ArtistModePage> {
     CoverTone tone,
   ) {
     final c = widget.controller;
-    ButtonStyle style() => IconButton.styleFrom(
-      fixedSize: const Size.square(48),
-      minimumSize: const Size.square(48),
-      padding: EdgeInsets.zero,
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
+    final skin = _skin(context);
+    ButtonStyle style() =>
+        skin.iconButtonStyle?.call(tone) ??
+        IconButton.styleFrom(
+          fixedSize: const Size.square(48),
+          minimumSize: const Size.square(48),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        );
+    Color control(bool active) =>
+        skin.controlIconColor?.call(tone, active: active) ??
+        (active ? tone.foreground : tone.secondary);
     final ink = tone.foreground.computeLuminance() > .5
         ? const Color(0xff151312)
         : const Color(0xfffffaf5);
@@ -848,10 +962,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
           isSelected: c.shuffle,
           onPressed: () => c.setShuffle(!c.shuffle),
           style: style(),
-          icon: Icon(
-            Icons.shuffle_rounded,
-            color: c.shuffle ? tone.foreground : tone.secondary,
-          ),
+          icon: Icon(Icons.shuffle_rounded, color: control(c.shuffle)),
         ),
         IconButton(
           tooltip: state.previousLabel(),
@@ -859,37 +970,53 @@ class _ArtistModePageState extends State<ArtistModePage> {
           style: style(),
           icon: const Icon(Icons.skip_previous_rounded, size: 28),
         ),
-        IconButton.filled(
-          tooltip: state.buffering
-              ? 'Cargando'
-              : state.isPlaying
-              ? 'Pausar'
-              : 'Reproducir',
-          onPressed: state.canTogglePlay ? actions.togglePlay : null,
-          style: IconButton.styleFrom(
-            backgroundColor: tone.foreground,
-            foregroundColor: ink,
-            disabledBackgroundColor: tone.foreground.withValues(alpha: .38),
-            fixedSize: const Size.square(52),
-            minimumSize: const Size.square(52),
-            padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          icon: state.buffering
-              ? SizedBox.square(
-                  dimension: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    color: ink,
+        if (skin.playButton != null)
+          skin.playButton!(
+            context,
+            LyricsPlayArgs(
+              tone: tone,
+              playing: state.isPlaying,
+              buffering: state.buffering,
+              onPressed: state.canTogglePlay ? actions.togglePlay : null,
+              tooltip: state.buffering
+                  ? 'Cargando'
+                  : state.isPlaying
+                  ? 'Pausar'
+                  : 'Reproducir',
+            ),
+          )
+        else
+          IconButton.filled(
+            tooltip: state.buffering
+                ? 'Cargando'
+                : state.isPlaying
+                ? 'Pausar'
+                : 'Reproducir',
+            onPressed: state.canTogglePlay ? actions.togglePlay : null,
+            style: IconButton.styleFrom(
+              backgroundColor: tone.foreground,
+              foregroundColor: ink,
+              disabledBackgroundColor: tone.foreground.withValues(alpha: .38),
+              fixedSize: const Size.square(52),
+              minimumSize: const Size.square(52),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: state.buffering
+                ? SizedBox.square(
+                    dimension: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: ink,
+                    ),
+                  )
+                : Icon(
+                    state.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 30,
                   ),
-                )
-              : Icon(
-                  state.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: 30,
-                ),
-        ),
+          ),
         IconButton(
           tooltip: state.nextLabel(),
           onPressed: state.hasNext ? actions.next : null,
@@ -910,9 +1037,7 @@ class _ArtistModePageState extends State<ArtistModePage> {
             c.repeat == RepeatMode.one
                 ? Icons.repeat_one_rounded
                 : Icons.repeat_rounded,
-            color: c.repeat == RepeatMode.off
-                ? tone.secondary
-                : tone.foreground,
+            color: control(c.repeat != RepeatMode.off),
           ),
         ),
       ],

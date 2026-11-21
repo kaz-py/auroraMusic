@@ -139,12 +139,7 @@ class _HorizontalMusicRowState extends State<HorizontalMusicRow> {
               maxLines: isSlush(context) ? 2 : null,
               overflow: isSlush(context) ? TextOverflow.ellipsis : null,
               style: isSlush(context)
-                  ? const TextStyle(
-                      fontFamily: 'Bagel Fat One',
-                      fontSize: 22,
-                      height: 1.2,
-                      color: Slush.ink,
-                    )
+                  ? slushHeadline(22, height: 1.2, color: Slush.ink)
                   : Theme.of(context).textTheme.titleLarge,
             ),
           if (widget.subtitle != null) ...[

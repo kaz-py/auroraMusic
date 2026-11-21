@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../app_controller.dart';
 import '../core/models.dart';
 import '../core/queue_policy.dart';
+import '../core/source_backend.dart';
 import 'jam_models.dart';
 import 'jam_service.dart';
 import 'jam_suggestions.dart';
@@ -12,6 +13,9 @@ import 'transport/jam_transport.dart';
 import 'transport/supabase_jam_transport.dart';
 import '../sources/innertube_source.dart';
 import 'jam_playback_bridge.dart';
+
+/// Dónde se abre una Jam nueva.
+enum JamHostMode { auto, online, lan }
 
 class JamController extends ChangeNotifier with WidgetsBindingObserver {
   JamController({
@@ -73,8 +77,11 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
   /// Transporte en línea (Supabase); no está disponible sin --dart-define.
   JamTransport get remote =>
       _transport ??= SupabaseJamTransport(JamSupabaseConfig.fromEnvironment);
-  bool get remoteAvailable => remote.available;
-  String? get remoteProblem => remote.unavailableReason;
+  bool get remoteAvailable => app.online.enabled && remote.available;
+  String? get remoteProblem => app.online.enabled
+      ? remote.unavailableReason
+      : 'La Jam por internet está desactivada temporalmente. Usa la Jam por '
+            'red local (código QR).';
   Timer? _suggestTimer, _refreshLater;
   DateTime? _nextRefreshAt;
   String? _lastEntryId;
@@ -138,6 +145,10 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _broadcastTimer;
   StreamSubscription<void>? _completed;
   int _searchGeneration = 0;
+  String _resultsQuery = '';
+  String? _resultsToken;
+  bool loadingMore = false;
+  bool get hasMoreResults => _resultsToken != null;
   bool _disposed = false;
   bool _hostLoading = false;
   Future<void> _run(Future<void> Function() action) async {
@@ -183,6 +194,7 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
       : service.avatarOf(id);
 
   Future<void> host(String address, String? name) => _run(() async {
+    await _quietLocalPlayback();
     await bridge.disable();
     service.localAvatar = app.profileAvatar;
     await service.host(address: address, name: _nameOr(name, 'Anfitrión'));
@@ -199,6 +211,7 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> hostOnline(String? name) => _run(() async {
+    await _quietLocalPlayback();
     await bridge.disable();
     service.localAvatar = app.profileAvatar;
     await service.hostRemote(remote, name: _nameOr(name, 'Anfitrión'));
@@ -207,39 +220,79 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_beginSession());
   });
 
-  /// Al crear la Jam: modo «Escuchando» y la pista actual pasa a ser la
-  /// primera de la cola, con su posición, para que todos la oigan igual.
+  /// Crea la Jam si aún no hay una: [JamHostMode.auto] la abre en línea si hay
+  /// servidor y, si no, en la red local. Devuelve si queda conectada (si no,
+  /// el motivo está en [error]). La usan la interfaz y la API de control remoto.
+  Future<bool> startHosting({
+    String? name,
+    JamHostMode mode = JamHostMode.auto,
+  }) async {
+    if (service.connected) return true;
+    final online = switch (mode) {
+      JamHostMode.online => true,
+      JamHostMode.lan => false,
+      // Automático: en línea solo si hay servidor configurado Y responde; si
+      // no, red local (sin esperar a un servidor pausado ni a su cuota).
+      JamHostMode.auto => remoteAvailable && await app.online.available(),
+    };
+    if (online) {
+      if (!remoteAvailable) {
+        error = remoteProblem ?? 'La Jam en línea no está disponible.';
+        _notify();
+        return false;
+      }
+      if (!await app.online.available()) {
+        error = _offlineMessage;
+        _notify();
+        return false;
+      }
+      await hostOnline(name);
+    } else {
+      await loadAddresses();
+      if (addresses.isNotEmpty) await host(addresses.first, name);
+    }
+    return service.connected;
+  }
+
+  /// Al crear la Jam: modo «Escuchando» y cola vacía. No se mete la canción
+  /// que sonaba: la música llega de lo que añada la gente o de una playlist o
+  /// los «me gusta» con los que se inició (los añade quien la inicia).
   Future<void> _beginSession() async {
     _optOut = false;
     _ended = false;
     _failStreak = 0;
     _skipped.clear();
+    _lastPublished = null;
     try {
       service.setMode(JamMode.synchronized);
-      final track = app.currentTrack;
-      if (track != null && service.isHost) {
-        final position = app.audio.position.inMilliseconds;
-        bridge.remember(track);
-        final result = await service.addMany([
-          JamTrack.fromTrack(track),
-        ], mode: JamAddMode.playNow);
-        final id = result.firstEntryId;
-        final entry = service.queue.where((e) => e.id == id).firstOrNull;
-        if (entry != null) await _play(entry, startMs: position);
-      }
     } on JamException {
-      // Pista no compartible: la Jam arranca igual con la siguiente.
-    } catch (_) {}
+      // El modo ya era el correcto.
+    }
     _autoplay();
     _sessionChanged();
   }
 
+  /// La Jam empieza en silencio: lo que sonaba en el reproductor se pausa.
+  Future<void> _quietLocalPlayback() async {
+    if (app.audio.isPlaying || app.audio.isBuffering) {
+      await app.pausePlayback();
+    }
+  }
+
+  static const _offlineMessage =
+      'La Jam en línea no responde ahora (servidor pausado o sin conexión). '
+      'Usa la Jam por red local (código QR); Aurora vuelve a probar sola.';
+
   Future<void> join(String code, String? name) => _run(() async {
     _optOut = false;
+    final remoteCode = jamRemoteCodeFrom(code) != null;
+    if (remoteCode && !await app.online.available()) {
+      throw JamException(_offlineMessage);
+    }
     await bridge.disable();
     service.localAvatar = app.profileAvatar;
     final who = _nameOr(name, 'Invitado');
-    if (jamRemoteCodeFrom(code) != null) {
+    if (remoteCode) {
       await service.joinRemote(remote, code, name: who);
       _startSuggestions();
     } else {
@@ -712,6 +765,9 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     final generation = ++_searchGeneration;
     query = query.trim();
     results = [];
+    _resultsToken = null;
+    loadingMore = false;
+    _resultsQuery = query;
     searching = query.isNotEmpty;
     error = null;
     _notify();
@@ -723,8 +779,11 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     try {
-      final matches = await app.source.search(query, limit: 12);
-      if (!_disposed && generation == _searchGeneration) results = matches;
+      final page = await app.source.searchPage(query, SearchKind.songs);
+      if (!_disposed && generation == _searchGeneration) {
+        results = page.tracks;
+        _resultsToken = page.continuation;
+      }
     } catch (_) {
       if (!_disposed && generation == _searchGeneration) {
         error =
@@ -738,11 +797,68 @@ class JamController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Siguiente página de la búsqueda de «Añadir» (sin repetir pistas).
+  Future<void> loadMoreResults() async {
+    final token = _resultsToken;
+    if (token == null || searching || loadingMore || _disposed) return;
+    final generation = _searchGeneration;
+    loadingMore = true;
+    _notify();
+    try {
+      final page = await app.source.searchPage(
+        _resultsQuery,
+        SearchKind.songs,
+        continuation: token,
+      );
+      if (_disposed || generation != _searchGeneration) return;
+      final seen = {for (final t in results) t.id};
+      results = [...results, ...page.tracks.where((t) => seen.add(t.id))];
+      _resultsToken = page.continuation;
+    } catch (_) {
+      if (!_disposed && generation == _searchGeneration) {
+        _resultsToken = null; // sin reintento en bucle: otra búsqueda lo rearma
+      }
+    } finally {
+      if (!_disposed && generation == _searchGeneration) {
+        loadingMore = false;
+        _notify();
+      }
+    }
+  }
+
+  /// Última reproducción publicada; en línea evita repetir lo que los invitados
+  /// ya pueden calcular (cada publicación se multiplica por cada invitado en el
+  /// servidor: era lo que más cuota de Realtime gastaba).
+  ({String? entry, bool playing, int position, DateTime at})? _lastPublished;
+  static const _keyframe = Duration(seconds: 10);
+
   void _publish({String? entryId, bool? playing}) {
+    final entry = entryId ?? bridge.currentEntryId;
+    final isPlaying =
+        playing ?? (app.audio.isPlaying && !app.audio.isBuffering);
+    final position = app.audio.position.inMilliseconds;
+    final now = DateTime.now();
+    final last = _lastPublished;
+    if (service.isRemote &&
+        last != null &&
+        last.entry == entry &&
+        last.playing == isPlaying &&
+        now.difference(last.at) < _keyframe) {
+      final predicted =
+          last.position +
+          (isPlaying ? now.difference(last.at).inMilliseconds : 0);
+      if ((position - predicted).abs() < 800) return;
+    }
+    _lastPublished = (
+      entry: entry,
+      playing: isPlaying,
+      position: position,
+      at: now,
+    );
     service.publishPlayback(
-      entryId: entryId ?? bridge.currentEntryId,
-      playing: playing ?? (app.audio.isPlaying && !app.audio.isBuffering),
-      positionMs: app.audio.position.inMilliseconds,
+      entryId: entry,
+      playing: isPlaying,
+      positionMs: position,
     );
   }
 

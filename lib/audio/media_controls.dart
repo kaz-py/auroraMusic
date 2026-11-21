@@ -88,7 +88,32 @@ class MediaControls {
     return Uri.tryParse(art);
   }
 
+  String? _sentKey;
+  Duration _sentPosition = Duration.zero;
+  final Stopwatch _sinceSent = Stopwatch();
+
+  // `audio` avisa 5 veces por segundo (también en pausa) y cada envío cruza el
+  // canal de plataforma: se publica solo si cambia el estado, si la posición
+  // salta (búsqueda, pista nueva) o, sonando, como mucho una vez por segundo.
   void _publish() {
+    final processing = audio.lastError != null
+        ? AudioProcessingState.error
+        : audio.isBuffering
+        ? AudioProcessingState.buffering
+        : _handler?.mediaItem.value == null
+        ? AudioProcessingState.idle
+        : AudioProcessingState.ready;
+    final key = '${audio.isPlaying}|$processing|${audio.lastError}';
+    final elapsed = _sinceSent.elapsed;
+    final expected = _sentPosition + (audio.isPlaying ? elapsed : Duration.zero);
+    final jumped = (audio.position - expected).abs() > const Duration(seconds: 2);
+    final due = audio.isPlaying && elapsed >= const Duration(seconds: 1);
+    if (key == _sentKey && !jumped && !due) return;
+    _sentKey = key;
+    _sentPosition = audio.position;
+    _sinceSent
+      ..reset()
+      ..start();
     _handler?.playbackState.add(
       PlaybackState(
         controls: [
@@ -103,13 +128,7 @@ class MediaControls {
           MediaAction.seekBackward,
         },
         androidCompactActionIndices: const [0, 1, 2],
-        processingState: audio.lastError != null
-            ? AudioProcessingState.error
-            : audio.isBuffering
-            ? AudioProcessingState.buffering
-            : _handler?.mediaItem.value == null
-            ? AudioProcessingState.idle
-            : AudioProcessingState.ready,
+        processingState: processing,
         playing: audio.isPlaying,
         updatePosition: audio.position,
         errorCode: audio.lastError == null ? null : 1,

@@ -135,7 +135,6 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
           listenable: _eq,
           builder: (context, _) => SlushEqBoard(
             eq: _eq,
-            webPlayback: widget.controller.webPlayback,
             selected: _selected,
             onSelect: (i) => setState(() => _selected = i),
             onEngage: _engage,
@@ -225,8 +224,6 @@ class _EqualizerPanelState extends State<EqualizerPanel> {
           Text(
             supported
                 ? 'Ajuste local de este dispositivo; no se comparte en una Jam.'
-                : c.webPlayback
-                ? 'El ecualizador no se aplica al reproductor oficial de YouTube Music.'
                 : 'Este dispositivo no ofrece un ecualizador compatible.',
             style: const TextStyle(fontSize: 11),
           ),

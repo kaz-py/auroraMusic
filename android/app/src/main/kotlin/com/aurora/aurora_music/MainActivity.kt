@@ -28,6 +28,37 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.FutureTask
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+/** Excepciones sin capturar de Kotlin en `files/logs/kotlin-AAAA-MM-DD.log` (UTC),
+ *  la misma carpeta que los registros de Dart y Rust. */
+private class CrashLogHandler(
+    private val dir: File,
+    private val previous: Thread.UncaughtExceptionHandler?,
+) : Thread.UncaughtExceptionHandler {
+    override fun uncaughtException(thread: Thread, error: Throwable) {
+        try {
+            val stamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT)
+                .apply { timeZone = TimeZone.getTimeZone("UTC") }
+                .format(Date())
+            dir.mkdirs()
+            File(dir, "kotlin-${stamp.substring(0, 10)}.log")
+                .appendText("[$stamp] Excepción sin capturar en el hilo '${thread.name}'\n${error.stackTraceToString()}\n")
+        } catch (_: Exception) {
+            // Sin disco no hay registro; el cierre sigue su curso.
+        }
+        previous?.uncaughtException(thread, error)
+    }
+}
+
+private fun installCrashLog(context: Context) {
+    val previous = Thread.getDefaultUncaughtExceptionHandler()
+    if (previous is CrashLogHandler) return
+    Thread.setDefaultUncaughtExceptionHandler(CrashLogHandler(File(context.filesDir, "logs"), previous))
+}
 
 internal fun sourceRequest(target: String) = YoutubeDLRequest(target).apply {
     addOption("--ignore-config"); addOption("--no-plugin-dirs"); addOption("--no-remote-components"); addOption("--no-warnings")
@@ -85,6 +116,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
+        installCrashLog(applicationContext)
         linkChannel = MethodChannel(engine.dartExecutor.binaryMessenger, "aurora/link").also { channel ->
             channel.setMethodCallHandler { call, result ->
                 if (call.method == "initial") result.success(takeLink()) else result.notImplemented()

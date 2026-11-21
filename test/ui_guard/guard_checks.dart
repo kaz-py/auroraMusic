@@ -1,4 +1,4 @@
-import 'package:aurora_music/ui/studio/studio_navigation.dart';
+import 'package:aurora_music/ui/shell/shell_nav.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -131,7 +131,7 @@ List<GuardViolation> checkHitTargets(WidgetTester tester) {
   final out = <GuardViolation>[];
   for (final e in finder.evaluate()) {
     // La barra de título de escritorio (ventana, perfil) es de ratón, no táctil.
-    if (e.findAncestorWidgetOfExactType<StudioTitleBar>() != null) continue;
+    if (e.findAncestorWidgetOfExactType<MouseOnlyRegion>() != null) continue;
     final ro = e.renderObject;
     if (ro is! RenderBox || !ro.hasSize) continue;
     final s = ro.size;

@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../bridge/api/cache.dart' as rust;
+import '../bridge/api/media.dart' as media;
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
@@ -163,6 +165,8 @@ class YtDlpSource extends SourceBackend {
   bool get _isAndroid => _androidOverride ?? Platform.isAndroid;
   static const _channel = MethodChannel('aurora/source');
   final Map<String, Process> _jobs = {};
+  // Validaciones y conversiones de audio en Rust, canceladas con el mismo jobId.
+  final Map<String, media.MediaJob> _mediaJobs = {};
   final Map<String, Set<String>> _resolveJobs = {};
   final Set<String> _startingJobs = {};
   final Set<String> _cancelled = {};
@@ -298,15 +302,13 @@ class YtDlpSource extends SourceBackend {
   // Deno es opcional en Linux: yt-dlp usa otro intérprete de JS si lo hay.
   static List<String> get _requiredTools => [
     _exe('yt-dlp'),
-    _exe('ffmpeg'),
-    _exe('ffprobe'),
     if (Platform.isWindows) 'deno.exe',
   ];
 
   static bool _hasTools(String directory) =>
       _requiredTools.every((n) => File(p.join(directory, n)).existsSync());
 
-  // Linux: herramientas del sistema (p. ej. `apt install yt-dlp ffmpeg`).
+  // Linux: herramientas del sistema (p. ej. `apt install yt-dlp`).
   static String? _onPath(String name) {
     for (final directory in (Platform.environment['PATH'] ?? '').split(':')) {
       final file = p.join(directory, name);
@@ -326,14 +328,6 @@ class YtDlpSource extends SourceBackend {
     return system != null && _hasTools(p.dirname(system))
         ? p.dirname(system)
         : null;
-  }
-
-  @override
-  String? get ffmpegExecutable {
-    if (!_desktop) return null;
-    final directory = toolDirectory;
-    if (directory != null) return p.join(directory, _exe('ffmpeg'));
-    return Platform.isLinux ? _onPath('ffmpeg') : null;
   }
 
   static const _safe = [
@@ -564,8 +558,6 @@ class YtDlpSource extends SourceBackend {
         await _validateCookieFile(cookieFile!),
       ],
       if (await File(deno).exists()) ...['--js-runtimes', 'deno:$deno'],
-      '--ffmpeg-location',
-      directory,
       ...arguments,
     ], runInShell: false);
     final id = jobId ?? 'operation-${DateTime.now().microsecondsSinceEpoch}';
@@ -627,8 +619,8 @@ class YtDlpSource extends SourceBackend {
   }
 
   Future<void> _killTree(Process process) async {
+    if (!Platform.isWindows) return _killTreePosix(process);
     try {
-      if (!Platform.isWindows) return;
       final taskkill = p.join(
         Platform.environment['SystemRoot'] ?? r'C:\Windows',
         'System32',
@@ -645,6 +637,32 @@ class YtDlpSource extends SourceBackend {
     } finally {
       process.kill();
     }
+  }
+
+  /// Linux/macOS: yt-dlp's children (deno for the JS player) get the signal
+  /// first so none is orphaned, then yt-dlp itself; SIGKILL after 2 s if it
+  /// ignored SIGTERM. `pkill` missing (minimal images) only skips children.
+  Future<void> _killTreePosix(Process process) async {
+    Future<void> signalChildren(String signal) async {
+      try {
+        await Process.run('pkill', [
+          '-$signal',
+          '-P',
+          '${process.pid}',
+        ], runInShell: false);
+      } on ProcessException {
+        // No pkill: the parent is still signalled below.
+      }
+    }
+
+    await signalChildren('TERM');
+    process.kill(ProcessSignal.sigterm);
+    final exited = await process.exitCode
+        .then((_) => true)
+        .timeout(const Duration(seconds: 2), onTimeout: () => false);
+    if (exited) return;
+    await signalChildren('KILL');
+    process.kill(ProcessSignal.sigkill);
   }
 
   Track _track(Map<String, dynamic> json) {
@@ -1354,6 +1372,7 @@ class YtDlpSource extends SourceBackend {
     if (_isAndroid) {
       await _channel.invokeMethod<void>('cancel', {'jobId': jobId});
     } else {
+      _mediaJobs[jobId]?.cancel();
       final process = _jobs[jobId];
       if (process != null) await _killTree(process);
     }
@@ -1369,43 +1388,26 @@ class YtDlpSource extends SourceBackend {
       });
       return;
     }
-    final process = await Process.start(ffmpegExecutable!, [
-      '-nostdin',
-      '-v',
-      'error',
-      '-xerror',
-      '-err_detect',
-      'explode',
-      '-i',
-      file.path,
-      '-map',
-      '0:a:0',
-      '-vn',
-      '-f',
-      'null',
-      '-',
-    ], runInShell: false);
-    _jobs[jobId] = process;
-    final drains = Future.wait([
-      process.stdout.drain<void>(),
-      process.stderr.drain<void>(),
-    ]);
+    final job = media.MediaJob.create();
+    _mediaJobs[jobId] = job;
     try {
-      final code = await process.exitCode.timeout(
-        const Duration(minutes: 2),
-        onTimeout: () async {
-          await _killTree(process);
-          return -1;
-        },
-      );
-      await drains;
-      if (code != 0) {
+      final result = await job
+          .validate(path: file.path)
+          .timeout(
+            const Duration(minutes: 2),
+            onTimeout: () {
+              job.cancel();
+              return const media.MediaResult(ok: false, message: 'tiempo');
+            },
+          );
+      _throwIfResolveCancelled(jobId);
+      if (!result.ok) {
         throw StateError(
           'El audio descargado no se puede decodificar completamente.',
         );
       }
     } finally {
-      _jobs.remove(jobId);
+      _mediaJobs.remove(jobId);
     }
   }
 
@@ -1443,22 +1445,8 @@ class YtDlpSource extends SourceBackend {
   @override
   Future<({int bytes, int files})> playbackCacheInfo() async {
     if (!supportsPlaybackCache) return (bytes: 0, files: 0);
-    final cache = await _audioCacheDirectory();
-    var bytes = 0;
-    var files = 0;
-    await for (final entity in cache.list(followLinks: false)) {
-      if (entity is! File ||
-          !RegExp(
-            r'^[A-Za-z0-9_-]{11}\.audio$',
-          ).hasMatch(p.basename(entity.path)) ||
-          await FileSystemEntity.type(entity.path, followLinks: false) !=
-              FileSystemEntityType.file) {
-        continue;
-      }
-      bytes += await entity.length();
-      files++;
-    }
-    return (bytes: bytes, files: files);
+    final info = rust.audioCacheInfo(dir: (await _audioCacheDirectory()).path);
+    return (bytes: info.bytes, files: info.files);
   }
 
   @override
@@ -1470,52 +1458,12 @@ class YtDlpSource extends SourceBackend {
     _clearingCache = true;
     try {
       final cache = await _audioCacheDirectory();
-      final cachePath = await cache.resolveSymbolicLinks();
       final effectivePath = protectedPath == _progressive?.uri.toString()
           ? _progressive?.file.path
           : protectedPath;
-      final protected = effectivePath == null
-          ? null
-          : await _canonicalFilePath(effectivePath);
-      var bytesRemoved = 0;
-      await for (final entity in cache.list(followLinks: false)) {
-        if (entity is! File ||
-            !RegExp(
-              r'^[A-Za-z0-9_-]{11}\.audio$',
-            ).hasMatch(p.basename(entity.path)) ||
-            await FileSystemEntity.type(entity.path, followLinks: false) !=
-                FileSystemEntityType.file) {
-          continue;
-        }
-        final canonicalEntity = await entity.resolveSymbolicLinks();
-        if (!p.isWithin(cachePath, canonicalEntity) ||
-            (protected != null && p.equals(canonicalEntity, protected))) {
-          continue;
-        }
-        final length = await entity.length();
-        try {
-          await entity.delete();
-          bytesRemoved += length;
-        } on FileSystemException {
-          // The player may still have the file open.
-        }
-      }
-      return bytesRemoved;
+      return rust.clearAudioCache(dir: cache.path, protected: effectivePath);
     } finally {
       _clearingCache = false;
-    }
-  }
-
-  Future<String> _canonicalFilePath(String path) async {
-    final file = File(path);
-    try {
-      return await file.resolveSymbolicLinks();
-    } on FileSystemException {
-      final absolute = p.normalize(file.absolute.path);
-      final parent = await Directory(
-        p.dirname(absolute),
-      ).resolveSymbolicLinks();
-      return p.join(parent, p.basename(absolute));
     }
   }
 
@@ -1534,26 +1482,11 @@ class YtDlpSource extends SourceBackend {
         return null;
       }
     }
-    final directory = toolDirectory;
-    if (directory == null) return null;
-    final ffprobe = File(p.join(directory, _exe('ffprobe')));
-    if (!await ffprobe.exists()) return null;
-    final result = await Process.run(ffprobe.path, [
-      '-v',
-      'error',
-      '-select_streams',
-      'a:0',
-      '-show_entries',
-      'stream=codec_type:format=duration',
-      '-of',
-      'default=noprint_wrappers=1:nokey=1',
-      file.path,
-    ], runInShell: false);
-    if (result.exitCode != 0) return null;
-    final values = result.stdout.toString().trim().split(RegExp(r'\s+'));
-    if (values.length < 2 || values.first != 'audio') return null;
-    final seconds = double.tryParse(values.last);
-    if (seconds == null || !seconds.isFinite || seconds <= 0) return null;
+    final result = await media.mediaProbeDuration(path: file.path);
+    final seconds = result.seconds;
+    if (!result.ok || seconds == null || !seconds.isFinite || seconds <= 0) {
+      return null;
+    }
     return Duration(milliseconds: (seconds * 1000).round());
   }
 
@@ -1562,44 +1495,80 @@ class YtDlpSource extends SourceBackend {
     File? protect,
     int reserveBytes = 0,
   }) async {
-    final files = <File>[];
-    await for (final entity in cache.list(followLinks: false)) {
-      if (entity is File &&
-          RegExp(
-            r'^[A-Za-z0-9_-]{11}\.audio$',
-          ).hasMatch(p.basename(entity.path)) &&
-          await FileSystemEntity.type(entity.path, followLinks: false) ==
-              FileSystemEntityType.file) {
-        files.add(entity);
-      }
-    }
-    files.sort((a, b) => a.lastModifiedSync().compareTo(b.lastModifiedSync()));
-    var total = 0;
-    for (final file in files) {
-      total += await file.length();
-    }
-    for (final file in files) {
-      if (total <= _maxCachedAudioBytes - reserveBytes) break;
-      if (protect != null && p.equals(file.path, protect.path)) continue;
-      if (_progressive != null &&
-          p.equals(file.path, _progressive!.file.path)) {
-        continue;
-      }
-      final size = await file.length();
-      try {
-        await file.delete();
-        total -= size;
-      } on FileSystemException {
-        // An active player may still have this cached file open.
-      }
-    }
-    if (reserveBytes > 0 && total > _maxCachedAudioBytes - reserveBytes) {
+    final report = rust.pruneAudioCache(
+      dir: cache.path,
+      maxBytes: _maxCachedAudioBytes,
+      reserveBytes: reserveBytes,
+      protected: [
+        if (protect != null) protect.path,
+        if (_progressive != null) _progressive!.file.path,
+      ],
+    );
+    if (report.noSpace) {
       throw StateError('No hay espacio disponible en la cache de audio.');
     }
   }
 
+  // La descarga es el 90 % del progreso; dejar el audio listo, el resto.
+  static const _downloadShare = 0.9;
+
+  // Deja listo el audio que descargó yt-dlp en `temp`. El Opus de WebM pasa a
+  // Ogg `.opus` sin recodificar (misma calidad que YouTube); M4A, Opus y MP3
+  // ya sirven tal cual. Nada se recodifica. Las extensiones coinciden con las
+  // que acepta `AppController._downloadExtensions`.
+  static const _keepExtensions = {'.m4a', '.opus', '.mp3'};
+
+  Future<File> _finalizeAudio(
+    Directory temp,
+    String jobId,
+    void Function(double)? onProgress,
+  ) async {
+    _throwIfResolveCancelled(jobId);
+    final raw = <File>[];
+    await for (final entry in temp.list(followLinks: false)) {
+      if (entry is! File) continue;
+      final name = p.basename(entry.path);
+      if (name.startsWith('audio.') &&
+          !name.endsWith('.part') &&
+          !name.endsWith('.ytdl') &&
+          !name.endsWith('.json')) {
+        raw.add(entry);
+      }
+    }
+    if (raw.isEmpty) throw StateError('La descarga no produjo audio.');
+    raw.sort((a, b) => b.lengthSync().compareTo(a.lengthSync()));
+    final source = raw.first;
+    final extension = p.extension(source.path).toLowerCase();
+    if (_keepExtensions.contains(extension)) return source;
+    if (extension != '.webm' && extension != '.mkv') {
+      throw StateError('Formato de audio no admitido: $extension');
+    }
+    final target = File(p.join(temp.path, 'audio.opus'));
+    final job = media.MediaJob.create();
+    _mediaJobs[jobId] = job;
+    final ticker = onProgress == null
+        ? null
+        : Timer.periodic(
+            const Duration(milliseconds: 250),
+            (_) => onProgress(
+              _downloadShare + (1 - _downloadShare) * job.progress(),
+            ),
+          );
+    try {
+      final result = await job.remuxOpus(src: source.path, dst: target.path);
+      if (_cancelled.contains(jobId)) throw StateError('Descarga cancelada.');
+      if (!result.ok) {
+        throw StateError('No se pudo guardar el audio: ${result.message}');
+      }
+      return target;
+    } finally {
+      ticker?.cancel();
+      _mediaJobs.remove(jobId);
+    }
+  }
+
   @override
-  Future<void> download(
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
@@ -1615,6 +1584,7 @@ class YtDlpSource extends SourceBackend {
     ).createTemp('.aurora-');
     try {
       if (_cancelled.contains(jobId)) throw StateError('Descarga cancelada.');
+      File file;
       if (_isAndroid) {
         if (onProgress != null) _progress[jobId] = onProgress;
         final legacy = _updateDirectory == null
@@ -1646,17 +1616,15 @@ class YtDlpSource extends SourceBackend {
             'jobId': jobId,
           });
         }
+        // El motor nativo de Android entrega siempre un MP3.
+        file = File(p.join(temp.path, 'audio.mp3'));
       } else {
+        // yt-dlp solo descarga el mejor audio; Rust lo deja listo sin recodificar.
         await _run(
           [
             '--no-playlist',
             '-f',
             'bestaudio/best',
-            '-x',
-            '--audio-format',
-            'mp3',
-            '--audio-quality',
-            '0',
             '--newline',
             '--progress-template',
             'download:AURORA_PROGRESS:%(progress._percent_str)s',
@@ -1666,17 +1634,23 @@ class YtDlpSource extends SourceBackend {
             target,
           ],
           jobId: jobId,
-          onProgress: onProgress,
+          onProgress: onProgress == null
+              ? null
+              : (value) => onProgress(value * _downloadShare),
         );
+        file = await _finalizeAudio(temp, jobId, onProgress);
       }
-      final file = File(p.join(temp.path, 'audio.mp3'));
       if (!await file.exists() || await file.length() == 0) {
         throw StateError('La descarga no produjo audio.');
       }
-      if (await destination.exists()) throw StateError('El destino ya existe.');
+      final saved = File(
+        p.setExtension(destination.path, p.extension(file.path).toLowerCase()),
+      );
+      if (await saved.exists()) throw StateError('El destino ya existe.');
       if (_cancelled.contains(jobId)) throw StateError('Descarga cancelada.');
-      await file.rename(destination.path);
+      await file.rename(saved.path);
       onProgress?.call(1);
+      return saved;
     } finally {
       _progress.remove(jobId);
       _cancelled.remove(jobId);
@@ -1790,12 +1764,14 @@ class YtDlpSource extends SourceBackend {
           continue;
         }
         _cancelled.add(activeId);
+        _mediaJobs[activeId]?.cancel();
         final process = _jobs[activeId];
         if (process != null) await _killTree(process);
       }
       return;
     }
     _cancelled.add(jobId);
+    _mediaJobs[jobId]?.cancel();
     final process = _jobs[jobId];
     if (process != null) {
       await _killTree(process);

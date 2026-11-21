@@ -4,14 +4,14 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audio_service_win
-  flutter_inappwebview_windows
   flutter_secure_storage_windows
   url_launcher_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  flutter_soloud
+  flutter_local_notifications_windows
   jni
+  rust_lib_aurora_music
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

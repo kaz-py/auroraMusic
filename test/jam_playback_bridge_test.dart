@@ -21,14 +21,9 @@ class _EngineSource extends FakeSource {
 }
 
 void main() {
-  for (final audio in [
-    const ResolvedAudio(input: 'http://127.0.0.1:4000/t/a/i'),
-    const ResolvedAudio(
-      input: 'https://music.youtube.com/watch?v=abcdefghijk',
-      engine: AudioEngine.web,
-    ),
-  ]) {
-    test('Jam plays ${audio.engine.name} resolved audio', () async {
+  {
+    const audio = ResolvedAudio(input: 'http://127.0.0.1:4000/t/a/i');
+    test('Jam plays resolved audio', () async {
       final now = DateTime.utc(2026, 10, 12);
       final out = FakeAudio();
       final app = await createTestController(
@@ -65,7 +60,6 @@ void main() {
         ),
       );
       expect(out.loaded?.input, audio.input);
-      expect(out.loaded?.engine, audio.engine);
     });
   }
 
@@ -79,7 +73,7 @@ void main() {
         isPlaying: true,
       );
       expect(jamTargetPosition(state, 10500, 200), 3700);
-      expect(jamTargetPosition(state, 30000, 0), 8000);
+      expect(jamTargetPosition(state, 30000, 0), 18000);
       expect(jamTargetPosition(state, 10500, 200, durationMs: 3500), 3500);
       expect(
         jamTargetPosition(
@@ -92,12 +86,12 @@ void main() {
     },
   );
   test(
-    'drift correction uses 750ms deadband 500ms steps and five second cooldown',
+    'drift correction uses a 1.5 s deadband, one jump (max 3 s) and a five second cooldown',
     () {
       expect(
         jamDriftCorrection(
           currentMs: 1000,
-          targetMs: 1600,
+          targetMs: 2400,
           nowMs: 10000,
           lastSeekMs: null,
         ),
@@ -110,7 +104,7 @@ void main() {
           nowMs: 10000,
           lastSeekMs: null,
         ),
-        1500,
+        4000,
       );
       expect(
         jamDriftCorrection(
@@ -119,7 +113,7 @@ void main() {
           nowMs: 10000,
           lastSeekMs: null,
         ),
-        5500,
+        3000,
       );
       expect(
         jamDriftCorrection(
@@ -181,10 +175,10 @@ void main() {
       );
       await bridge.apply(state);
       expect(audio.loadCount, 1);
-      expect(audio.position.inMilliseconds, 2500);
+      expect(audio.position.inMilliseconds, 5000);
       now = now.add(const Duration(seconds: 1));
       await bridge.apply(state);
-      expect(audio.position.inMilliseconds, 2500);
+      expect(audio.position.inMilliseconds, 5000);
       await bridge.apply(
         JamPlayback(
           sequence: 3,

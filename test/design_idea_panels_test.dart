@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/library/local_file_metadata.dart';
-import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:aurora_music/ui/studio/downloads_studio_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';

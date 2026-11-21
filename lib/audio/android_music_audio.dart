@@ -130,9 +130,6 @@ class AndroidMusicAudio extends AudioBackend {
           'stop',
         ].contains(action)) {
           _mediaActions.add(action as String);
-        } else if (action == 'seek' && raw['positionMs'] is num) {
-          // Session seeks while the web engine plays go to the controller.
-          _mediaActions.add('seek:${(raw['positionMs'] as num).toInt()}');
         }
     }
   }
@@ -153,7 +150,6 @@ class AndroidMusicAudio extends AudioBackend {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     assertNotRawYouTube(source.input);
@@ -201,21 +197,6 @@ class AndroidMusicAudio extends AudioBackend {
     artworkUrl: track.artworkUrl,
   );
 
-  /// Keeps the Media3 session, notification and foreground service in step
-  /// with web playback so Android does not freeze the app in background.
-  @override
-  Future<void> mirrorExternalPlayback(AudioBackend? playback) async {
-    if (_disposed) return;
-    // Not _invoke: a session-mirror failure must not mark native audio failed.
-    await _channel.invokeMethod<void>('external', {
-      'active': playback != null,
-      'playing': playback?.isPlaying ?? false,
-      'buffering': playback?.isBuffering ?? false,
-      'positionMs': playback?.position.inMilliseconds ?? 0,
-      'durationMs': playback?.duration.inMilliseconds ?? 0,
-    });
-  }
-
   @override
   Future<void> play() => _invoke('play');
   @override
@@ -229,7 +210,12 @@ class AndroidMusicAudio extends AudioBackend {
   });
 
   @override
-  Future<void> stop() async {
+  Future<void> stop() => _stop(keepSession: false);
+
+  @override
+  Future<void> interrupt() => _stop(keepSession: true);
+
+  Future<void> _stop({required bool keepSession}) async {
     ++_generation;
     _source = null;
     _completedGeneration = null;
@@ -239,7 +225,10 @@ class AndroidMusicAudio extends AudioBackend {
     _position = Duration.zero;
     _duration = Duration.zero;
     notifyListeners();
-    await _invoke('stop', {'generation': _generation});
+    await _invoke('stop', {
+      'generation': _generation,
+      if (keepSession) 'keepSession': true,
+    });
   }
 
   @override

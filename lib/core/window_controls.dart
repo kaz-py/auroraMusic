@@ -3,9 +3,14 @@ import 'package:flutter/services.dart';
 
 /// Desktop title-bar operations stay outside widgets.
 abstract final class WindowControls {
+  /// Barra de título propia, modo mini e inicio con el sistema: solo Windows.
   static bool get supported => Platform.isWindows;
+
+  /// Ejecutables con canal nativo `aurora/window` (bandeja, cierre real y
+  /// segunda instancia): Windows y Linux. En Linux, lo que no existe (mini,
+  /// pantalla completa, fondo…) responde «no implementado» y da `false`.
+  static bool get traySupported => Platform.isWindows || Platform.isLinux;
   static const _channel = MethodChannel('aurora/window');
-  static Future<bool> Function()? _confirm;
 
   /// Se ejecuta tras confirmar un cierre real (Alt+F4 / Salir): detener audio.
   static Future<void> Function()? onRealExit;
@@ -21,15 +26,15 @@ abstract final class WindowControls {
 
   static bool _installed = false;
 
-  static void _install() {
-    if (_installed || !Platform.isWindows) return;
+  /// Instala el canal nativo (cierre real, bandeja y segunda instancia).
+  static void install() {
+    if (_installed || !traySupported) return;
     _installed = true;
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'confirmClose':
-          final ok = await (_confirm?.call() ?? Future.value(true));
-          if (ok && call.arguments == true) await onRealExit?.call();
-          return ok;
+          if (call.arguments == true) await onRealExit?.call();
+          return true;
         case 'trayAction':
           onTrayAction?.call(call.arguments as String);
           return null;
@@ -40,13 +45,6 @@ abstract final class WindowControls {
       throw MissingPluginException();
     });
   }
-
-  static void setCloseConfirmation(Future<bool> Function()? confirm) {
-    _confirm = confirm;
-    _install();
-  }
-
-  static Future<bool> guardClose(bool enabled) => invoke('guardClose', enabled);
 
   /// Tamaño lógico de la ventana del modo mini.
   static const miniWindowSize = Size(380, 150);
@@ -77,8 +75,8 @@ abstract final class WindowControls {
   }
 
   static Future<bool> invoke(String operation, [Object? arguments]) async {
-    if (!Platform.isWindows) return false;
-    _install();
+    if (!traySupported) return false;
+    install();
     try {
       await _channel.invokeMethod<void>(operation, arguments);
       return true;
@@ -91,7 +89,7 @@ abstract final class WindowControls {
 
   /// Cierre real de la app (ignora «minimizar a la bandeja»): detiene el audio,
   /// cierra la bandeja y termina el proceso. Es la única vía que debe usar el
-  /// actualizador antes de lanzar el instalador. No hace nada fuera de Windows.
+  /// actualizador antes de lanzar el instalador. Solo Windows y Linux.
   static Future<bool> requestHardExit() => invoke('hardExit');
 
   static int? _background;
@@ -105,7 +103,8 @@ abstract final class WindowControls {
   }
 
   static Future<bool> query(String operation) async {
-    if (!Platform.isWindows) return false;
+    if (!traySupported) return false;
+    install();
     try {
       return await _channel.invokeMethod<bool>(operation) ?? false;
     } on PlatformException {

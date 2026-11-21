@@ -4,6 +4,8 @@
 
 Windows x64, Flutter 3.38.8 / Dart 3.10.7; Android API 36.1 en emulador x86_64. La plataforma mínima configurada es Android API 24. Las pruebas de emulador no sustituyen pruebas en teléfonos o auriculares físicos.
 
+> **Nota (motor Rust).** Los resultados y comandos históricos de esta página que citan SoLoud, FFmpeg, `audio_smoke_test` o `audio_soak_runner` describen el motor de escritorio anterior a 1.5.2 y ya no se pueden repetir: ese motor se eliminó. El motor actual se valida con `cargo test --workspace --release` y el humo real `--test device` (ver `MIGRATION_AUDIT.md`).
+
 ## Pruebas reproducibles
 
 ```powershell
@@ -12,9 +14,8 @@ flutter test --no-pub
 flutter test integration_test/interface_smoke_test.dart -d windows --no-pub
 flutter test integration_test/app_smoke_test.dart -d windows --no-pub
 flutter test integration_test/app_smoke_test.dart -d <android-id> --no-pub
-flutter test integration_test/audio_smoke_test.dart -d windows --no-pub --dart-define=AURORA_TOOLS=C:/ruta/tools/windows --name "native WAV|FFmpeg PCM"
-flutter test integration_test/audio_smoke_test.dart -d <android-id> --no-pub --name "native WAV|FFmpeg PCM"
-flutter test integration_test/audio_smoke_test.dart -d windows --no-pub --dart-define=AURORA_SOAK_MINUTES=30 --plain-name "native audio soak"
+cargo test --workspace --release --manifest-path rust/Cargo.toml
+cargo test -p aurora_playback --release --test device --manifest-path rust/Cargo.toml -- --ignored --nocapture
 ```
 
 Las pruebas nativas generan tonos de volumen bajo y archivos temporales, que eliminan al finalizar. No ejecutes dos compilaciones Windows simultáneamente sobre el mismo directorio de salida.
@@ -45,16 +46,6 @@ Usa un video público permitido para probar extracción, reproducción y descarg
 | Alineación Android | ZIP de 16 KB y 265 ELF ARM64, incluyendo dependencias archivadas Python/FFmpeg: aprobados. WebP recompilado y avisos de licencia presentes en APK. |
 
 La inspección de dependencias detectó cinco ELF WebP de 4 KB dentro del archivo FFmpeg original. `scripts/rebuild_android_webp.ps1` recompila esas bibliotecas desde código oficial con NDK 28 y verifica sus símbolos/SONAME; `scripts/verify_android_alignment.ps1` revisa tanto las bibliotecas visibles del APK como las dependencias archivadas de Python/FFmpeg. La comprobación estática y la ejecución en un dispositivo de 16 KB son verificaciones diferentes.
-
-Para repetir la prueba larga sin depender de la conexión del depurador:
-
-```powershell
-flutter build windows --release --no-pub -t integration_test/audio_soak_runner.dart --dart-define=AURORA_SOAK_MINUTES=30 --dart-define=AURORA_SOAK_LOG=C:/ruta/aurora-soak.jsonl
-$env:AURORA_HIDE_WINDOW='1'
-Start-Process ./build/windows/x64/runner/Release/aurora_music.exe -WindowStyle Hidden -Wait
-# Restaurar el ejecutable de la aplicación después de la prueba:
-flutter build windows --release --no-pub -t lib/main.dart
-```
 
 El runner escribe muestras cada 10 segundos y eventos `complete`/`failed`; el código de salida es 0/1. Durante esta implementación se ejecutó una copia aislada en `build/soak-runner-bin`, permitiendo compilar la aplicación simultáneamente.
 

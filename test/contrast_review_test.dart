@@ -2,7 +2,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:aurora_music/ui/aurora_states.dart';
 import 'package:aurora_music/ui/studio/studio_components.dart';
 import 'package:flutter/material.dart';

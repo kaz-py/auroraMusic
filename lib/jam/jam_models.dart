@@ -459,12 +459,14 @@ class JamRules {
     this.approve = false,
     this.open = true,
     this.suggest = true,
-    this.autoplay = true,
+    this.autoplay = false,
   });
   final int maxGuests, maxPerGuest;
   final bool votes, approve, open, suggest;
 
-  /// Autoplay de la Jam: el anfitrión mantiene la cola con sugerencias.
+  /// Autoplay de la Jam (apagado por defecto, como la Jam de Spotify: suena lo
+  /// que añade la gente): si se enciende, el anfitrión mantiene la cola con
+  /// sugerencias.
   final bool autoplay;
   JamRules copyWith({
     int? maxGuests,
@@ -520,7 +522,7 @@ class JamRules {
       approve: data['approve'],
       open: data['open'],
       suggest: data['suggest'],
-      autoplay: data['autoplay'] != false,
+      autoplay: data['autoplay'] == true,
     );
   }
 }

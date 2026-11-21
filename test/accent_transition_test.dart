@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:aurora_music/main.dart';
+import 'package:aurora_music/theme/atelier_theme.dart';
 import 'package:aurora_music/theme/accent_transition.dart';
 import 'package:aurora_music/theme/brasa_theme.dart';
 import 'package:aurora_music/theme/modern_theme.dart';

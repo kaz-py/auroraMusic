@@ -3,6 +3,7 @@ import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/friends/friends_providers.dart';
 import 'package:aurora_music/friends/friends_service.dart';
 import 'package:aurora_music/theme/modern_widgets.dart';
+import 'package:aurora_music/ui/cassette_player.dart';
 import 'package:aurora_music/ui/friends_page.dart';
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
 import 'package:aurora_music/main.dart';
@@ -314,6 +315,27 @@ void main() {
         expect(tester.getRect(tile).bottom, lessThanOrEqualTo(640));
       }
     });
+
+    testWidgets('$theme: el reproductor grande tiene aleatorio que se activa', (
+      tester,
+    ) async {
+      final c = await pumpPhone(tester, theme: theme, play: true);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(MiniPlayerHost),
+              matching: find.text(_long),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(c.shuffle, isFalse);
+      await tester.ensureVisible(find.byTooltip('Aleatorio'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Aleatorio'));
+      await tester.pump();
+      expect(c.shuffle, isTrue);
+    });
   }
 
   testWidgets('Modern: el reproductor abre con la portada sola y más botones', (
@@ -333,22 +355,40 @@ void main() {
     for (final tip in const ['Aleatorio', 'Repetir', 'Anterior', 'Siguiente']) {
       expect(find.byTooltip(tip), findsOneWidget, reason: tip);
     }
+    // Desde el ⋯ se cambia a vinilo o casete y se vuelve a la portada.
+    Future<void> pick(String label) async {
+      await tester.tap(find.byTooltip('Más acciones'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await pick('Ver vinilo');
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsOneWidget);
+    await pick('Ver casete');
+    expect(find.byType(CassettePlayer), findsOneWidget);
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
+    await pick('Ver portada');
+    expect(find.byType(CassettePlayer), findsNothing);
+    expect(find.byKey(const ValueKey('vinyl-disc')), findsNothing);
   });
 
-  testWidgets('Modern en móvil no muestra titular ni saludo en Inicio', (
+  testWidgets('Modern en móvil: saludo en la cabecera y sin titular grande', (
     tester,
   ) async {
     await pumpPhone(tester, theme: 'modern');
     expect(find.byType(ModernHeadline), findsNothing);
     expect(find.textContaining('siempre'), findsNothing);
-    expect(find.text('Encontrar música'), findsOneWidget);
+    expect(find.textContaining('Buenas'), findsOneWidget);
+    expect(find.byTooltip('Buscar música'), findsOneWidget);
   });
 }
 
 Future<void> _openFriends(WidgetTester tester) async {
   await tester.tap(find.byTooltip('Más vistas'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Amigos'));
+  // Brasa añade el contador a la etiqueta: «Amigos (2)».
+  await tester.tap(find.textContaining('Amigos').first);
   await tester.pumpAndSettle();
 }
 

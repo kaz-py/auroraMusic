@@ -185,7 +185,8 @@ void main() {
         const Size(1286, 1600),
       ]) {
         await mount(tester, size);
-        expect(find.text('Madrugada acústica'), findsOneWidget);
+        // Saludo de Atelier a las 2:30 (studioClock).
+        expect(find.textContaining('Buenas noches'), findsOneWidget);
         expect(find.byType(MiniPlayerGestures), findsOneWidget);
         expect(find.byType(JamPage, skipOffstage: false), findsNothing);
         expect((controller.source as FakeSource).searchQueries, isEmpty);
@@ -203,15 +204,25 @@ void main() {
     'studio mobile shell routes at 200 percent text without overflow or automatic network',
     (tester) async {
       await mount(tester, const Size(320, 800), scale: 2);
-      expect(find.byType(NavigationDestination), findsNWidgets(5));
+      for (final tab in const [
+        'Inicio',
+        'Buscar música',
+        'Biblioteca',
+        'Descargas locales',
+        'Más vistas',
+      ]) {
+        expect(find.byTooltip(tab), findsOneWidget, reason: tab);
+      }
       expect(tester.takeException(), isNull);
       await capture(tester, 'inicio-320x800-text200.png');
-      await tester.tap(find.byTooltip('DJ').last);
+      await tester.tap(find.byTooltip('Más vistas'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('DJ').last);
       await tester.pumpAndSettle();
       expect(find.text('Descubre tu próxima canción'), findsOneWidget);
       expect((controller.source as FakeSource).searchQueries, isEmpty);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('Buscar').last);
+      await tester.tap(find.byTooltip('Buscar música').last);
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       expect(tester.takeException(), isNull);

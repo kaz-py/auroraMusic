@@ -1,7 +1,9 @@
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/theme/modern_cristal.dart';
 import 'package:aurora_music/theme/modern_theme.dart';
 import 'package:aurora_music/ui/mini_player/cover_tone.dart' show coverContrast;
 import 'package:aurora_music/ui/mini_player/mini_player_host.dart';
+import 'package:aurora_music/ui/mini_player/modern_mini_desktop.dart';
 import 'package:aurora_music/ui/mini_player/modern_mini_player.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
@@ -26,7 +28,7 @@ const _long = Track(
 );
 
 class _Calls {
-  int open = 0, play = 0, next = 0, previous = 0, like = 0;
+  int open = 0, play = 0, next = 0, previous = 0, like = 0, shuffles = 0;
   int queue = 0, eq = 0, lyrics = 0, mute = 0;
   final volumes = <double>[];
   final seeks = <double>[];
@@ -36,6 +38,7 @@ class _Calls {
     next: () => next++,
     previous: () => previous++,
     toggleLike: () => like++,
+    toggleShuffle: () => shuffles++,
     seek: seeks.add,
     setVolume: volumes.add,
     toggleMute: () => mute++,
@@ -57,11 +60,12 @@ MiniPlayerState _state({
   bool hasNext = true,
   bool hasPrevious = true,
   String? jamHost,
-  bool ad = false,
   bool jam = false,
   int queueLength = 3,
   bool eqAvailable = true,
   bool lyricsAvailable = true,
+  bool shuffle = false,
+  bool canShuffle = false,
 }) => MiniPlayerState(
   track: track,
   isPlaying: playing,
@@ -75,11 +79,12 @@ MiniPlayerState _state({
   canTogglePlay: canTogglePlay,
   canSeek: canSeek,
   jamHostName: jamHost,
-  adPlaying: ad,
   jamAudio: jam,
   queueLength: queueLength,
   equalizerAvailable: eqAvailable,
   lyricsAvailable: lyricsAvailable,
+  shuffle: shuffle,
+  canShuffle: canShuffle,
 );
 
 const _accents = [
@@ -95,6 +100,8 @@ void main() {
   setUpAll(() async {
     for (final font in {
       'Inter': 'assets/fonts/inter/Inter-Variable.ttf',
+      'Manrope': 'assets/fonts/manrope/Manrope-Variable.ttf',
+      'Geist Mono': 'assets/fonts/geist_mono/GeistMono-Variable.ttf',
       'Bagel Fat One': 'assets/fonts/bagel_fat_one/BagelFatOne-Regular.ttf',
       'Aurora Symbols':
           'assets/fonts/material_symbols_outlined/MaterialSymbolsOutlined.ttf',
@@ -188,7 +195,7 @@ void main() {
     });
 
     testWidgets(
-      'móvil: tarjeta de 60 px con título, artista, corazón, play y siguiente',
+      'móvil: tarjeta de 64 px con título, artista, corazón, play y siguiente',
       (tester) async {
         await mount(tester);
         expect(find.text('Noches de neón'), findsOneWidget);
@@ -198,8 +205,8 @@ void main() {
         // Desde 330 px interiores el móvil también muestra «siguiente».
         expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
         final card = tester.getSize(find.byType(ModernMiniPlayer));
-        // 60 px de tarjeta + 4 y 8 de margen.
-        expect(card.height, closeTo(72, .01));
+        // 64 px de tarjeta + 4 y 8 de margen.
+        expect(card.height, closeTo(76, .01));
         expect(card.width, 390);
         // Título arriba, artista debajo.
         expect(
@@ -209,22 +216,24 @@ void main() {
       },
     );
 
-    testWidgets('ancho: tarjeta centrada de 960 con anterior/siguiente', (
+    testWidgets('ancho: barra flotante con anterior/siguiente y onda', (
       tester,
     ) async {
       await mount(tester, width: 1440);
+      expect(find.byType(ModernMiniBar), findsOneWidget);
       expect(find.byIcon(Icons.skip_previous_rounded), findsOneWidget);
       expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
-      final play = tester.getCenter(find.byIcon(Icons.play_arrow_rounded));
       expect(
         tester.getSize(find.byType(ModernMiniPlayer)).width,
         1440,
-        reason: 'ocupa el ancho; la tarjeta se centra dentro',
+        reason: 'ocupa el ancho; el cristal deja 16 px de margen',
       );
-      final scrub = scrubRect(tester);
-      expect(scrub.width, closeTo(960 - 28, 1));
-      expect(scrub.center.dx, closeTo(720, 1));
-      expect(play.dx, greaterThan(720));
+      // Cristal de 88: 72 de contenido + 8 + 8 de relleno.
+      final glass = tester.getSize(find.byType(ModernGlass).first);
+      expect(glass.height, closeTo(88, .01));
+      expect(glass.width, 1440 - 32);
+      expect(find.byType(ModernWaveSeekBar), findsOneWidget);
+      expect(find.byType(ModernSignalChip), findsOneWidget);
     });
 
     for (final width in [360.0, 412.0, 600.0, 900.0, 1440.0, 1920.0]) {
@@ -323,6 +332,24 @@ void main() {
       expect((calls.next, calls.previous), (1, 1));
     });
 
+    testWidgets('ancho: aleatorio solo con canShuffle; móvil sin botón', (
+      tester,
+    ) async {
+      var calls = await mount(
+        tester,
+        width: 900,
+        state: _state(canShuffle: true),
+      );
+      expect(find.byTooltip('Aleatorio'), findsOneWidget);
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.shuffles, 1);
+      calls = await mount(tester, width: 900, state: _state());
+      await tester.tap(find.byTooltip('Aleatorio'), warnIfMissed: false);
+      expect(calls.shuffles, 0);
+      await mount(tester, state: _state(canShuffle: true));
+      expect(find.byTooltip('Aleatorio'), findsNothing);
+    });
+
     testWidgets('ancho: sin siguiente el botón queda desactivado', (
       tester,
     ) async {
@@ -337,7 +364,7 @@ void main() {
 
     testWidgets('ancho: controles de escritorio y acciones', (tester) async {
       final calls = await mount(tester, width: 1440);
-      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(ModernMiniBar), findsOneWidget);
       expect(find.byType(Slider), findsOneWidget);
       await tester.tap(find.byTooltip('Silenciar'));
       await tester.tap(find.byTooltip('Abrir cola (3)'));
@@ -349,25 +376,24 @@ void main() {
         (1, 1, 1, 1, 0),
       );
       expect(calls.volumes, hasLength(1));
-      // La tarjeta crece a 960 px en >= 1100.
-      expect(scrubRect(tester).width, closeTo(960 - 28, 1));
     });
 
-    testWidgets('600 y 900: tarjeta < 640 sin slider, 900 de 760 con él', (
+    testWidgets('600, 900 y 1120: el volumen solo aparece con sitio', (
       tester,
     ) async {
       await mount(tester, width: 600);
-      expect(find.byType(MiniPlayerDesktopControls), findsOneWidget);
+      expect(find.byType(ModernMiniBar), findsOneWidget);
       expect(find.byType(Slider), findsNothing);
       expect(find.byTooltip('Silenciar'), findsOneWidget);
       await mount(tester, width: 900);
+      expect(find.byType(Slider), findsNothing);
+      await mount(tester, width: 1120);
       expect(find.byType(Slider), findsOneWidget);
-      expect(scrubRect(tester).width, closeTo(760 - 28, 1));
     });
 
-    testWidgets('móvil: sin controles de escritorio', (tester) async {
+    testWidgets('móvil: sin barra de escritorio', (tester) async {
       await mount(tester);
-      expect(find.byType(MiniPlayerDesktopControls), findsNothing);
+      expect(find.byType(ModernMiniBar), findsNothing);
       expect(find.byType(Slider), findsNothing);
       expect(find.byTooltip('Silenciar'), findsNothing);
     });
@@ -516,17 +542,8 @@ void main() {
           await mount(tester, dark: dark, accent: accent);
           final context = tester.element(find.byType(ModernMiniPlayer));
           final scheme = Theme.of(context).colorScheme;
-          final card = tester
-              .widgetList<DecoratedBox>(
-                find.descendant(
-                  of: find.byType(ModernMiniPlayer),
-                  matching: find.byType(DecoratedBox),
-                ),
-              )
-              .map((d) => d.decoration)
-              .whereType<BoxDecoration>()
-              .firstWhere((d) => d.boxShadow != null && d.color != null)
-              .color!;
+          final cristal = Cristal.of(context);
+          final card = Color.alphaBlend(cristal.glass, cristal.canvas);
           Color ink(String text) =>
               tester.widget<Text>(find.text(text)).style!.color!;
           expect(ratio(ink('Noches de neón'), card), greaterThanOrEqualTo(4.5));
@@ -565,17 +582,8 @@ void main() {
           '${dark ? 'oscuro' : 'claro'}', (tester) async {
         await mount(tester, width: 1440, dark: dark);
         final context = tester.element(find.byType(ModernMiniPlayer));
-        final card = tester
-            .widgetList<DecoratedBox>(
-              find.descendant(
-                of: find.byType(ModernMiniPlayer),
-                matching: find.byType(DecoratedBox),
-              ),
-            )
-            .map((d) => d.decoration)
-            .whereType<BoxDecoration>()
-            .firstWhere((d) => d.boxShadow != null && d.color != null)
-            .color!;
+        final cristal = Cristal.of(context);
+        final card = Color.alphaBlend(cristal.glass, cristal.canvas);
         final icon = tester.widget<Icon>(
           find.descendant(
             of: find.byTooltip('Letras'),
@@ -642,18 +650,11 @@ void main() {
     });
   });
 
-  group('anuncio y Jam en el subtítulo', () {
+  group('Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
       final tag = '360 · ×${scale.toInt()}';
       Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
           mount(tester, width: 360, scale: scale, state: state);
-
-      testWidgets('anuncio · $tag', (tester) async {
-        await pump(tester, _state(ad: true, playing: true));
-        expect(tester.takeException(), isNull);
-        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
-        expect(find.text('Aurora Boreal'), findsNothing);
-      });
 
       testWidgets('Jam · $tag', (tester) async {
         await pump(tester, _state(jam: true, playing: true));

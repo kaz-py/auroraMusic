@@ -201,6 +201,11 @@ void main() {
       expect(jam, isNotNull);
       await tester.scrollUntilVisible(find.text('Cola · 1'), 200);
       expect(find.text('Cola · 1'), findsOneWidget);
+      // La cola es perezosa: la fila se construye al acercarse.
+      await tester.scrollUntilVisible(
+        find.textContaining('Añadida por Anfitrión'),
+        200,
+      );
       expect(find.textContaining('Añadida por Anfitrión'), findsWidgets);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

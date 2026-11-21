@@ -141,6 +141,17 @@ void main() {
     },
   );
 
+  test('interrupt keeps the system session; stop releases it', () async {
+    await audio.load(const ResolvedAudio(input: '/first.mp3'));
+    await audio.interrupt();
+    expect(calls.last.method, 'stop');
+    expect(calls.last.arguments, {'generation': 2, 'keepSession': true});
+    expect(audio.position, Duration.zero);
+    await audio.stop();
+    expect(calls.last.method, 'stop');
+    expect(calls.last.arguments, {'generation': 3});
+  });
+
   test(
     'validates EOF once and rejects failed or superseded validation',
     () async {

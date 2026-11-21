@@ -1,25 +1,18 @@
 ﻿{
-    "deno":  {
-                 "sha256":  "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
-                 "url":  "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
-                 "name":  "deno-x86_64-pc-windows-msvc.zip",
-                 "version":  "v2.9.7",
-                 "repository":  "denoland/deno"
-             },
-    "ytdlp":  {
-                  "sha256":  "e7cafc44db8aa433da8dd78303b9157f2c1dd509c4cbfcd8418081b7e1d26a7a",
-                  "url":  "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/yt-dlp.exe",
-                  "name":  "yt-dlp.exe",
-                  "version":  "2026.10.10.233141",
-                  "repository":  "yt-dlp/yt-dlp-nightly-builds",
-                  "sourceCommit":  "897341241f2bfb2439fe0367f4c7c9ccd29a3828",
-                  "checksumUrl":  "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/SHA2-256SUMS"
-              },
-    "ffmpeg":  {
-                   "sha256":  "13cc318a840c22f204cbfef0c6dc6465da3db83ff7f87e467a61e2100a9b06de",
-                   "url":  "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/autobuild-2026-10-09-19-22/ffmpeg-N-127264-gf5d4fd186c-win64-gpl.zip",
-                   "name":  "ffmpeg-N-127264-gf5d4fd186c-win64-gpl.zip",
-                   "version":  "autobuild-2026-10-09-19-22",
-                   "repository":  "yt-dlp/FFmpeg-Builds"
-               }
+    "deno": {
+        "sha256": "a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
+        "url": "https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+        "name": "deno-x86_64-pc-windows-msvc.zip",
+        "version": "v2.9.7",
+        "repository": "denoland/deno"
+    },
+    "ytdlp": {
+        "sha256": "e7cafc44db8aa433da8dd78303b9157f2c1dd509c4cbfcd8418081b7e1d26a7a",
+        "url": "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/yt-dlp.exe",
+        "name": "yt-dlp.exe",
+        "version": "2026.10.10.233141",
+        "repository": "yt-dlp/yt-dlp-nightly-builds",
+        "sourceCommit": "897341241f2bfb2439fe0367f4c7c9ccd29a3828",
+        "checksumUrl": "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/SHA2-256SUMS"
+    }
 }

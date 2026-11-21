@@ -28,8 +28,7 @@ Run focused deterministic checks:
 
 ```powershell
 C:/flutter/flutter/bin/flutter.bat test --no-pub test/progressive_audio_relay_test.dart test/progressive_source_test.dart test/source_backend_test.dart test/audio_completion_test.dart
-C:/flutter/flutter/bin/dart.bat analyze lib/sources/progressive_audio_relay.dart lib/sources/yt_dlp_source.dart test/progressive_audio_relay_test.dart test/progressive_source_test.dart scripts/progressive_audio_smoke.dart
-C:/flutter/flutter/bin/dart.bat scripts/progressive_audio_smoke.dart <path-to-bundled-ffmpeg.exe>
+C:/flutter/flutter/bin/dart.bat analyze lib/sources/progressive_audio_relay.dart lib/sources/yt_dlp_source.dart test/progressive_audio_relay_test.dart test/progressive_source_test.dart
 ```
 
 The offline smoke generates a genuine 12-second Opus WebM, writes 4 KiB every

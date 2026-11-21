@@ -30,11 +30,7 @@ class SlushSticker extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Bagel Fat One',
-              fontSize: size * .17,
-              color: Slush.ink,
-            ),
+            style: slushHeadline(size * .17, height: 1.1, color: Slush.ink),
           ),
         ),
       ),

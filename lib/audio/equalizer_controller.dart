@@ -88,8 +88,8 @@ class EqualizerController extends ChangeNotifier {
   /// Envía el ajuste actual al motor.
   void apply() => audio.setEqualizer(active, bands, autoPreamp: autoPreamp);
 
-  // Android conoce su soporte tras arrancar, y el respaldo web lo pierde: al
-  // cambiar, se reenvía el ajuste y la interfaz se actualiza.
+  // Android conoce su soporte tras arrancar: al cambiar, se reenvía el ajuste
+  // y la interfaz se actualiza.
   void _audioChanged() {
     if (audio.supportsEqualizer == _supported) return;
     _supported = audio.supportsEqualizer;

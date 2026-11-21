@@ -31,7 +31,6 @@ MiniPlayerState _state({
   bool hasPrevious = true,
   bool canTogglePlay = true,
   String? jamHostName,
-  bool ad = false,
   bool jam = false,
   bool canSeek = false,
   double volume = .75,
@@ -39,6 +38,8 @@ MiniPlayerState _state({
   bool equalizerAvailable = true,
   bool equalizerActive = false,
   bool lyricsAvailable = true,
+  bool shuffle = false,
+  bool canShuffle = false,
 }) => MiniPlayerState(
   track: track,
   isPlaying: isPlaying,
@@ -51,7 +52,6 @@ MiniPlayerState _state({
   jamActive: false,
   canTogglePlay: canTogglePlay,
   jamHostName: jamHostName,
-  adPlaying: ad,
   jamAudio: jam,
   canSeek: canSeek,
   volume: volume,
@@ -59,6 +59,8 @@ MiniPlayerState _state({
   equalizerAvailable: equalizerAvailable,
   equalizerActive: equalizerActive,
   lyricsAvailable: lyricsAvailable,
+  shuffle: shuffle,
+  canShuffle: canShuffle,
 );
 
 class _Calls {
@@ -76,6 +78,7 @@ class _Calls {
     openQueue: () => log.add('queue'),
     openEqualizer: () => log.add('eq'),
     openLyrics: () => log.add('lyrics'),
+    toggleShuffle: () => log.add('shuffle'),
   );
 }
 
@@ -273,33 +276,31 @@ void main() {
       expect(pill(), findsNothing);
     });
 
-    testWidgets(
-      'con carril: dock en el cuerpo, centrado y de 920 como máximo (1300 px)',
-      (tester) async {
-        await setup(tester);
-        await mountHost(
-          tester,
-          section: 0,
-          rail: true,
-          placement: MiniPlayerPlacement.body,
-        );
-        final rect = tester.getRect(pill());
-        expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 64));
-        expect(rect.center.dx, closeTo(650, 1));
-        // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
-        await tester.tapAt(const Offset(20, 790));
-        expect(calls.count('open'), 0);
-        // Con carril el clic abre el menú de la canción; el Vinilo es una
-        // entrada del menú.
-        await tester.tap(find.text('Luz de luna'));
-        await tester.pumpAndSettle();
-        expect(calls.count('open'), 0);
-        expect(find.text('Compartir'), findsOneWidget);
-        await tester.tap(find.text('Abrir Modo Vinilo'));
-        await tester.pumpAndSettle();
-        expect(calls.count('open'), 1);
-      },
-    );
+    testWidgets('con carril: dock en el cuerpo y centrado (1300 px)', (
+      tester,
+    ) async {
+      await setup(tester);
+      await mountHost(
+        tester,
+        section: 0,
+        rail: true,
+        placement: MiniPlayerPlacement.body,
+      );
+      final rect = tester.getRect(pill());
+      expect(rect.center.dx, closeTo(650, 1));
+      // Todo el dock es la zona de gestos: no hay franjas muertas que abran.
+      await tester.tapAt(const Offset(20, 790));
+      expect(calls.count('open'), 0);
+      // Con carril el clic abre el menú de la canción; el Vinilo es una
+      // entrada del menú.
+      await tester.tap(find.text('Luz de luna'));
+      await tester.pumpAndSettle();
+      expect(calls.count('open'), 0);
+      expect(find.text('Compartir'), findsOneWidget);
+      await tester.tap(find.text('Abrir Modo Vinilo'));
+      await tester.pumpAndSettle();
+      expect(calls.count('open'), 1);
+    });
   });
 
   group('maquetación', () {
@@ -336,12 +337,6 @@ void main() {
           expect(rect.right, lessThanOrEqualTo(size.width));
           expect(rect.bottom, lessThanOrEqualTo(size.height));
           expect(rect.height, greaterThanOrEqualTo(56 * scale.clamp(1, 1.5)));
-          if (wide) {
-            expect(
-              rect.width,
-              lessThanOrEqualTo(slushMiniMaxWidthFor(size.width) + 64),
-            );
-          }
           for (final tip in [
             'Pausar',
             'Quitar de favoritos',
@@ -357,26 +352,6 @@ void main() {
         });
       }
     }
-
-    testWidgets('el dock ancho no pasa de 920 px de pastilla (720 bajo 1100)', (
-      tester,
-    ) async {
-      await mount(
-        tester,
-        size: const Size(1440, 900),
-        wide: true,
-        state: _state(track: _track),
-      );
-      final rect = tester.getRect(pill());
-      expect(rect.center.dx, closeTo(720, 1));
-      expect(rect.width, lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 2 * 32));
-      // Los gestos cubren el dock y nada más.
-      final gestures = tester.getRect(find.byType(MiniPlayerGestures));
-      expect(
-        gestures.width,
-        lessThanOrEqualTo(kSlushMiniMaxWidthLarge + 2 * 32),
-      );
-    });
   });
 
   group('estados', () {
@@ -496,6 +471,30 @@ void main() {
       await tester.tap(find.byTooltip('Siguiente'));
       await tester.tap(find.byTooltip('Anterior'));
       expect(calls.log, ['toggle', 'like', 'next', 'previous']);
+    });
+
+    testWidgets('aleatorio: solo en fila ancha y solo si canShuffle', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(900, 800),
+        state: _state(canShuffle: true),
+      );
+      expect(find.byTooltip('Aleatorio'), findsOneWidget);
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.count('shuffle'), 1);
+      await mount(
+        tester,
+        wide: true,
+        size: const Size(900, 800),
+        state: _state(),
+      );
+      await tester.tap(find.byTooltip('Aleatorio'));
+      expect(calls.count('shuffle'), 1); // sigue en 1: deshabilitado
+      await mount(tester, state: _state(canShuffle: true));
+      expect(find.byTooltip('Aleatorio'), findsNothing);
     });
 
     testWidgets('tocar la barra abre; los botones no abren', (tester) async {
@@ -780,18 +779,11 @@ void main() {
     }
   });
 
-  group('anuncio y Jam en el subtítulo', () {
+  group('Jam en el subtítulo', () {
     for (final scale in const [1.0, 2.0]) {
       final tag = '360 · ×${scale.toInt()}';
       Future<void> pump(WidgetTester tester, MiniPlayerState state) =>
           mount(tester, size: const Size(360, 640), scale: scale, state: state);
-
-      testWidgets('anuncio · $tag', (tester) async {
-        await pump(tester, _state(ad: true, isPlaying: true));
-        expect(tester.takeException(), isNull);
-        expect(find.text('Anuncio · tu canción sigue después'), findsOneWidget);
-        expect(find.text('Mare Sol'), findsNothing);
-      });
 
       testWidgets('Jam · $tag', (tester) async {
         await pump(tester, _state(jam: true, isPlaying: true));

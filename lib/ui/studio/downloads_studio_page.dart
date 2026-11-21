@@ -199,9 +199,8 @@ class _DownloadsStudioPageState extends State<DownloadsStudioPage> {
                       Text(
                         'Depósito Local & Archivo Físico',
                         style: isSlush(context)
-                            ? TextStyle(
-                                fontFamily: 'Bagel Fat One',
-                                fontSize: 26,
+                            ? slushHeadline(
+                                26,
                                 height: 1.15,
                                 color: context.slush.ink,
                               )

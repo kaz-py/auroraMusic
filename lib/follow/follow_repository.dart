@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
-
+import '../bridge/api/database.dart';
 import '../library/library_database.dart';
 import 'follow_models.dart';
 
@@ -12,25 +11,23 @@ class FollowRepository {
   final LibraryDatabase _db;
   final _changes = StreamController<List<FollowedArtist>>.broadcast();
 
-  static FollowedArtist _artist(QueryRow row) {
+  static FollowedArtist _artist(FollowedRow row) {
     Set<String> known;
     try {
-      known = (jsonDecode(row.read<String>('known_releases')) as List)
+      known = (jsonDecode(row.knownReleases) as List)
           .whereType<String>()
           .toSet();
     } catch (_) {
       known = {};
     }
-    final checked = row.read<int?>('checked_at');
+    final checked = row.checkedAt;
     return FollowedArtist(
-      browseId: row.read<String>('browse_id'),
-      name: row.read<String>('name'),
-      imageUrl: row.read<String?>('image_url'),
-      followedAt: DateTime.fromMillisecondsSinceEpoch(
-        row.read<int>('followed_at'),
-      ),
-      lastReleaseId: row.read<String?>('last_release_id'),
-      lastReleaseTitle: row.read<String?>('last_release_title'),
+      browseId: row.browseId,
+      name: row.name,
+      imageUrl: row.imageUrl,
+      followedAt: DateTime.fromMillisecondsSinceEpoch(row.followedAt),
+      lastReleaseId: row.lastReleaseId,
+      lastReleaseTitle: row.lastReleaseTitle,
       knownReleases: known,
       checkedAt: checked == null
           ? null
@@ -39,13 +36,7 @@ class FollowRepository {
   }
 
   Future<List<FollowedArtist>> list() async =>
-      (await _db
-              .customSelect(
-                'SELECT * FROM followed_artists ORDER BY followed_at DESC',
-              )
-              .get())
-          .map(_artist)
-          .toList();
+      _db.engine.followList().map(_artist).toList();
 
   /// Emite la lista actual y después cada cambio.
   Stream<List<FollowedArtist>> watch() async* {
@@ -64,91 +55,67 @@ class FollowRepository {
     String? imageUrl,
     DateTime? at,
   }) async {
-    await _db.customStatement(
-      'INSERT OR IGNORE INTO followed_artists '
-      '(browse_id,name,image_url,followed_at) VALUES (?,?,?,?)',
-      [browseId, name, imageUrl, (at ?? DateTime.now()).millisecondsSinceEpoch],
+    _db.engine.followAdd(
+      browseId: browseId,
+      name: name,
+      imageUrl: imageUrl,
+      followedAt: (at ?? DateTime.now()).millisecondsSinceEpoch,
     );
     await _emit();
   }
 
   Future<void> unfollow(String browseId) async {
-    await _db.transaction(() async {
-      await _db.customStatement(
-        'DELETE FROM followed_artists WHERE browse_id=?',
-        [browseId],
-      );
-      await _db.customStatement('DELETE FROM new_releases WHERE artist_id=?', [
-        browseId,
-      ]);
-    });
+    _db.engine.followRemove(browseId: browseId);
     await _emit();
   }
 
   Future<void> saveCheck(FollowedArtist artist) async {
-    await _db.customStatement(
-      'UPDATE followed_artists SET last_release_id=?, last_release_title=?, '
-      'known_releases=?, checked_at=? WHERE browse_id=?',
-      [
-        artist.lastReleaseId,
-        artist.lastReleaseTitle,
-        jsonEncode(artist.knownReleases.toList()),
-        artist.checkedAt?.millisecondsSinceEpoch,
-        artist.browseId,
-      ],
+    _db.engine.followSaveCheck(
+      browseId: artist.browseId,
+      lastReleaseId: artist.lastReleaseId,
+      lastReleaseTitle: artist.lastReleaseTitle,
+      knownReleasesJson: jsonEncode(artist.knownReleases.toList()),
+      checkedAt: artist.checkedAt?.millisecondsSinceEpoch,
     );
     await _emit();
   }
 
-  Future<List<NewRelease>> news() async =>
-      (await _db
-              .customSelect(
-                'SELECT * FROM new_releases ORDER BY detected_at DESC',
-              )
-              .get())
-          .map(
-            (row) => NewRelease(
-              id: row.read<String>('release_id'),
-              artistId: row.read<String>('artist_id'),
-              artistName: row.read<String>('artist_name'),
-              title: row.read<String>('title'),
-              subtitle: row.read<String>('subtitle'),
-              artworkUrl: row.read<String?>('artwork_url'),
-              detectedAt: DateTime.fromMillisecondsSinceEpoch(
-                row.read<int>('detected_at'),
-              ),
-            ),
-          )
-          .toList();
+  Future<List<NewRelease>> news() async => [
+    for (final row in _db.engine.newsList())
+      NewRelease(
+        id: row.releaseId,
+        artistId: row.artistId,
+        artistName: row.artistName,
+        title: row.title,
+        subtitle: row.subtitle,
+        artworkUrl: row.artworkUrl,
+        detectedAt: DateTime.fromMillisecondsSinceEpoch(row.detectedAt),
+      ),
+  ];
 
   Future<void> addNews(Iterable<NewRelease> releases) async {
-    for (final r in releases) {
-      await _db.customStatement(
-        'INSERT OR IGNORE INTO new_releases VALUES (?,?,?,?,?,?,?)',
-        [
-          r.id,
-          r.artistId,
-          r.artistName,
-          r.title,
-          r.subtitle,
-          r.artworkUrl,
-          r.detectedAt.millisecondsSinceEpoch,
-        ],
-      );
-    }
+    _db.engine.newsAdd(
+      rows: [
+        for (final r in releases)
+          NewsRow(
+            releaseId: r.id,
+            artistId: r.artistId,
+            artistName: r.artistName,
+            title: r.title,
+            subtitle: r.subtitle,
+            artworkUrl: r.artworkUrl,
+            detectedAt: r.detectedAt.millisecondsSinceEpoch,
+          ),
+      ],
+    );
   }
 
   /// Sin [id] descarta todas («marcar como vistas»).
-  Future<void> dismissNews([String? id]) => id == null
-      ? _db.customStatement('DELETE FROM new_releases')
-      : _db.customStatement('DELETE FROM new_releases WHERE release_id=?', [
-          id,
-        ]);
+  Future<void> dismissNews([String? id]) async =>
+      _db.engine.newsDismiss(releaseId: id);
 
-  Future<void> pruneNews(DateTime olderThan) => _db.customStatement(
-    'DELETE FROM new_releases WHERE detected_at<?',
-    [olderThan.millisecondsSinceEpoch],
-  );
+  Future<void> pruneNews(DateTime olderThan) async =>
+      _db.engine.newsPrune(olderThanMs: olderThan.millisecondsSinceEpoch);
 
   Future<void> close() => _changes.close();
 }

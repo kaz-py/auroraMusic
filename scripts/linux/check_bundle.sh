@@ -8,6 +8,8 @@ status=0
 
 for file in "$bundle/aurora_music" "$bundle"/lib/*.so*; do
   [ -f "$file" ] || continue
+  # libdartjni (paquete jni) pide libjvm.so, pero solo se abre en Android.
+  [ "$(basename "$file")" != libdartjni.so ] || continue
   while read -r missing; do
     echo "$(basename "$file") → falta $missing"
     status=1
@@ -16,14 +18,13 @@ for file in "$bundle/aurora_music" "$bundle"/lib/*.so*; do
     ldd "$file" 2>/dev/null | awk '/not found/ {print $1}')
 done
 
-soloud="$bundle/lib/libflutter_soloud_plugin.so"
-if [ -f "$soloud" ] && ! command -v readelf >/dev/null 2>&1; then
-  echo "Nota: readelf no está instalado; no se comprueba el RUNPATH." >&2
-elif [ -f "$soloud" ]; then
-  if ! readelf -d "$soloud" | grep -Eq '\((RUNPATH|RPATH)\).*\[\$ORIGIN\]'; then
-    echo "libflutter_soloud_plugin.so → RUNPATH distinto de [\$ORIGIN]"
+# Flutter abre EGL y GLES al arrancar (dlopen), así que ldd no las ve.
+cache="$({ command -v ldconfig >/dev/null && ldconfig -p || /sbin/ldconfig -p; } 2>/dev/null || true)"
+for lib in libEGL.so.1 libGLESv2.so.2; do
+  if ! grep -q "[[:space:]]$lib " <<<"$cache"; then
+    echo "aurora_music → falta $lib"
     status=1
   fi
-fi
+done
 
 exit "$status"

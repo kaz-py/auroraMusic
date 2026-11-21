@@ -3,13 +3,13 @@ import 'dart:io';
 
 import 'package:aurora_music/app_controller.dart';
 import 'package:aurora_music/audio/eq_model.dart';
-import 'package:aurora_music/audio_web/web_music_audio.dart';
 import 'package:aurora_music/core/audio_backend.dart';
 import 'package:aurora_music/core/models.dart';
+import 'package:aurora_music/core/online_status.dart';
 import 'package:aurora_music/core/source_backend.dart';
 import 'package:aurora_music/library/library_database.dart';
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeAudio extends AudioBackend {
@@ -48,7 +48,6 @@ class FakeAudio extends AudioBackend {
   @override
   Future<void> load(
     ResolvedAudio source, {
-    String? ffmpegExecutable,
     Duration start = Duration.zero,
   }) async {
     if (loadErrors.isNotEmpty) throw loadErrors.removeAt(0);
@@ -167,7 +166,7 @@ class FakeSource extends SourceBackend {
   }
 
   @override
-  Future<void> download(
+  Future<File> download(
     Track track,
     File destination, {
     required String jobId,
@@ -181,6 +180,7 @@ class FakeSource extends SourceBackend {
       await downloadGate?.future;
       onProgress?.call(0.5);
       await destination.writeAsBytes([1, 2, 3]);
+      return destination;
     } finally {
       activeDownloads--;
     }
@@ -197,8 +197,6 @@ class FakeSource extends SourceBackend {
 
   @override
   String? toolDirectory;
-  @override
-  String? get ffmpegExecutable => null;
   @override
   void dispose() {}
 }
@@ -218,7 +216,7 @@ Future<AppController> createTestController({
   });
   final prefs = await SharedPreferences.getInstance();
   final directory = await Directory.systemTemp.createTemp('aurora_test_');
-  final database = LibraryDatabase(NativeDatabase.memory());
+  final database = LibraryDatabase.memory();
   for (final track in tracks) {
     await database.saveTrack(track);
   }
@@ -232,6 +230,13 @@ Future<AppController> createTestController({
     preferences: prefs,
     supportDirectory: directory,
   );
+  // En producción los servicios en línea están apagados (kSupabaseEnabled);
+  // las pruebas de Jam en línea, cuenta y amigos los necesitan encendidos.
+  controller.online = OnlineStatus(
+    preferences: prefs,
+    enabled: true,
+    probe: (_) async => true,
+  );
   await controller.initialize(mediaControls: false);
   return controller;
 }
@@ -244,64 +249,16 @@ Future<void> closeTestController(AppController controller) async {
   }
 }
 
-/// Fake official-site bridge: no WebView, no network.
-class FakeWebBridge extends WebMusicBridge {
-  Uri? page;
-  int builds = 0;
-  bool disposed = false;
-  final commands = <String>[];
-  final values = <double?>[];
-  final timeouts = <Duration>[];
-  Map<String, dynamic> state = {
-    'status': 'ready',
-    'playing': false,
-    'position': 12.5,
-    'duration': 150,
-  };
-
-  /// Overrides the response to the next 'play' only.
-  Map<String, dynamic>? playResult;
-  Completer<Map<String, dynamic>?>? pending;
-
-  @override
-  Future<void> initialize() async {}
-  @override
-  Widget buildView() {
-    builds++;
-    return const ColoredBox(key: ValueKey('engine'), color: Colors.red);
+/// Los reproductores piden letras (E/S real de caché) al montarse. Esa cadena
+/// vive en la zona falsa de `testWidgets`: si se desmonta o se cierra el
+/// controlador a medias, un archivo `lyrics/*.json` queda abierto y Windows no
+/// deja borrar el directorio. Llámalo antes de desmontar (p. ej. en un
+/// `addTearDown` registrado después de montar).
+Future<void> settleLyricsIo(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(seconds: 1));
   }
-
-  @override
-  Future<void> navigate(Uri uri) async => page = uri;
-  @override
-  Future<Map<String, dynamic>?> command(
-    String action, {
-    required String videoId,
-    required int generation,
-    double? value,
-    Duration timeout = const Duration(seconds: 20),
-  }) async {
-    commands.add(action);
-    values.add(value);
-    timeouts.add(timeout);
-    if (pending != null) {
-      final future = pending!.future;
-      pending = null;
-      return future;
-    }
-    if (action == 'play' && playResult != null) {
-      final result = playResult!;
-      playResult = null;
-      return result;
-    }
-    if (action == 'play' && state['status'] == 'ready') {
-      state = {...state, 'playing': true, 'ended': false};
-    } else if (action == 'pause') {
-      state = {...state, 'playing': false};
-    }
-    return {...state, 'generation': generation, 'videoId': videoId};
-  }
-
-  @override
-  void dispose() => disposed = true;
 }

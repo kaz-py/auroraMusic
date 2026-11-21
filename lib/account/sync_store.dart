@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:drift/drift.dart';
+import 'dart:typed_data';
 
 import '../core/models.dart';
 import '../library/library_database.dart';
@@ -29,52 +29,25 @@ const _kinds = ['favorites', 'playlists', 'history', 'taste'];
 extension SyncStore on LibraryDatabase {
   /// Elementos locales anteriores a la cuenta: ts 0 para que, ante conflicto,
   /// gane el servidor, y el resto se suba (unión).
-  Future<void> seedSyncMeta() async {
-    for (final q in const [
-      "SELECT 'favorites', track_id FROM favorites",
-      "SELECT 'playlists', id FROM playlists",
-      "SELECT 'history', track_id FROM history",
-      "SELECT 'taste', '1' FROM taste_profile",
-    ]) {
-      await customStatement(
-        'INSERT OR IGNORE INTO sync_meta (kind,key,updated_at,deleted,dirty) '
-        'SELECT *, 0, 0, 1 FROM ($q)',
-      );
-    }
-  }
+  Future<void> seedSyncMeta() async => engine.seedSyncMeta();
 
-  Future<void> markAllSyncDirty() =>
-      customStatement('UPDATE sync_meta SET dirty=1');
+  Future<void> markAllSyncDirty() async => engine.markAllSyncDirty();
 
   Future<Map<String, SyncMeta>> readSyncMeta(String kind) async => {
-    for (final r in await customSelect(
-      'SELECT key,updated_at,deleted,dirty FROM sync_meta WHERE kind=?',
-      variables: [Variable<String>(kind)],
-    ).get())
-      r.read<String>('key'): SyncMeta(
-        r.read<int>('updated_at'),
-        r.read<int>('deleted') == 1,
-        r.read<int>('dirty') == 1,
-      ),
+    for (final r in engine.readSyncMeta(kind: kind))
+      r.key: SyncMeta(r.updatedAt, r.deleted, r.dirty),
   };
 
   /// Claves pendientes de subir (el historial se limita a las 500 más nuevas).
-  Future<List<String>> dirtySyncKeys(String kind) async => (await customSelect(
-    'SELECT key FROM sync_meta WHERE kind=? AND dirty=1 '
-    'ORDER BY updated_at DESC LIMIT 500',
-    variables: [Variable<String>(kind)],
-  ).get()).map((r) => r.read<String>('key')).toList();
+  Future<List<String>> dirtySyncKeys(String kind) async =>
+      engine.dirtySyncKeys(kind: kind);
 
   Future<void> setSyncMeta(
     String kind,
     String key,
     int ts,
     bool deleted,
-  ) => customStatement(
-    'INSERT INTO sync_meta VALUES (?,?,?,?,0) ON CONFLICT(kind,key) DO UPDATE '
-    'SET updated_at=?, deleted=?, dirty=0',
-    [kind, key, ts, deleted ? 1 : 0, ts, deleted ? 1 : 0],
-  );
+  ) async => engine.setSyncMeta(kind: kind, key: key, ts: ts, deleted: deleted);
 
   /// Quita «pendiente» solo si nadie lo cambió mientras se subía.
   Future<void> clearSyncDirty(
@@ -82,19 +55,17 @@ extension SyncStore on LibraryDatabase {
     String key,
     int sentTs,
     int serverTs,
-  ) => customStatement(
-    'UPDATE sync_meta SET dirty=0, updated_at=? WHERE kind=? AND key=? '
-    'AND updated_at=?',
-    [serverTs, kind, key, sentTs],
+  ) async => engine.clearSyncDirty(
+    kind: kind,
+    key: key,
+    sentTs: sentTs,
+    serverTs: serverTs,
   );
 
   Future<Map<String, dynamic>?> _trackJson(String id) async {
-    final row = await customSelect(
-      'SELECT data FROM tracks WHERE id=?',
-      variables: [Variable<String>(id)],
-    ).getSingleOrNull();
-    if (row == null) return null;
-    final json = jsonDecode(row.read<String>('data')) as Map<String, dynamic>;
+    final raw = engine.trackJson(id: id);
+    if (raw == null) return null;
+    final json = jsonDecode(raw) as Map<String, dynamic>;
     // La ruta local no tiene sentido en otro dispositivo (y es privada).
     return json..remove('localPath');
   }
@@ -106,10 +77,7 @@ extension SyncStore on LibraryDatabase {
     final track = Track.fromJson(
       Map<String, dynamic>.from(raw)..remove('localPath'),
     );
-    await customStatement(
-      'INSERT OR IGNORE INTO tracks (id,data) VALUES (?,?)',
-      [track.id, jsonEncode(track.toJson())],
-    );
+    engine.saveTrackIfAbsent(id: track.id, data: jsonEncode(track.toJson()));
   }
 
   /// Fila a subir para [key], o null si no se puede (p. ej. pista desconocida).
@@ -136,13 +104,9 @@ extension SyncStore on LibraryDatabase {
             'deleted': true,
           };
         }
-        final row = await customSelect(
-          'SELECT name,tracks FROM playlists WHERE id=?',
-          variables: [Variable<String>(key)],
-        ).getSingleOrNull();
+        final row = engine.playlistRow(id: key);
         if (row == null) return null;
-        final ids = (jsonDecode(row.read<String>('tracks')) as List)
-            .cast<String>();
+        final ids = (jsonDecode(row.tracksJson) as List).cast<String>();
         var items = <Object>[
           for (final id in ids) await _trackJson(id) ?? {'id': id},
         ];
@@ -151,37 +115,24 @@ extension SyncStore on LibraryDatabase {
             for (final id in ids) {'id': id},
           ];
         }
-        return {
-          'id': key,
-          'name': row.read<String>('name'),
-          'tracks': items,
-          'deleted': false,
-        };
+        return {'id': key, 'name': row.name, 'tracks': items, 'deleted': false};
       case 'history':
         final track = await _trackJson(key);
-        final row = await customSelect(
-          'SELECT played_at FROM history WHERE track_id=?',
-          variables: [Variable<String>(key)],
-        ).getSingleOrNull();
-        if (track == null || row == null) return null;
+        final playedAt = engine.historyPlayedAt(id: key);
+        if (track == null || playedAt == null) return null;
         return {
           'track_id': key,
           'track': track,
           'played_at': DateTime.fromMillisecondsSinceEpoch(
-            row.read<int>('played_at'),
+            playedAt,
             isUtc: true,
           ).toIso8601String(),
         };
       case 'taste':
-        final row = await customSelect(
-          'SELECT dims,vector FROM taste_profile WHERE id=1',
-        ).getSingleOrNull();
+        final row = engine.tasteRow();
         if (row == null) return null;
         return {
-          'profile': {
-            'dims': row.read<int>('dims'),
-            'v': base64Encode(row.read<Uint8List>('vector')),
-          },
+          'profile': {'dims': row.dims, 'v': base64Encode(row.vector)},
         };
     }
     return null;
@@ -195,59 +146,48 @@ extension SyncStore on LibraryDatabase {
         case 'favorites':
           final id = r['track_id'] as String;
           if (deleted) {
-            await customStatement('DELETE FROM favorites WHERE track_id=?', [
-              id,
-            ]);
+            engine.setFavorite(id: id, selected: false, mark: false);
           } else {
             await _saveTrackIfAbsent(r['track']);
-            await customStatement(
-              'INSERT OR IGNORE INTO favorites VALUES (?)',
-              [id],
-            );
+            engine.setFavorite(id: id, selected: true, mark: false);
           }
         case 'playlists':
           final id = r['id'] as String;
           if (deleted) {
-            await customStatement('DELETE FROM playlists WHERE id=?', [id]);
+            engine.deletePlaylist(id: id, mark: false);
           } else {
             final items = (r['tracks'] as List).whereType<Map>().toList();
             for (final t in items) {
               await _saveTrackIfAbsent(t);
             }
-            await customStatement(
-              'INSERT INTO playlists (id,name,tracks) VALUES (?,?,?) ON CONFLICT(id) '
-              'DO UPDATE SET name=excluded.name,tracks=excluded.tracks',
-              [
-                id,
-                (r['name'] as String).trim(),
-                jsonEncode([for (final t in items) t['id'] as String]),
-              ],
+            engine.savePlaylist(
+              id: id,
+              name: (r['name'] as String).trim(),
+              tracksJson: jsonEncode([
+                for (final t in items) t['id'] as String,
+              ]),
+              mark: false,
             );
           }
         case 'history':
           final id = r['track_id'] as String;
           await _saveTrackIfAbsent(r['track']);
-          await customStatement(
-            'INSERT INTO history VALUES (?,?) ON CONFLICT(track_id) DO UPDATE SET '
-            'played_at=excluded.played_at',
-            [
-              id,
-              DateTime.parse(r['played_at'] as String).millisecondsSinceEpoch,
-            ],
+          engine.recordPlay(
+            id: id,
+            playedAtMs: DateTime.parse(
+              r['played_at'] as String,
+            ).millisecondsSinceEpoch,
+            mark: false,
           );
         case 'taste':
           final p = r['profile'] as Map;
           final dims = p['dims'] as int;
           final bytes = base64Decode(p['v'] as String);
           if (dims < 1 || dims > 4096 || bytes.length != dims * 4) return false;
-          await customStatement(
-            'INSERT INTO taste_profile VALUES (1,?,?,?) ON CONFLICT(id) DO UPDATE SET '
-            'dims=excluded.dims, vector=excluded.vector, updated_at=excluded.updated_at',
-            [
-              dims,
-              Uint8List.fromList(bytes),
-              DateTime.now().millisecondsSinceEpoch,
-            ],
+          engine.saveTaste(
+            dims: dims,
+            vector: Uint8List.fromList(bytes),
+            mark: false,
           );
         default:
           return false;

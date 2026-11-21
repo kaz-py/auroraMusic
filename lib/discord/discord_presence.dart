@@ -13,6 +13,9 @@ const discordClientId = String.fromEnvironment('AURORA_DISCORD_CLIENT_ID');
 /// Rich Presence: Windows (tubería) y Linux (socket Unix), con client id.
 bool get discordAvailable => _desktop && discordClientId.isNotEmpty;
 
+/// Escritorio donde Discord tiene sentido, haya o no client id en la compilación.
+bool get discordSupported => _desktop;
+
 bool get _desktop => Platform.isWindows || Platform.isLinux;
 
 /// Sockets IPC de Discord en Linux: `discord-ipc-N` en el directorio de

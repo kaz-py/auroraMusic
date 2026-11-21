@@ -27,7 +27,6 @@ class MiniPlayerState {
     required this.hasNext,
     required this.hasPrevious,
     required this.jamActive,
-    this.adPlaying = false,
     this.jamAudio = false,
     required this.canTogglePlay,
     this.jamHostName,
@@ -38,6 +37,8 @@ class MiniPlayerState {
     this.equalizerAvailable = false,
     this.equalizerActive = false,
     this.lyricsAvailable = false,
+    this.shuffle = false,
+    this.canShuffle = false,
     this.jamSkipHost,
     this.jamVoteSkip = false,
     this.equalizerUnavailableReason,
@@ -65,9 +66,6 @@ class MiniPlayerState {
   final bool liked;
   final bool hasNext, hasPrevious;
   final bool jamActive;
-
-  /// El sitio web muestra un anuncio (`AppController.adPlaying`).
-  final bool adPlaying;
 
   /// Suena audio de Jam con controlador activo (`transportJamAudio`): la pista
   /// es la de la sesión. Distinto de [jamActive], que ya vale mientras la Jam
@@ -102,6 +100,9 @@ class MiniPlayerState {
   /// Hay pista de la que mostrar letra (el transporte siempre ofrece Letras).
   final bool lyricsAvailable;
 
+  /// Aleatorio activo y si se puede cambiar (no con audio de Jam ni sin pista).
+  final bool shuffle, canShuffle;
+
   /// Con audio de Jam y sin permiso para saltar: quién controla («Lo controla
   /// X» si tampoco se puede votar). `null`: se salta con normalidad.
   final String? jamSkipHost;
@@ -111,9 +112,6 @@ class MiniPlayerState {
 
   /// Por qué no hay ecualizador (motor web o dispositivo); `null` si lo hay.
   final String? equalizerUnavailableReason;
-
-  /// Hay que avisar del anuncio; con audio de Jam manda la Jam.
-  bool get adShowing => adPlaying && !jamAudio;
 
   bool get muted => volume <= 0;
   bool get hasQueue => queueLength > 0;
@@ -168,7 +166,6 @@ class MiniPlayerState {
       hasNext: hasNext,
       hasPrevious: track != null && !jamOwns,
       jamActive: jamOwns,
-      adPlaying: c.adPlaying,
       jamAudio: jamAudio,
       canTogglePlay: jamAudio ? jam!.canPause : track != null && !jamOwns,
       jamHostName: jamAudio && !jam!.canPause ? jam.hostName : null,
@@ -178,6 +175,8 @@ class MiniPlayerState {
           track != null &&
           duration > Duration.zero &&
           (jamOwns ? jamAudio && jam!.isHost : true),
+      shuffle: c.shuffle,
+      canShuffle: track != null && !jamAudio,
       volume: c.audio.volume.clamp(0.0, 1.0),
       queueLength: c.queue.length,
       equalizerAvailable: c.eq.supported,
@@ -185,8 +184,6 @@ class MiniPlayerState {
       duration: duration,
       equalizerUnavailableReason: c.eq.supported
           ? null
-          : c.webPlayback
-          ? 'el reproductor oficial de YouTube Music no lo admite'
           : 'este dispositivo no lo admite',
       lyricsAvailable: track != null,
     );
@@ -201,18 +198,14 @@ String miniClock(Duration d) {
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$tail' : '$m:$tail';
 }
 
-const miniAdNotice = 'Anuncio · tu canción sigue después';
 const miniErrorNotice = 'No se pudo reproducir';
 
 /// El subtítulo es un fallo del motor (los temas le ponen su icono/color).
-bool miniSubtitleIsError(MiniPlayerState s) =>
-    s.hasError && !s.adShowing && !s.jamAudio;
+bool miniSubtitleIsError(MiniPlayerState s) => s.hasError && !s.jamAudio;
 
-/// Línea secundaria única de los cuatro temas. Prioridad: anuncio, Jam,
-/// fallo, artista.
+/// Línea secundaria única de los cuatro temas. Prioridad: Jam, fallo, artista.
 String miniSubtitle(MiniPlayerState s) {
   final artist = s.track!.artist;
-  if (s.adShowing) return miniAdNotice;
   if (s.jamAudio) return '$artist · Jam';
   if (s.hasError) return miniErrorNotice;
   return artist;
@@ -237,6 +230,7 @@ class MiniPlayerActions {
     this.openQueue = _ignoreVoid,
     this.openEqualizer = _ignoreVoid,
     this.openLyrics = _ignoreVoid,
+    this.toggleShuffle = _ignoreVoid,
     this.openMenu,
     this.openMini,
   });
@@ -261,6 +255,9 @@ class MiniPlayerActions {
 
   /// Letras (modo artista a pantalla completa).
   final VoidCallback openLyrics;
+
+  /// Activa o desactiva el aleatorio (sin efecto con audio de Jam).
+  final VoidCallback toggleShuffle;
 
   /// Modo mini (ventana compacta, solo Windows): botón de los controles de
   /// escritorio. `null`: no hay ventana que reducir y el botón no existe.
@@ -314,6 +311,9 @@ class MiniPlayerActions {
       openMenu: openMenu,
       openMini: openMini,
       openEqualizer: openEqualizer ?? _ignoreVoid,
+      toggleShuffle: () {
+        if (!jamAudio) c.setShuffle(!c.shuffle);
+      },
       seek: (fraction) {
         final duration = c.audio.duration > Duration.zero
             ? c.audio.duration

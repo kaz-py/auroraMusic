@@ -5,6 +5,7 @@ import 'dart:io';
 import '../youtube_request_policy.dart';
 import 'player_clients.dart';
 import 'resolved_stream.dart';
+import 'upstream_network.dart';
 
 typedef PlayerPost =
     Future<Map<String, dynamic>> Function(
@@ -54,7 +55,8 @@ Future<T> _withClient<T>(
   Duration timeout,
   Future<T> Function(HttpClient client) run,
 ) async {
-  final client = HttpClient()..connectionTimeout = timeout;
+  // Same route as AudioProxy: googlevideo URLs are bound to the resolving IP.
+  final client = UpstreamNetwork.client(connectionTimeout: timeout);
   try {
     return await run(client).timeout(timeout);
   } finally {
@@ -122,7 +124,6 @@ class StreamOrchestrator {
   );
   static final _swUri = Uri.parse('https://music.youtube.com/sw.js_data');
   static const _cacheCap = 50;
-  static const _blacklistTtl = Duration(minutes: 30);
   // Worst first, so one summary exception reflects the most actionable cause.
   static const _severity = [
     YouTubeFailure.blocked,
@@ -150,7 +151,6 @@ class StreamOrchestrator {
   final _generation = <String, int>{};
   final _inflight = <String, Future<ResolvedStream>>{};
   final _badUntil = <String, DateTime>{};
-  final _blacklist = <String, DateTime>{};
   Future<String?>? _visitor;
 
   Future<ResolvedStream> resolve(
@@ -190,22 +190,20 @@ class StreamOrchestrator {
     if (client != null) _markBad(client, _isAuthStatus(httpStatus));
   }
 
-  bool isBlacklisted(String videoId) {
-    final until = _blacklist[videoId];
-    if (until == null) return false;
-    if (_now().isBefore(until)) return true;
-    _blacklist.remove(videoId);
-    return false;
-  }
-
   static bool _isAuthStatus(int? s) =>
       s == 400 || s == 401 || s == 403 || s == 410;
 
   void _markBad(String client, bool long) =>
       _badUntil[client] = _now().add(Duration(minutes: long ? 10 : 2));
 
+  /// Good clients first, bad ones last; never drops a client. The clock is
+  /// read once: comparing two separate reads made a never-marked client look
+  /// bad in one pass and good in the other, so it vanished from both lists
+  /// whenever the clock ticked in between (often on Linux, whose clock has
+  /// microsecond resolution) and resolve failed with no client tried.
   Iterable<PlayerClient> _ordered() {
-    bool bad(PlayerClient c) => _now().isBefore(_badUntil[c.name] ?? _now());
+    final now = _now();
+    bool bad(PlayerClient c) => _badUntil[c.name]?.isAfter(now) ?? false;
     return [..._clients.where((c) => !bad(c)), ..._clients.where(bad)];
   }
 
@@ -218,35 +216,47 @@ class StreamOrchestrator {
   Future<ResolvedStream> _resolveFresh(String videoId, int? sameItag) async {
     final generation = _generation[videoId] ?? 0;
     final failures = <StreamResolveException>[];
-    for (final client in _ordered()) {
+    final clients = _ordered().toList();
+    if (clients.isEmpty) {
+      // Configuration error, not a YouTube answer: say so instead of a
+      // generic "no client" that hides where to look.
+      throw const StreamResolveException(
+        YouTubeFailure.other,
+        'Player client table is empty (player_clients.dart)',
+      );
+    }
+    final watch = Stopwatch()..start();
+    for (final client in clients) {
       try {
         final stream = await _tryClient(client, videoId, sameItag);
         if (generation == (_generation[videoId] ?? 0)) {
           _put(_cache, videoId, stream);
         }
         _put(_servedBy, videoId, client.name);
+        UpstreamNetwork.log(
+          '[aurora.stream] $videoId ok client=${client.name} '
+          'itag=${stream.itag} ${watch.elapsedMilliseconds} ms '
+          'via ${UpstreamNetwork.describe()}',
+        );
         return stream;
       } on StreamResolveException catch (e) {
+        UpstreamNetwork.log(
+          '[aurora.stream] $videoId fail client=${client.name} '
+          '${e.kind.name}: ${e.message} (${watch.elapsedMilliseconds} ms '
+          'via ${UpstreamNetwork.describe()})',
+        );
         // Only UNPLAYABLE/ERROR produce `unavailable`: no client will differ.
         if (e.kind == YouTubeFailure.unavailable) rethrow;
         failures.add(e);
       }
     }
-    final worst = failures.isEmpty
-        ? const StreamResolveException(
-            YouTubeFailure.other,
-            'No YouTube client available',
-          )
-        : (failures.toList()..sort(
-                (a, b) => _severity
-                    .indexOf(a.kind)
-                    .compareTo(_severity.indexOf(b.kind)),
-              ))
-              .first;
-    if (worst.kind == YouTubeFailure.blocked ||
-        worst.kind == YouTubeFailure.accessDenied) {
-      _blacklist[videoId] = _now().add(_blacklistTtl);
-    }
+    final worst =
+        (failures.toList()..sort(
+              (a, b) => _severity
+                  .indexOf(a.kind)
+                  .compareTo(_severity.indexOf(b.kind)),
+            ))
+            .first;
     throw worst;
   }
 
@@ -277,12 +287,13 @@ class StreamOrchestrator {
 
     final playability = json['playabilityStatus'];
     final status = playability is Map ? playability['status'] : null;
-    final reason = playability is Map ? '${playability['reason']}' : '';
+    final reason = _clip(playability is Map ? playability['reason'] : null);
+    final because = reason.isEmpty ? '' : ': $reason';
     if (status == 'UNPLAYABLE' || status == 'ERROR') {
       if (!reason.toLowerCase().contains('not a bot')) {
-        throw const StreamResolveException(
+        throw StreamResolveException(
           YouTubeFailure.unavailable,
-          'Video unavailable',
+          'Video unavailable$because',
         );
       }
     }
@@ -302,7 +313,7 @@ class StreamOrchestrator {
       _markBad(client.name, false);
       throw StreamResolveException(
         YouTubeFailure.other,
-        'Player response without playable streams ($status)',
+        'Player response without playable streams ($status)$because',
       );
     }
     final format = _pickFormat(streaming['adaptiveFormats'], sameItag);
@@ -388,10 +399,20 @@ class StreamOrchestrator {
     }
   }
 
+  /// Playability `reason`, one line and bounded, for error messages.
+  static String _clip(Object? reason) {
+    if (reason is! String) return '';
+    final line = reason.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return line.length <= 160 ? line : '${line.substring(0, 157)}...';
+  }
+
   /// Marks the client bad and maps the error to a classifiable exception.
+  /// Same TTL rule as [reportFailure]: 400/401/403/410 → 10 min, anything
+  /// else (5xx, timeouts, socket errors) → 2 min, probe or not.
   StreamResolveException _fail(PlayerClient c, Object e, {bool probe = false}) {
     final status = e is HttpStatusException ? e.statusCode : null;
-    _markBad(c.name, probe && status != null || _isAuthStatus(status));
+    _markBad(c.name, _isAuthStatus(status));
+    final where = probe ? 'audio probe' : 'player';
     if (status == 429) {
       return const StreamResolveException(
         YouTubeFailure.blocked,
@@ -399,28 +420,29 @@ class StreamOrchestrator {
       );
     }
     if (status == 403) {
-      return const StreamResolveException(
+      return StreamResolveException(
         YouTubeFailure.accessDenied,
-        'HTTP 403 forbidden',
+        'HTTP 403 forbidden ($where)',
       );
     }
     if (status != null) {
       final message = 'HTTP $status';
+      final detail = _clip((e as HttpStatusException).message);
       return StreamResolveException(
         YouTubeRequestPolicy.classify(message),
-        message,
+        '$message${detail.isEmpty ? '' : ' $detail'} ($where)',
       );
     }
     if (e is TimeoutException) {
-      return const StreamResolveException(
+      return StreamResolveException(
         YouTubeFailure.transient,
-        'Request timed out',
+        'Request timed out ($where)',
       );
     }
     if (e is IOException) {
-      return const StreamResolveException(
+      return StreamResolveException(
         YouTubeFailure.transient,
-        'Connection error (SocketException)',
+        'Connection error (${e.runtimeType}, $where)',
       );
     }
     return const StreamResolveException(

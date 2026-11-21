@@ -163,10 +163,12 @@ class ModernHeadline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = TextStyle(
-      fontFamily: 'Bagel Fat One',
+      fontFamily: isSlush(context) ? 'Bricolage Grotesque' : 'Bagel Fat One',
+      fontWeight: isSlush(context) ? FontWeight.w800 : null,
+      fontVariations: isSlush(context) ? [FontVariation('wght', 800)] : null,
       fontSize: size,
       height: isSlush(context) ? .95 : 1.1,
-      letterSpacing: isSlush(context) ? -size * .01 : size * .03,
+      letterSpacing: isSlush(context) ? -size * .02 : size * .03,
       color: onDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
     );
     return Text.rich(
@@ -191,16 +193,8 @@ class ModernHeadline extends StatelessWidget {
 
 /// Banner superior amarillo mantequilla (avisos temporales).
 class ModernBanner extends StatelessWidget {
-  const ModernBanner({
-    super.key,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-    this.onClose,
-  });
+  const ModernBanner({super.key, required this.message, this.onClose});
   final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
   final VoidCallback? onClose;
 
   @override
@@ -224,21 +218,6 @@ class ModernBanner extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (actionLabel != null)
-                    GestureDetector(
-                      onTap: onAction,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Text(
-                          actionLabel!,
-                          style: const TextStyle(
-                            color: Tracky.coral,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

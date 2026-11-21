@@ -10,9 +10,8 @@ lib/
   main.dart                         Arranque, dependencias y tema compartido
   app_controller.dart               Estado personal, cola, reproducción y persistencia
   core/                             Track, playlists, contratos y controles de ventana
-  audio/                            SoLoud, DSP, FFT y controles multimedia
+  audio/                            motor Rust (Symphonia + CPAL), EQ/FFT y controles multimedia
   sources/                          InnerTube (búsqueda), yt-dlp (descargas)
-  audio_web/                        reproductor oficial de YouTube Music en WebView oculto
   library/
     library_database.dart           SQLite: biblioteca, favoritos, listas e historial
     local_file_metadata.dart        Tamaño y formato de archivos conocidos
@@ -29,8 +28,20 @@ lib/
     jam_playback_bridge.dart        Audio temporal, reloj, desfase y restauración personal
     jam_qr.dart                     Lectura de imágenes QR con límites de tamaño
   lyrics/                           Consulta, caché y modelos de letras
+  theme/aurora_tokens.dart          AuroraThemeKind y themeKindOf(context): único resolvedor de tema
   ui/
-    aurora_shell.dart               Navegación adaptable y conexión con controladores
+    aurora_shell.dart               Estado de navegación y páginas; ensambla el chrome del tema activo
+    shell/                          Chrome por tema del shell (ver docs/temas.md)
+      shell_chrome.dart             ShellChrome, ShellScope y registro shellChromes
+      chrome_{atelier,modern,brasa,slush}.dart  Barra superior, sidebar, aside, cabecera, error, navegación móvil
+      bars_{atelier,modern,brasa,slush}.dart    Cuerpo de StudioTitleBar / StudioSidebar por tema
+      shell_sections.dart           Títulos, iconos y primarySections(kind, mobile)
+      shell_nav.dart                ShellNav (navegación para tests) y MouseOnlyRegion
+      shell_header.dart, shell_rail.dart  Cabecera de página y carril estrecho compartidos
+    home/                           HomeTheme y home_<tema>.dart (Inicio por tema)
+    player/                         PlayerTheme y player_<tema>.dart (reproductor completo, sección 4)
+    right_panel/                    RightPanelTheme y right_panel_<tema>.dart (cola y aside)
+    mini_player/, friends_chat/     Un archivo por tema (<tema>_mini_player.dart, <tema>_chat.dart)
     home_music_page.dart            Inicio con datos reales y secciones musicales
     horizontal_music_row.dart       Carruseles con tacto, rueda y controles de escritorio
     dj_discovery_page.dart          Tarjetas del DJ, gestos y botones equivalentes
@@ -98,8 +109,17 @@ Las sesiones Jam, sus participantes, tokens y cola común permanecen en memoria.
 
 ## Motor de audio v1.1.0
 
-`InnertubeSource` busca en YouTube Music (canciones, álbumes, artistas, vídeos; continuación y recientes) y resuelve cada canción a su página oficial `music.youtube.com/watch?v=<id>`. `RoutedMusicAudio` envía esas páginas a `WebMusicAudio` (WebView oculto, ver [youtube_music_audio_engine.md](youtube_music_audio_engine.md)) y los archivos locales a `AndroidMusicAudio`/Media3 o `MusicAudio`/SoLoud + FFmpeg; yt-dlp solo descarga. El DJ (`lib/dj/ai_dj.dart`) guarda `track_vectors` y `taste_profile` en SQLite (drift) y no usa recomendaciones de YouTube; detalles en [dj.md](dj.md).
+`InnerTubeSource` busca en YouTube Music (canciones, álbumes, artistas, vídeos; continuación y recientes) y resuelve cada canción con `StreamOrchestrator` (endpoint `player`, cliente VISIONOS) a una URL de un proxy de bucle local (`AudioProxy`) que reproducen `AndroidMusicAudio`/Media3 o `RustMusicAudio` (Symphonia + CPAL); los archivos locales van directos al mismo motor. No hay reproductor web ni respaldo: si la resolución falla, se muestra el error de reproducción. yt-dlp solo descarga. Detalle en [youtube_music_audio_engine.md](youtube_music_audio_engine.md). El DJ (`lib/dj/ai_dj.dart`) guarda `track_vectors` y `taste_profile` en SQLite y no usa recomendaciones de YouTube; detalles en [dj.md](dj.md).
 
 Consulta [diseño implementado](design_idea_implementation.md),
 [DJ y sus señales](dj.md), [metadatos Spotify](spotify_metadata.md),
 [Jam](jam.md) y [firma/CI](ci_signing.md).
+
+## Temas por archivo
+
+`themeKindOf(context)` (`lib/theme/aurora_tokens.dart`) decide el tema; el shell,
+el inicio, el reproductor, el panel derecho, el mini reproductor y el chat eligen
+su implementación en un registro por `AuroraThemeKind`. Cada tema es dueño de sus
+archivos, así que cuatro personas pueden rediseñar a la vez sin tocarse. El modo
+letras (sección 6) queda fuera de cualquier chrome. Mapa y contratos:
+`docs/temas.md`.

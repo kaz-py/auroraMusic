@@ -5,8 +5,6 @@ import 'package:aurora_music/account/sync_service.dart';
 import 'package:aurora_music/account/sync_store.dart';
 import 'package:aurora_music/core/models.dart';
 import 'package:aurora_music/library/library_database.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -37,6 +35,8 @@ class FakeAvatarStorage implements AvatarStorage {
 class FakeRemote implements SyncRemote {
   final tables = <String, Map<String, Map<String, dynamic>>>{};
   int clock = 1000000;
+  int pullCalls = 0;
+  final pushedRows = <String, int>{};
   String _key(String t) => t == 'user_taste'
       ? 'user_id'
       : t == 'user_playlists'
@@ -49,6 +49,7 @@ class FakeRemote implements SyncRemote {
     String? since,
     int limit,
   ) async {
+    pullCalls++;
     final rows =
         (tables[table]?.values ?? [])
             .where(
@@ -76,6 +77,7 @@ class FakeRemote implements SyncRemote {
       isUtc: true,
     ).toIso8601String();
     final out = <Map<String, dynamic>>[];
+    pushedRows[table] = (pushedRows[table] ?? 0) + rows.length;
     for (final r in rows) {
       final key = table == 'user_taste' ? '1' : r[_key(table)] as String;
       tables.putIfAbsent(table, () => {})[key] = {
@@ -97,10 +99,11 @@ const trackA = Track(id: 'a', title: 'A', artist: 'X');
 const trackB = Track(id: 'b', title: 'B', artist: 'Y');
 
 Future<(LibraryDatabase, SyncService, FakeRemote, List<int>)> device(
-  FakeRemote remote,
-) async {
+  FakeRemote remote, {
+  DateTime Function()? clock,
+}) async {
   SharedPreferences.setMockInitialValues({});
-  final db = LibraryDatabase(NativeDatabase.memory());
+  final db = LibraryDatabase.memory();
   addTearDown(db.close);
   final pulled = <int>[];
   final sync = SyncService(
@@ -109,12 +112,12 @@ Future<(LibraryDatabase, SyncService, FakeRemote, List<int>)> device(
     preferences: await SharedPreferences.getInstance(),
     onPulled: () async => pulled.add(1),
     remote: remote,
+    clock: clock,
   );
   return (db, sync, remote, pulled);
 }
 
 void main() {
-  driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   group('validators', () {
     test('email', () {
       expect(validateEmail('a@b.co'), isNull);
@@ -200,6 +203,58 @@ void main() {
         {'old', 'only'},
       );
     });
+  });
+
+  group('sync: menos peticiones al servidor', () {
+    test(
+      'tras un cambio local solo se sube: no se vuelve a bajar todo',
+      () async {
+        final remote = FakeRemote();
+        final (db, sync, _, _) = await device(remote);
+        await db.saveTrack(trackA);
+        await db.setFavorite('a', true);
+        await sync.runSync('u1'); // ciclo completo: baja (4 tablas) y sube
+        final pullsAfterFull = remote.pullCalls;
+        expect(pullsAfterFull, greaterThan(0));
+
+        await db.saveTrack(trackB);
+        await db.setFavorite('b', true);
+        await sync.runSync(
+          'u1',
+          pull: false,
+        ); // lo que hace el aplazamiento de 30 s
+        expect(
+          remote.pullCalls,
+          pullsAfterFull,
+          reason: 'sin GET innecesarios',
+        );
+        expect(remote.tables['user_favorites']!.keys, containsAll(['a', 'b']));
+      },
+    );
+
+    test(
+      'el historial no se sube en cada reproducción, solo cada 10 min',
+      () async {
+        var now = DateTime(2026, 1, 1, 12);
+        final remote = FakeRemote();
+        final (db, sync, _, _) = await device(remote, clock: () => now);
+        await db.saveTrack(trackA);
+        await db.recordPlay('a');
+        await sync.runSync('u1'); // completo: sube el historial
+        final first = remote.pushedRows['user_history'] ?? 0;
+        expect(first, 1);
+
+        await db.saveTrack(trackB);
+        await db.recordPlay('b');
+        now = now.add(const Duration(minutes: 1));
+        await sync.runSync('u1', pull: false);
+        expect(remote.pushedRows['user_history'], first, reason: 'aún no toca');
+
+        now = now.add(const Duration(minutes: 11));
+        await sync.runSync('u1', pull: false);
+        expect(remote.pushedRows['user_history'], greaterThan(first));
+      },
+    );
   });
 
   group('sync', () {

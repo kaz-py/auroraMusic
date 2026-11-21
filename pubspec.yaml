@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.5.0+17
+version: 1.6.0-beta.10+29
 
 environment:
   sdk: ^3.10.7
@@ -34,13 +34,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   flutter_riverpod: ^3.3.2
-  drift: ^2.35.2
   path_provider: ^2.1.6
   path: ^1.9.1
   # La tubería IPC de Duvet en Windows (CreateFileW/WriteFile), ya transitiva.
   ffi: ^2.2.0
   file_picker: ^13.1.0
-  flutter_soloud: ^3.5.4
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   audio_service_win: ^0.0.3
@@ -49,12 +47,16 @@ dependencies:
   package_info_plus: ^10.2.2
   zxing2: 0.2.4
   mobile_scanner: 7.4.2
-  flutter_inappwebview: 6.1.5
   url_launcher: 6.3.2
-  adblocker_webview: 2.3.0
   # JAM remota: cliente puro Dart (sin plugins nativos ni deep links propios).
   supabase: 2.16.5
   flutter_secure_storage: ^11.2.0
+  # Motor Rust (rust/) expuesto con flutter_rust_bridge; la versión debe
+  # coincidir con flutter_rust_bridge_codegen y con rust/Cargo.toml.
+  flutter_rust_bridge: 2.13.0
+  rust_lib_aurora_music:
+    path: rust_builder
+  flutter_local_notifications: ^22.3.3
 
 dev_dependencies:
   integration_test:
@@ -100,6 +102,13 @@ flutter:
     - assets/fonts/plus_jakarta_sans/OFL.txt
     - assets/fonts/inter/OFL.txt
     - assets/fonts/bagel_fat_one/OFL.txt
+    - assets/fonts/fraunces/OFL.txt
+    - assets/fonts/dm_sans/OFL.txt
+    - assets/fonts/dm_mono/OFL.txt
+    - assets/fonts/manrope/OFL.txt
+    - assets/fonts/bricolage_grotesque/OFL.txt
+    - assets/fonts/ibm_plex_mono/OFL.txt
+    - assets/fonts/geist_mono/OFL.txt
 
   fonts:
     - family: Aurora Symbols
@@ -126,6 +135,56 @@ flutter:
     - family: Bagel Fat One
       fonts:
         - asset: assets/fonts/bagel_fat_one/BagelFatOne-Regular.ttf
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/fraunces/Fraunces-Variable.ttf
+          weight: 400
+          style: normal
+        - asset: assets/fonts/fraunces/Fraunces-Italic-Variable.ttf
+          weight: 400
+          style: italic
+    - family: DM Sans
+      fonts:
+        - asset: assets/fonts/dm_sans/DMSans-Variable.ttf
+          weight: 400
+          style: normal
+        - asset: assets/fonts/dm_sans/DMSans-Italic-Variable.ttf
+          weight: 400
+          style: italic
+    - family: DM Mono
+      fonts:
+        - asset: assets/fonts/dm_mono/DMMono-Regular.ttf
+          weight: 400
+          style: normal
+        - asset: assets/fonts/dm_mono/DMMono-Medium.ttf
+          weight: 500
+          style: normal
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/manrope/Manrope-Variable.ttf
+          weight: 400
+          style: normal
+    - family: Bricolage Grotesque
+      fonts:
+        - asset: assets/fonts/bricolage_grotesque/BricolageGrotesque-Variable.ttf
+          weight: 400
+          style: normal
+    - family: IBM Plex Mono
+      fonts:
+        - asset: assets/fonts/ibm_plex_mono/IBMPlexMono-Regular.ttf
+          weight: 400
+          style: normal
+        - asset: assets/fonts/ibm_plex_mono/IBMPlexMono-Medium.ttf
+          weight: 500
+          style: normal
+        - asset: assets/fonts/ibm_plex_mono/IBMPlexMono-SemiBold.ttf
+          weight: 600
+          style: normal
+    - family: Geist Mono
+      fonts:
+        - asset: assets/fonts/geist_mono/GeistMono-Variable.ttf
+          weight: 400
+          style: normal
 
   # To add assets to your application, add an assets section, like this:
   # assets:

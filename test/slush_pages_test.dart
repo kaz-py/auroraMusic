@@ -77,10 +77,10 @@ void main() {
 
       if (wide) {
         for (final (label, title) in const [
-          ('ARTISTAS', 'ARTISTAS'),
-          ('BUSCAR', 'BÚSQUEDA'),
-          ('DESCARGAS', 'DESCARGAS'),
-          ('BIBLIOTECA', 'BIBLIOTECA'),
+          ('Artistas', 'ARTISTAS'),
+          ('Búsqueda', 'BÚSQUEDA'),
+          ('Descargas', 'DESCARGAS'),
+          ('Biblioteca', 'BIBLIOTECA'),
         ]) {
           await go(find.text(label), title);
         }
@@ -90,7 +90,7 @@ void main() {
           'Buscar',
           'Biblioteca',
           'DJ',
-          'Jam',
+          'Más vistas',
         ]) {
           expect(find.byTooltip(tip), findsWidgets, reason: tip);
         }
@@ -111,14 +111,16 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('BÚSQUEDA').hitTestable(), findsNothing);
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byTooltip('Más vistas'));
         await tester.pumpAndSettle();
         await go(find.text('Descargas').last, 'DESCARGAS');
-        await go(find.byIcon(Icons.dark_mode_outlined), 'AJUSTES');
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byTooltip('Más vistas'));
+        await tester.pumpAndSettle();
+        await go(find.text('Ajustes').last, 'AJUSTES');
+        await tester.tap(find.byTooltip('Más vistas'));
         await tester.pumpAndSettle();
         await go(find.text('Descargar vídeos'), 'VÍDEOS');
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byTooltip('Más vistas'));
         await tester.pumpAndSettle();
         await go(find.text('Artistas'), 'ARTISTAS');
         // Subpantallas del reproductor en el teléfono: EQ+Cola.
@@ -126,7 +128,7 @@ void main() {
           ('Ecualizador', SlushEqQueue),
           ('Cola de reproducción', SlushEqQueue),
         ]) {
-          await tester.tap(find.byIcon(Icons.more_horiz));
+          await tester.tap(find.byTooltip('Más vistas').first);
           await tester.pumpAndSettle();
           await tester.tap(find.text(label).last);
           await tester.pumpAndSettle();
@@ -191,7 +193,7 @@ void main() {
           );
           await tester.pumpAndSettle();
           tester.takeException();
-          await tester.tap(find.text('BUSCAR').first);
+          await tester.tap(find.text('Búsqueda').first);
           await tester.pumpAndSettle();
           expect(find.text('BÚSQUEDA').hitTestable(), findsOneWidget);
           expect(find.byType(FollowButton), findsOneWidget);

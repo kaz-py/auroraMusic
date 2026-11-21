@@ -5,8 +5,9 @@ Reproductor de música en Flutter y Dart para **Windows x64, Linux x64 y Android
 ## Motor de audio
 
 - **Búsqueda** en YouTube Music vía InnerTube, sin clave de API ([`innertube_source.dart`](lib/sources/innertube_source.dart)): canciones, álbumes, artistas y vídeos, con paginación y navegación de álbum/artista.
-- **Reproducción nativa**: el audio de YouTube se resuelve por InnerTube y suena en el motor nativo (Android Media3, Windows SoLoud + FFmpeg) a través de un proxy local en `127.0.0.1` que pide trozos acotados al CDN ([`lib/sources/stream/`](lib/sources/stream/)). Sin tokens PO ni descifrado de firmas. Si YouTube bloquea, en Windows entra el reproductor oficial en un WebView oculto como respaldo.
-- **Ecualizador y espectro** en el motor nativo; un único motor activo a la vez ([`routed_music_audio.dart`](lib/audio/routed_music_audio.dart)).
+- **Reproducción nativa**: el audio de YouTube se resuelve por InnerTube y suena en el motor nativo (Android Media3; Windows y Linux, el motor Rust `aurora_playback` con Symphonia + CPAL) a través de un proxy local en `127.0.0.1` que pide trozos acotados al CDN ([`lib/sources/stream/`](lib/sources/stream/)). Sin tokens PO ni descifrado de firmas. Si YouTube bloquea una canción, se muestra el error de reproducción normal.
+- **Ecualizador y espectro** en el motor nativo.
+- **Avisos de amigos**: canciones, listas e invitaciones a una Jam llegan como notificación del sistema (Windows, Android, Linux) cuando Aurora está abierta pero no a la vista; con la app cerrada no llega nada (haría falta un servicio push).
 - **Controles del sistema** (notificación Media3 en Android, SMTC en Windows).
 - **yt-dlp** solo para descargas explícitas e importación de listas.
 - **La cola nunca termina**: cuando empieza la última canción, el DJ añade canciones según tus gustos (perfil local con vectores, MMR y enfriamiento por artista), con la radio de YouTube y Last.fm como fuentes de candidatos y tu biblioteca como respaldo ([docs/dj.md](docs/dj.md)).
@@ -17,7 +18,7 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 
 - Inicio, búsqueda, importación de enlaces/listas de YouTube y archivos locales.
 - Favoritos, playlists editables, historial y cola reordenable; aleatorio, repetición, volumen, avance y temporizador.
-- Importación gratuita de playlists de Spotify desde JSON/CSV local, con vista previa y elección explícita de la versión en YouTube; sin configurar claves de API.
+- Importación gratuita de playlists de Spotify desde JSON/CSV local o pegando el enlace de una playlist, álbum, artista o canción públicos (sin iniciar sesión; hasta 100 canciones por lista sin cuenta), con vista previa y elección explícita de la versión en YouTube; sin configurar claves de API. Lee la página pública de incrustación de Spotify, que no es una API estable: si cambia, la importación por enlace avisa y las demás vías siguen funcionando.
 - Búsqueda de canciones, artistas, álbumes y playlists de Spotify mediante el proveedor de metadatos adaptado de Nuclear, sin cuenta personal ni Premium.
 - Descargas locales MP3 con progreso, cancelación, reintento y eliminación; carpeta de destino configurable en Windows y biblioteca disponible sin conexión.
 - Interfaz Atelier Sonoro reconstruida en Flutter a partir de los originales de `diseñoidea/`: Newsreader normal e italic, Plus Jakarta Sans, símbolos locales y navegación adaptable.
@@ -27,6 +28,7 @@ Detalles y límites: [docs/youtube_music_audio_engine.md](docs/youtube_music_aud
 - Inicio con carruseles horizontales de datos reales; DJ de descubrimiento con gestos: izquierda omite, derecha guarda el favorito y encola.
 - **Para ti** recomienda según favoritos, listas y escuchas recientes. **DJ personal**, sin voz, continúa la cola con esas preferencias; las novedades de YouTube son opcionales y se consultan con límites visibles.
 - **Jam**: cola compartida en red local o en línea (Supabase), QR, permisos del anfitrión y reproducción sincronizada opcional con fuentes de audio propias.
+- **Servicios en línea desactivados temporalmente** (cuenta, amigos y Jam por internet, de Supabase): la Jam por red local (QR) y la transferencia de biblioteca por QR entre dispositivos de la misma red siguen funcionando. Ver [docs/servicios_en_linea.md](docs/servicios_en_linea.md).
 - Colores extraídos de la portada, ambiente reactivo a la energía y visualizador FFT del audio real.
 - Ecualizador DSP de ocho bandas, presets y reducción automática de ganancia para los refuerzos.
 - Controles multimedia del sistema, servicio de audio Android, pausa por desconexión e interrupciones de audio.
@@ -129,7 +131,13 @@ Si Windows impide crear los enlaces de plugins, ejecuta `./scripts/prepare_windo
 
 ### Linux
 
-Instalación, compilación, requisitos y diferencias con Windows: [docs/LINUX.md](docs/LINUX.md).
+Instalar con una línea (Debian/Ubuntu, Fedora, Arch, openSUSE; instala también las bibliotecas del sistema):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kaz-py/auroraMusic/rust-migration/scripts/linux/get.sh | bash
+```
+
+Instalación manual, compilación, requisitos y diferencias con Windows: [docs/LINUX.md](docs/LINUX.md).
 
 ### Herramientas Windows
 
@@ -139,7 +147,7 @@ Instalación, compilación, requisitos y diferencias con Windows: [docs/LINUX.md
 ./scripts/setup_tools.ps1
 ```
 
-Este comando permite prepararlas por separado. Descarga versiones oficiales verificadas de yt-dlp, Deno, FFmpeg y ffprobe en `tools/windows/`, junto a hashes, versiones y licencias. `scripts/windows_tools.lock.json` fija las versiones predeterminadas. **Ajustes → Herramientas** permite un diagnóstico o una carpeta personalizada. No se ejecutan herramientas encontradas arbitrariamente en `PATH`.
+Este comando permite prepararlas por separado. Descarga versiones oficiales verificadas de yt-dlp y Deno en `tools/windows/`, junto a hashes, versiones y licencias. `scripts/windows_tools.lock.json` fija las versiones predeterminadas. **Ajustes → Herramientas** permite un diagnóstico o una carpeta personalizada. No se ejecutan herramientas encontradas arbitrariamente en `PATH`.
 
 Android incorpora Python, JavaScript, yt-dlp y FFmpeg mediante `youtubedl-android` 0.18.1; no necesita instalar Python. Las primeras operaciones preparan esos componentes localmente.
 
@@ -202,12 +210,14 @@ ni contraseñas en el chat. El ZIP Windows no tiene firma Authenticode.
 
 ## Arquitectura y seguridad
 
-`lib/core/` define modelos y contratos; `lib/audio/` contiene SoLoud y controles
-del sistema; `lib/sources/` integra InnerTube (búsqueda) y yt-dlp (descargas); `lib/audio_web/` aloja el reproductor oficial oculto; `lib/metadata/spotify/` consulta
+`lib/core/` define modelos y contratos; `lib/audio/` contiene el motor de escritorio (Rust) y los controles
+del sistema; `lib/sources/` integra InnerTube (búsqueda) y yt-dlp (descargas); `lib/metadata/spotify/` consulta
 metadatos; `lib/dj/` puntúa recomendaciones y aplica filtros; `lib/jam/` mantiene
 sesiones LAN y audio temporal; `lib/ui/studio/` presenta el Atelier Sonoro; `lib/library/`
 persiste la biblioteca; `lib/ui/` presenta las pantallas. `AppController`
 coordina estado y reproducción. Consulta el [árbol de módulos](docs/architecture.md).
+
+`rust/` contiene el motor en Rust (base de datos, DJ local y poda de cachés) expuesto con `flutter_rust_bridge`; compilar la aplicación requiere [rustup](https://rustup.rs), CMake y LLVM/libclang (el motor de voz compila whisper.cpp; ver [docs/voice_commands.md](docs/voice_commands.md#pruebas-y-compilación)) (la versión se fija en `rust/rust-toolchain.toml`). `flutter test` carga la biblioteca compilada, así que antes hay que ejecutar `cargo build --release --manifest-path rust/Cargo.toml`. Las pruebas del motor se lanzan con `cargo test --manifest-path rust/Cargo.toml --workspace`. En escritorio el audio local y el proxy de YouTube se decodifican y mezclan en Rust (`aurora_playback`); SoLoud y FFmpeg ya no existen: un formato que Symphonia no maneja o la falta de dispositivo de salida son errores de carga con su motivo. Las descargas de escritorio conservan el audio tal como lo sirve YouTube (Opus en Ogg o M4A, sin recodificar). Los comandos de voz («Aurora, pausa…») están descritos en [docs/voice_commands.md](docs/voice_commands.md) y el control remoto para Stream Deck en [docs/stream_deck.md](docs/stream_deck.md). Estado y hoja de ruta de la migración: [MIGRATION_AUDIT.md](MIGRATION_AUDIT.md); lo que falta, en [MIGRATION_PENDIENTES.md](MIGRATION_PENDIENTES.md).
 
 Los procesos reciben argumentos separados, con plugins/configuración externa desactivados; entradas YouTube restringidas a HTTPS y hosts permitidos. TLS permanece verificado, salidas/colas/buffers tienen límites y las descargas se publican por renombrado desde archivos temporales. Los mensajes ocultan consultas firmadas, cookies y autorización. No se guardan URLs de reproducción temporales.
 

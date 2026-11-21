@@ -1,5 +1,29 @@
 import 'package:flutter/material.dart';
 
+/// Titular Slush 2.0: Bricolage Grotesque 800 con tracking -2 %. Sustituye a
+/// Bagel Fat One en todo lo que posee Slush.
+TextStyle slushHeadline(double size, {double height = 1.05, Color? color}) =>
+    TextStyle(
+      fontFamily: 'Bricolage Grotesque',
+      fontSize: size,
+      fontWeight: FontWeight.w800,
+      fontVariations: const [FontVariation('wght', 800)],
+      height: height,
+      letterSpacing: -size * .02,
+      color: color,
+    );
+
+/// Metadatos técnicos (atajos, DAC, FLAC): Geist Mono 600.
+TextStyle slushMono(double size, {Color? color, double letterSpacing = .3}) =>
+    TextStyle(
+      fontFamily: 'Geist Mono',
+      fontSize: size,
+      fontWeight: FontWeight.w600,
+      fontVariations: const [FontVariation('wght', 600)],
+      letterSpacing: letterSpacing,
+      color: color,
+    );
+
 /// Escala de espaciado (px). Margen de pantalla y hueco entre secciones por
 /// ancho: `SlushSpacing.margin(width)` / `SlushSpacing.sectionGap(width)`.
 abstract final class SlushSpacing {

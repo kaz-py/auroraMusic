@@ -29,7 +29,9 @@ enum ShortcutId {
   equalizer('Ecualizador'),
   sleep('Temporizador de sueño'),
   addToQueue('Añadir a la cola (fila enfocada)'),
-  addToJam('Añadir a la Jam (fila enfocada)');
+  addToJam('Añadir a la Jam (fila enfocada)'),
+  toggleSidebar('Plegar o desplegar el panel izquierdo'),
+  toggleAside('Ocultar o mostrar el panel derecho');
 
   const ShortcutId(this.label);
   final String label;
@@ -128,6 +130,15 @@ class ShortcutService extends ChangeNotifier {
       LogicalKeyboardKey.keyJ,
       control: true,
       shift: true,
+    ),
+    ShortcutId.toggleSidebar: SingleActivator(
+      LogicalKeyboardKey.keyB,
+      control: true,
+    ),
+    ShortcutId.toggleAside: SingleActivator(
+      LogicalKeyboardKey.keyB,
+      control: true,
+      alt: true,
     ),
   };
 

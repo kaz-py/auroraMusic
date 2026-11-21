@@ -1,0 +1,13 @@
+{
+  "name": "aurora-streamdeck",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plugin de Stream Deck para Aurora (no se publica en npm).",
+  "scripts": {
+    "test": "node --test test/",
+    "pack": "node scripts/pack.js"
+  },
+  "devDependencies": {
+    "ws": "^8.22.2"
+  }
+}

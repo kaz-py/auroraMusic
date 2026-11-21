@@ -1,34 +1,4 @@
-import 'dart:math' as math;
-
-double equalizerGain(double db) =>
-    math.pow(10, db.clamp(-12, 12) / 20).toDouble();
-
-double equalizerPreamp(List<double> gainsDb) {
-  final boost = gainsDb.take(8).fold(0.0, (peak, gain) => math.max(peak, gain));
-  return boost > 0 ? 0.9 / equalizerGain(boost) : 1;
-}
-
-/// Input-scoped network options; Schannel checks the Windows certificate store.
-/// Loopback http (AudioProxy) gets the timeout/reconnect options without TLS.
-List<String> ffmpegHttpsOptions(String input) {
-  final uri = Uri.tryParse(input);
-  final https = uri?.scheme == 'https';
-  if (!https && !(uri?.scheme == 'http' && uri?.host == '127.0.0.1')) {
-    return const [];
-  }
-  return [
-    if (https) ...['-tls_verify', '1'],
-    '-rw_timeout',
-    '15000000',
-    // Survive dropped connections while streaming instead of ending early.
-    '-reconnect',
-    '1',
-    '-reconnect_streamed',
-    '1',
-    '-reconnect_delay_max',
-    '5',
-  ];
-}
+import '../bridge/api/audio.dart' as rust;
 
 String redactAudioError(Object error) => '$error'
     .replaceAll(RegExp(r'https?://[^\s<>"\x27]+'), '[recurso remoto]')
@@ -44,16 +14,14 @@ bool isCompleteAudioStream({
   required Duration decoded,
   required Duration consumed,
   required Duration expected,
-}) =>
-    isPlaying &&
-    !isBuffering &&
-    cleanEof &&
-    decoded > Duration.zero &&
-    // The native mixer reports consumed time as float32, so allow one 1024
-    // frame mix block at 48 kHz (about 21.34 ms) for rounding and granularity.
-    consumed + const Duration(microseconds: 21334) >= decoded &&
-    (expected <= Duration.zero ||
-        decoded + const Duration(seconds: 1) >= expected);
+}) => rust.audioIsCompleteStream(
+  isPlaying: isPlaying,
+  isBuffering: isBuffering,
+  cleanEof: cleanEof,
+  decodedUs: decoded.inMicroseconds,
+  consumedUs: consumed.inMicroseconds,
+  expectedUs: expected.inMicroseconds,
+);
 
 bool shouldResumeAfterSeek({
   required int request,
@@ -62,17 +30,4 @@ bool shouldResumeAfterSeek({
 }) => request == latestRequest && playIntent;
 
 /// Log-frequency display bars from the native mixer's first 256 FFT bins.
-List<double> spectrumBars(List<double> fft) {
-  if (fft.length < 256) return List.filled(48, 0);
-  return List.generate(48, (index) {
-    final lo = math.pow(256, index / 48).floor().clamp(0, 255);
-    final hi = math
-        .max(lo + 1, math.pow(256, (index + 1) / 48).floor())
-        .clamp(1, 256);
-    var peak = 0.0;
-    for (var bin = lo; bin < hi; bin++) {
-      if (fft[bin].isFinite) peak = math.max(peak, fft[bin]);
-    }
-    return (math.log(1 + peak * 30) / math.log(31)).clamp(0, 1).toDouble();
-  });
-}
+List<double> spectrumBars(List<double> fft) => rust.audioSpectrumBars(fft: fft);
