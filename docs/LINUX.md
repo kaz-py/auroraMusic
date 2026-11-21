@@ -230,6 +230,37 @@ Qué cambió:
 - Con la ventana oculta, una tarea de limpieza de memoria podía reintentarse en bucle
   y dejar un núcleo al 100 %. Ahora se ejecuta en cuanto no hay fotogramas.
 
+### Portátiles con dos GPU (Intel/AMD + NVIDIA)
+
+En Wayland, libglvnd carga todos los drivers EGL instalados. Con el driver de NVIDIA
+eso mete en el proceso unos 115 MiB de bibliotecas de NVIDIA (y puede despertar la
+GPU dedicada) aunque Aurora dibuje con la integrada. Al arrancar, Aurora comprueba si
+hay una GPU que Mesa maneje por hardware (i915, xe, amdgpu, radeon o nouveau) y, si
+la hay, usa solo Mesa (`__EGL_VENDOR_LIBRARY_FILENAMES`) y quita
+`__GLX_VENDOR_LIBRARY_NAME` de su propio proceso. Esto no afecta a X11 ni a equipos
+que solo tienen NVIDIA.
+
+Medido el 21/11/2026 (Intel UHD + RTX 3050, niri, Modern, en reposo):
+
+| | RSS | PSS | Privada sucia | Bibliotecas NVIDIA |
+|---|---|---|---|---|
+| Antes | 411 MiB | 168 MiB | 91 MiB | 67 mapeos |
+| Ahora | 293 MiB | 157 MiB | 87 MiB | 0 |
+
+- `AURORA_GPU=default` deja que el sistema elija, como antes.
+- `AURORA_GPU=mesa` fuerza Mesa aunque no se detecte la integrada.
+- Si defines `__EGL_VENDOR_LIBRARY_FILENAMES` o `__EGL_VENDOR_LIBRARY_DIRS`, Aurora
+  respeta tu valor.
+
+Los monitores de sistema (btop, la barra, «Monitor del sistema») muestran la RSS, que
+incluye las bibliotecas compartidas con otros procesos. Lo que gasta Aurora de verdad
+es la memoria privada sucia: compárala con la columna «Memoria» del Administrador de
+tareas de Windows.
+
+Si abres Aurora desde el lanzador y no ves estos cambios, comprueba que no sea una
+instalación vieja en `~/.local/share/aurora-music`: reinstala con
+`scripts/linux/install.sh` desde el paquete nuevo.
+
 Para medir: `scripts/linux/measure_memory.sh` (memoria) y, para los fotogramas,
 `WAYLAND_DEBUG=client` contando las líneas `wl_surface.commit`.
 

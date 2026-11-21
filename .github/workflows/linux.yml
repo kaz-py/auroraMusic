@@ -44,3 +44,6 @@ jobs:
 
       - name: Probar el desinstalador
         run: bash scripts/linux/test_uninstall.sh
+
+      - name: Probar la selección de GPU de Linux
+        run: bash scripts/linux/test_gpu_select.sh
